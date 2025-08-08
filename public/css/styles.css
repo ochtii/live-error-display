@@ -379,6 +379,13 @@ body {
 }
 
 /* === FORM ELEMENTS === */
+.settings-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+}
+
 .form-group {
     margin-bottom: 1.5rem;
 }
@@ -388,6 +395,50 @@ body {
     margin-bottom: 0.5rem;
     font-weight: 500;
     color: var(--text-primary);
+}
+
+.range-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.range-slider {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.3);
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.range-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.range-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.range-value {
+    text-align: center;
+    font-weight: 600;
+    color: var(--primary);
+    font-size: 1.1rem;
 }
 
 .form-group input[type="number"] {
@@ -424,6 +475,26 @@ body {
     width: 1rem;
     height: 1rem;
     accent-color: var(--primary);
+}
+
+/* === LIVE INDICATOR === */
+.live-indicator {
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+}
+
+.live-indicator.live {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.live-indicator.manual {
+    background: rgba(148, 163, 184, 0.2);
+    color: var(--text-secondary);
+    border: 1px solid rgba(148, 163, 184, 0.3);
 }
 
 /* === STORAGE INFO === */
@@ -506,6 +577,11 @@ body {
     
     .storage-stats {
         grid-template-columns: 1fr;
+    }
+    
+    .settings-row {
+        grid-template-columns: 1fr;
+        gap: 1rem;
     }
 }
 

@@ -60,25 +60,48 @@
                         </div>
                     </div>
                     <form id="settingsForm" class="settings-body">
-                        <div class="form-group">
-                            <label for="archiveRetentionDays">Archiv-Aufbewahrung (Tage)</label>
-                            <input type="number" id="archiveRetentionDays" name="archiveRetentionDays" min="1" max="365" value="7">
-                            <small>Wie lange sollen Fehler im Archiv gespeichert werden?</small>
+                        <div class="settings-row">
+                            <div class="form-group">
+                                <label for="archiveRetentionDays">Archiv-Aufbewahrung</label>
+                                <div class="range-input-group">
+                                    <input type="range" id="archiveRetentionDays" name="archiveRetentionDays" min="1" max="30" value="7" class="range-slider">
+                                    <div class="range-value">
+                                        <span id="retentionValue">7</span> Tage
+                                    </div>
+                                </div>
+                                <small>Wie lange sollen Fehler im Archiv gespeichert werden?</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="maxArchiveItems">Maximale Einträge</label>
+                                <div class="range-input-group">
+                                    <input type="range" id="maxArchiveItems" name="maxArchiveItems" min="100" max="5000" step="100" value="1000" class="range-slider">
+                                    <div class="range-value">
+                                        <span id="maxItemsValue">1000</span> Einträge
+                                    </div>
+                                </div>
+                                <small>Maximale Anzahl von Fehlern im Archiv</small>
+                            </div>
                         </div>
                         
-                        <div class="form-group">
-                            <label for="maxArchiveItems">Maximale Archiv-Einträge</label>
-                            <input type="number" id="maxArchiveItems" name="maxArchiveItems" min="100" max="10000" value="1000">
-                            <small>Maximale Anzahl von Fehlern im Archiv</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="autoArchive" name="autoArchive" checked>
-                                <span class="checkmark"></span>
-                                Automatische Archivierung
-                            </label>
-                            <small>Fehler automatisch ins Archiv verschieben</small>
+                        <div class="settings-row">
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="autoArchive" name="autoArchive" checked>
+                                    <span class="checkmark"></span>
+                                    Automatische Archivierung
+                                </label>
+                                <small>Fehler automatisch ins Archiv verschieben</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="bufferOfflineErrors" name="bufferOfflineErrors" checked>
+                                    <span class="checkmark"></span>
+                                    Offline-Pufferung
+                                </label>
+                                <small>Empfangene Fehler zwischenspeichern wenn nicht im Live-Modus</small>
+                            </div>
                         </div>
                         
                         <div class="storage-info">

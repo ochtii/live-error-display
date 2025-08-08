@@ -3,6 +3,7 @@
 class ErrorDisplay {
     constructor() {
         this.errors = [];
+        this.bufferedErrors = []; // Errors received while not in live mode
         this.clients = 0;
         this.currentMode = 'live';
         this.eventSource = null;
@@ -14,13 +15,11 @@ class ErrorDisplay {
 
     // === INITIALIZATION === 
     init() {
-        console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🚀 Live Error Display v2.0 initializing...`);
         this.setupEventListeners();
         this.updateStats();
         this.connectSSE();
         this.setupModal();
         this.displayMode(this.currentMode);
-        console.log(`[${new Date().toLocaleTimeString('de-DE')}] ✅ Application initialized successfully`);
     }
 
     setupEventListeners() {
@@ -32,6 +31,15 @@ class ErrorDisplay {
         // Settings
         document.getElementById('saveSettings').addEventListener('click', () => this.saveSettings());
         document.getElementById('clearStorage').addEventListener('click', () => this.clearArchive());
+        
+        // Range slider updates
+        document.getElementById('archiveRetentionDays').addEventListener('input', (e) => {
+            document.getElementById('retentionValue').textContent = e.target.value;
+        });
+        
+        document.getElementById('maxArchiveItems').addEventListener('input', (e) => {
+            document.getElementById('maxItemsValue').textContent = e.target.value;
+        });
     }
 
     // === SETTINGS MANAGEMENT ===
@@ -39,7 +47,8 @@ class ErrorDisplay {
         const defaults = {
             archiveRetentionDays: 7,
             maxArchiveItems: 1000,
-            autoArchive: true
+            autoArchive: true,
+            bufferOfflineErrors: true
         };
         
         const saved = localStorage.getItem('errorDisplaySettings');
@@ -52,7 +61,8 @@ class ErrorDisplay {
         this.settings = {
             archiveRetentionDays: parseInt(formData.get('archiveRetentionDays')),
             maxArchiveItems: parseInt(formData.get('maxArchiveItems')),
-            autoArchive: formData.get('autoArchive') === 'on'
+            autoArchive: formData.get('autoArchive') === 'on',
+            bufferOfflineErrors: formData.get('bufferOfflineErrors') === 'on'
         };
         
         localStorage.setItem('errorDisplaySettings', JSON.stringify(this.settings));
@@ -74,13 +84,14 @@ class ErrorDisplay {
         return stored ? JSON.parse(stored) : [];
     }
 
-    saveToArchive(error) {
+    saveToArchive(error, isLive = false) {
         if (!this.settings.autoArchive) return;
         
         const archiveError = {
             ...error,
             archivedAt: new Date().toISOString(),
-            id: Date.now() + Math.random()
+            id: Date.now() + Math.random(),
+            isLive: isLive
         };
         
         this.archiveData.unshift(archiveError);
@@ -142,7 +153,6 @@ class ErrorDisplay {
 
     // === MODE SWITCHING ===
     switchMode(mode) {
-        console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔄 Switching to ${mode} mode`);
         this.currentMode = mode;
         
         // Update button states
@@ -162,6 +172,13 @@ class ErrorDisplay {
             document.getElementById('errorsContainer').style.display = 'flex';
             this.connectSSE();
             this.updateStatus('online');
+            
+            // Add buffered errors to live view
+            if (this.bufferedErrors.length > 0 && this.settings.bufferOfflineErrors) {
+                this.errors = [...this.bufferedErrors, ...this.errors];
+                this.bufferedErrors = [];
+            }
+            
             this.displayErrors(this.errors);
         } else if (mode === 'archive') {
             document.getElementById('errorsContainer').style.display = 'flex';
@@ -178,9 +195,17 @@ class ErrorDisplay {
 
     displaySettings() {
         // Populate form with current settings
-        document.getElementById('archiveRetentionDays').value = this.settings.archiveRetentionDays;
-        document.getElementById('maxArchiveItems').value = this.settings.maxArchiveItems;
+        const retentionSlider = document.getElementById('archiveRetentionDays');
+        const maxItemsSlider = document.getElementById('maxArchiveItems');
+        
+        retentionSlider.value = this.settings.archiveRetentionDays;
+        maxItemsSlider.value = this.settings.maxArchiveItems;
+        
+        document.getElementById('retentionValue').textContent = this.settings.archiveRetentionDays;
+        document.getElementById('maxItemsValue').textContent = this.settings.maxArchiveItems;
+        
         document.getElementById('autoArchive').checked = this.settings.autoArchive;
+        document.getElementById('bufferOfflineErrors').checked = this.settings.bufferOfflineErrors;
         
         this.updateStorageInfo();
     }
@@ -204,11 +229,15 @@ class ErrorDisplay {
         
         this.eventSource.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            console.log(`[${new Date().toLocaleTimeString('de-DE')}] 📨 SSE message received:`, data.type);
             
             if (data.type === 'error') {
-                this.addError(data.error);
-                this.saveToArchive(data.error);
+                if (this.currentMode === 'live') {
+                    this.addError(data.error, true); // Mark as live received
+                } else if (this.settings.bufferOfflineErrors) {
+                    // Buffer the error for later display
+                    this.bufferedErrors.unshift({...data.error, isLive: true, buffered: true});
+                }
+                this.saveToArchive(data.error, true);
             } else if (data.type === 'clients') {
                 this.clients = data.count;
                 this.updateStats();
@@ -216,7 +245,6 @@ class ErrorDisplay {
         };
         
         this.eventSource.onerror = () => {
-            console.log(`[${new Date().toLocaleTimeString('de-DE')}] ❌ SSE connection error - attempting reconnection in 5s`);
             this.updateStatus('offline');
             this.eventSource = null;
             
@@ -234,10 +262,11 @@ class ErrorDisplay {
     }
 
     // === ERROR HANDLING ===
-    addError(error) {
+    addError(error, isLive = false) {
         if (this.currentMode !== 'live') return;
         
-        this.errors.unshift(error);
+        const errorWithMeta = {...error, isLive: isLive};
+        this.errors.unshift(errorWithMeta);
         if (this.errors.length > 100) this.errors.pop();
         
         this.displayErrors(this.errors);
@@ -282,6 +311,10 @@ class ErrorDisplay {
             `🕒 ${new Date(error.archivedAt).toLocaleString('de-DE')} (archiviert)` :
             `🕒 ${error.timestamp}`;
         
+        // Live indicator
+        const liveIndicator = error.isLive ? '🔴 Live' : '📝 Manual';
+        const bufferedIndicator = error.buffered ? ' (📦 Gepuffert)' : '';
+        
         card.innerHTML = `
             <div class="error-header" onclick="this.parentElement.querySelector('.error-content').classList.toggle('open'); this.querySelector('.toggle-icon').classList.toggle('open')">
                 <div class="error-info">
@@ -289,6 +322,7 @@ class ErrorDisplay {
                     <div class="error-meta">
                         <span>${timestamp}</span>
                         <span>🌐 ${this.cleanIP(error.ip)}</span>
+                        <span class="live-indicator ${error.isLive ? 'live' : 'manual'}">${liveIndicator}${bufferedIndicator}</span>
                         ${isArchive ? '<span>📂 Archiviert</span>' : ''}
                     </div>
                 </div>
@@ -442,11 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Handle page visibility for SSE reconnection
 document.addEventListener('visibilitychange', () => {
-    const timestamp = new Date().toLocaleTimeString('de-DE');
     if (!document.hidden && window.errorDisplay) {
-        console.log(`[${timestamp}] 👁️ Page became visible - checking SSE connection`);
         window.errorDisplay.connectSSE();
-    } else {
-        console.log(`[${timestamp}] 🙈 Page became hidden`);
     }
 });
