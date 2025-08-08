@@ -50,34 +50,34 @@ ufw allow 22    # SSH
 ufw allow 8080  # Application
 ufw --force reload
 
-# 6. Clone repository to ubuntu user home
+# 6. Clone repository to /opt
 echo -e "${YELLOW}📥 Repository Setup...${NC}"
-if [[ ! -d "/home/ubuntu/live-error-display" ]]; then
-    cd /home/ubuntu
+if [[ ! -d "/opt/live-error-display" ]]; then
+    cd /opt
     git clone https://github.com/ochtii/live-error-display.git
-    chown -R ubuntu:ubuntu /home/ubuntu/live-error-display
-    echo "✅ Repository geklont nach /home/ubuntu/live-error-display"
+    chown -R root:root /opt/live-error-display
+    echo "✅ Repository geklont nach /opt/live-error-display"
 else
     echo "✅ Repository bereits vorhanden"
-    cd /home/ubuntu/live-error-display
-    chown -R ubuntu:ubuntu /home/ubuntu/live-error-display
-    sudo -u ubuntu git pull
+    cd /opt/live-error-display
+    chown -R root:root /opt/live-error-display
+    git pull
 fi
 
 # 7. Install NPM dependencies
 echo -e "${YELLOW}📦 Installiere NPM Dependencies...${NC}"
-cd /home/ubuntu/live-error-display
-sudo -u ubuntu npm install --production
+cd /opt/live-error-display
+npm install --production
 
-# 8. Setup PM2 as ubuntu user
-echo -e "${YELLOW}🎯 Starte PM2 App als ubuntu User...${NC}"
-sudo -u ubuntu pm2 kill 2>/dev/null || true
-sudo -u ubuntu NODE_ENV=production PORT=8080 pm2 start server.js --name live-error-display
-sudo -u ubuntu pm2 save
+# 8. Setup PM2 as root user
+echo -e "${YELLOW}🎯 Starte PM2 App als root User...${NC}"
+pm2 kill 2>/dev/null || true
+NODE_ENV=production PORT=8080 pm2 start server.js --name live-error-display
+pm2 save
 
 # 9. Setup PM2 to start on boot
 echo -e "${YELLOW}🔧 Konfiguriere PM2 Autostart...${NC}"
-sudo -u ubuntu pm2 startup | grep "sudo" | head -1 > /tmp/pm2_startup.sh
+pm2 startup | grep "sudo" | head -1 > /tmp/pm2_startup.sh
 if [[ -s /tmp/pm2_startup.sh ]]; then
     bash /tmp/pm2_startup.sh
     rm /tmp/pm2_startup.sh
@@ -95,15 +95,15 @@ fi
 echo -e "${GREEN}✅ Setup erfolgreich abgeschlossen!${NC}"
 echo ""
 echo -e "${BLUE}🎯 PM2 Status:${NC}"
-sudo -u ubuntu pm2 status
+pm2 status
 
 echo ""
 echo -e "${BLUE}📊 Nützliche Befehle:${NC}"
-echo "• sudo -u ubuntu pm2 status         # Status anzeigen"
-echo "• sudo -u ubuntu pm2 logs           # Logs anzeigen"
-echo "• sudo -u ubuntu pm2 restart all    # App neustarten"
-echo "• sudo -u ubuntu pm2 stop all       # App stoppen"
-echo "• sudo -u ubuntu pm2 monit          # Monitoring"
+echo "• pm2 status                    # Status anzeigen"
+echo "• pm2 logs                      # Logs anzeigen"
+echo "• pm2 restart all               # App neustarten"
+echo "• pm2 stop all                  # App stoppen"
+echo "• pm2 monit                     # Monitoring"
 
 echo ""
 echo -e "${BLUE}🚀 Anwendung verfügbar:${NC}"
@@ -112,5 +112,5 @@ echo "• Demo-Modus: AUS (NODE_ENV=production)"
 
 echo ""
 echo -e "${YELLOW}💡 Deploy-Skript für Auto-Updates:${NC}"
-echo "• sudo chmod +x deploy.sh"
-echo "• sudo ./deploy.sh"
+echo "• chmod +x deploy-ubuntu.sh"
+echo "• pm2 start deploy-ubuntu.sh --name live-error-display-deploy --interpreter bash -- monitor"
