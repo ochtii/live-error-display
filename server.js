@@ -356,9 +356,11 @@ class SessionManager {
     
     static saveSessionToDisk(session) {
         try {
+            console.log(`💾 Saving session to disk: ${session.name} (${session.token.substring(0, 8)}...)`);
             const sessionFile = path.join(SESSIONS_DIR, `${session.token}.json`);
             const encryptedSession = encryptData(session);
             fs.writeFileSync(sessionFile, encryptedSession);
+            console.log(`✅ Session saved to: ${sessionFile}`);
         } catch (error) {
             console.error('❌ Failed to save session to disk:', error.message);
         }
@@ -486,30 +488,52 @@ class SessionManager {
     static loadAllSavedSessions() {
         // Load all saved sessions from disk on server startup
         try {
+            console.log('🔍 Starting session loading process...');
+            console.log('📁 Sessions directory path:', SESSIONS_DIR);
+            console.log('📁 Directory exists:', fs.existsSync(SESSIONS_DIR));
+            
             if (!fs.existsSync(SESSIONS_DIR)) {
                 console.log('📁 Sessions directory does not exist, creating...');
                 fs.mkdirSync(SESSIONS_DIR, { recursive: true });
                 return;
             }
 
-            const sessionFiles = fs.readdirSync(SESSIONS_DIR).filter(file => file.endsWith('.json'));
-            console.log(`📂 Loading ${sessionFiles.length} saved sessions from disk...`);
+            const allFiles = fs.readdirSync(SESSIONS_DIR);
+            console.log('📂 All files in sessions directory:', allFiles);
+            
+            const sessionFiles = allFiles.filter(file => file.endsWith('.json'));
+            console.log(`📂 Found ${sessionFiles.length} JSON session files:`, sessionFiles);
 
+            if (sessionFiles.length === 0) {
+                console.log('📂 No session files found to load');
+                return;
+            }
+
+            let loadedCount = 0;
             for (const file of sessionFiles) {
                 try {
                     const token = file.replace('.json', '');
+                    console.log(`🔄 Loading session from file: ${file}, token: ${token.substring(0, 8)}...`);
+                    
                     const session = this.loadSessionFromDisk(token);
                     
                     if (session && session.isSaved) {
                         sessions.set(token, session);
-                        console.log(`✅ Loaded saved session: ${session.name} (${token.substring(0, 8)}...)`);
+                        loadedCount++;
+                        console.log(`✅ Loaded saved session: ${session.name} (${token.substring(0, 8)}...) - isSaved: ${session.isSaved}`);
+                    } else {
+                        console.log(`⚠️ Session not loaded - either failed to decrypt or not saved: ${file}`);
+                        if (session) {
+                            console.log(`   Session data: name=${session.name}, isSaved=${session.isSaved}`);
+                        }
                     }
                 } catch (error) {
                     console.error(`❌ Failed to load session from ${file}:`, error.message);
                 }
             }
 
-            console.log(`🎯 Successfully loaded ${sessions.size} saved sessions`);
+            console.log(`🎯 Successfully loaded ${loadedCount}/${sessionFiles.length} saved sessions`);
+            console.log(`📊 Total sessions in memory: ${sessions.size}`);
         } catch (error) {
             console.error('❌ Error loading saved sessions:', error.message);
         }
@@ -1006,6 +1030,8 @@ app.delete('/errors', (req, res) => {
 setInterval(cleanupStaleConnections, 5 * 60 * 1000);
 
 // Load existing sessions on startup
+console.log('🔄 Starting session loading process...');
+console.log('📁 Sessions directory:', SESSIONS_DIR);
 SessionManager.loadAllSavedSessions();
 
 app.listen(PORT, () => {
