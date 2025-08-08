@@ -364,7 +364,7 @@ body {
 }
 
 /* === SETTINGS MODAL === */
-.modal {
+.modal-overlay {
     display: none;
     position: fixed;
     top: 0;
@@ -376,7 +376,7 @@ body {
     z-index: 1000;
 }
 
-.modal.show {
+.modal-overlay.show {
     display: flex;
     align-items: center;
     justify-content: center;
