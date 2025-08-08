@@ -1804,9 +1804,9 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                         <input type="text" id="saveSessionName" value="${this.currentSession.name}" class="session-input">
                     </div>
                     <div class="input-group">
-                        <label>Passwort für gespeicherte Session (optional)</label>
-                        <input type="password" id="saveSessionPassword" placeholder="Passwort (leer = kein Passwort)" class="session-input">
-                        <small class="input-hint">💡 Dieses Passwort wird für die gespeicherte Session verwendet</small>
+                        <label>Passwort für gespeicherte Session *</label>
+                        <input type="password" id="saveSessionPassword" placeholder="Sicheres Passwort eingeben" class="session-input" required>
+                        <small class="input-hint">� Passwort ist erforderlich (min. 4 Zeichen)</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1820,10 +1820,20 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     
     confirmSaveSession() {
         const name = document.getElementById('saveSessionName').value.trim();
-        const password = document.getElementById('saveSessionPassword').value;
+        const password = document.getElementById('saveSessionPassword').value.trim();
         
         if (!name) {
             this.showNotification('Bitte Session Name eingeben', 'warning');
+            return;
+        }
+        
+        if (!password) {
+            this.showNotification('Passwort ist erforderlich für gespeicherte Sessions', 'warning');
+            return;
+        }
+        
+        if (password.length < 4) {
+            this.showNotification('Passwort muss mindestens 4 Zeichen lang sein', 'warning');
             return;
         }
         
@@ -2004,6 +2014,21 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         
         // Update all UI elements
         this.updateStats();
+        this.updateSessionDisplay();
+        
+        // Enable all controls that were disabled
+        const controls = document.querySelector('.controls');
+        if (controls) {
+            controls.querySelectorAll('.btn').forEach(btn => {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            });
+        }
+        
+        // Force a complete UI refresh
+        setTimeout(() => {
+            this.displayMode(this.currentMode);
+        }, 100);
     }
     
     async loadSessionArchive() {
@@ -2179,8 +2204,13 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                         <button class="btn btn-success" onclick="window.errorDisplay.switchMode('live')">
                             📡 Zu Live-View
                         </button>
+                        ${this.currentSession.isSaved ? 
+                            `<button class="btn btn-warning" onclick="window.errorDisplay.confirmDeleteCurrentSession()">
+                                🗑️ Session löschen
+                            </button>` : ''
+                        }
                         <button class="btn btn-danger" onclick="window.errorDisplay.clearSession()">
-                            ❌ Session beenden
+                            ${this.currentSession.isSaved ? '🔚 Session beenden' : '❌ Session beenden'}
                         </button>
                     </div>
                 </div>
@@ -2381,6 +2411,73 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         if (this.currentSession && !this.currentSession.isSaved) {
             this.currentSession.lastAccessed = new Date().toISOString();
             localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+        }
+    }
+
+    confirmDeleteCurrentSession() {
+        if (!this.currentSession || !this.currentSession.isSaved) {
+            return;
+        }
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>⚠️ Session löschen</h2>
+                    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Sind Sie sicher, dass Sie die Session "${this.currentSession.name}" dauerhaft löschen möchten?</strong></p>
+                    <p>⚠️ Diese Aktion kann nicht rückgängig gemacht werden!</p>
+                    <p>Alle gespeicherten Daten und Archiveinträge gehen verloren.</p>
+                    <div class="input-group">
+                        <label>Zur Bestätigung geben Sie "LÖSCHEN" ein:</label>
+                        <input type="text" id="deleteConfirmInput" placeholder="LÖSCHEN" class="session-input">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Abbrechen</button>
+                    <button class="btn btn-danger" onclick="window.errorDisplay.executeDeleteCurrentSession()">Unwiderruflich löschen</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    async executeDeleteCurrentSession() {
+        const confirmInput = document.getElementById('deleteConfirmInput');
+        if (!confirmInput || confirmInput.value !== 'LÖSCHEN') {
+            this.showNotification('Bitte "LÖSCHEN" eingeben zur Bestätigung', 'warning');
+            return;
+        }
+
+        if (!this.currentSession || !this.currentSession.isSaved) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${this.serverUrl}/api/session/${this.currentSession.token}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                this.showNotification(`Session "${this.currentSession.name}" wurde dauerhaft gelöscht`, 'success');
+                
+                // Clear current session
+                this.clearSession();
+                
+                // Close modal
+                document.querySelector('.modal-overlay').remove();
+                
+                // Refresh saved sessions list
+                this.loadSavedSessionsInline();
+            } else {
+                this.showNotification('Fehler beim Löschen der Session', 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting session:', error);
+            this.showNotification('Verbindungsfehler beim Löschen', 'error');
         }
     }
 

@@ -482,6 +482,38 @@ class SessionManager {
         
         return savedSessions;
     }
+
+    static loadAllSavedSessions() {
+        // Load all saved sessions from disk on server startup
+        try {
+            if (!fs.existsSync(SESSIONS_DIR)) {
+                console.log('📁 Sessions directory does not exist, creating...');
+                fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+                return;
+            }
+
+            const sessionFiles = fs.readdirSync(SESSIONS_DIR).filter(file => file.endsWith('.json'));
+            console.log(`📂 Loading ${sessionFiles.length} saved sessions from disk...`);
+
+            for (const file of sessionFiles) {
+                try {
+                    const token = file.replace('.json', '');
+                    const session = this.loadSessionFromDisk(token);
+                    
+                    if (session && session.isSaved) {
+                        sessions.set(token, session);
+                        console.log(`✅ Loaded saved session: ${session.name} (${token.substring(0, 8)}...)`);
+                    }
+                } catch (error) {
+                    console.error(`❌ Failed to load session from ${file}:`, error.message);
+                }
+            }
+
+            console.log(`🎯 Successfully loaded ${sessions.size} saved sessions`);
+        } catch (error) {
+            console.error('❌ Error loading saved sessions:', error.message);
+        }
+    }
 }
 
 // Clean up stale connections
@@ -963,7 +995,7 @@ app.delete('/errors', (req, res) => {
 setInterval(cleanupStaleConnections, 5 * 60 * 1000);
 
 // Load existing sessions on startup
-SessionManager.loadAllSessionsFromDisk();
+SessionManager.loadAllSavedSessions();
 
 app.listen(PORT, () => {
     console.log(`🚀 Live Error Display Server running on port ${PORT}`);
