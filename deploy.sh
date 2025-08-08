@@ -93,7 +93,32 @@ setup_repository() {
     sudo -u www-data git config user.email "deploy@live-error-display"
     sudo -u www-data git config user.name "Auto Deploy"
     
+    # Ensure remote is properly set
+    if ! sudo -u www-data git remote get-url origin >/dev/null 2>&1; then
+        log "Setting up remote origin..."
+        sudo -u www-data git remote add origin "$REPO_URL"
+    else
+        log "Updating remote URL..."
+        sudo -u www-data git remote set-url origin "$REPO_URL"
+    fi
+    
+    # Ensure we're on main branch and tracking origin/main
+    local current_branch=$(sudo -u www-data git branch --show-current 2>/dev/null || echo "")
+    if [[ "$current_branch" != "main" ]]; then
+        log "Switching to main branch..."
+        sudo -u www-data git checkout -B main 2>/dev/null || sudo -u www-data git checkout main
+    fi
+    
+    # Set up tracking
+    sudo -u www-data git branch --set-upstream-to=origin/main main 2>/dev/null || true
+    
+    # Initial fetch
+    log "Performing initial fetch..."
+    sudo -u www-data git fetch origin main 2>&1 | tee -a "$LOG_FILE" || log "Initial fetch failed"
+    
     log "Repository Setup abgeschlossen - Owner: $(stat -c '%U:%G' "$REPO_DIR")"
+    log "Current branch: $(sudo -u www-data git branch --show-current)"
+    log "Remote URL: $(sudo -u www-data git remote get-url origin)"
 }
 
 install_dependencies() {
@@ -131,28 +156,34 @@ deploy() {
     cd "$REPO_DIR"
     
     # Ensure clean working directory
-    sudo -u www-data git status --porcelain | while read -r line; do
-        if [[ -n "$line" ]]; then
-            log "Bereinige Working Directory: $line"
-            sudo -u www-data git checkout -- . 2>/dev/null || true
-            sudo -u www-data git clean -fd 2>/dev/null || true
-            break
-        fi
-    done
+    if [[ -n "$(sudo -u www-data git status --porcelain 2>/dev/null)" ]]; then
+        log "Bereinige Working Directory..."
+        sudo -u www-data git checkout -- . 2>/dev/null || true
+        sudo -u www-data git clean -fd 2>/dev/null || true
+    fi
     
     local current_commit=$(sudo -u www-data git rev-parse HEAD 2>/dev/null || echo "unknown")
+    log "Aktueller lokaler Commit: ${current_commit:0:7}"
     
-    # Fetch remote changes (silent)
-    sudo -u www-data git fetch origin main >/dev/null 2>&1 || {
-        # Nur loggen wenn es häufiger fehlschlägt
+    # Force fetch with explicit refspec
+    log "Fetching remote changes..."
+    if sudo -u www-data git fetch origin main:refs/remotes/origin/main --force 2>&1 | tee -a "$LOG_FILE"; then
+        log "Git fetch erfolgreich"
+    else
+        log "WARNUNG: Git fetch fehlgeschlagen"
         return 1
-    }
+    fi
     
-    local remote_commit=$(sudo -u www-data git rev-parse origin/main 2>/dev/null || echo "unknown")
+    local remote_commit=$(sudo -u www-data git rev-parse refs/remotes/origin/main 2>/dev/null || echo "unknown")
+    log "Remote Commit: ${remote_commit:0:7}"
     
-    if [[ "$current_commit" != "$remote_commit" ]]; then
-        echo -e "${YELLOW}🔄 Update erkannt: ${current_commit:0:7} → ${remote_commit:0:7}${NC}"
-        log "Update erkannt: ${current_commit:0:7} → ${remote_commit:0:7}"
+    # Additional checks for change detection
+    local commits_behind=$(sudo -u www-data git rev-list --count HEAD..refs/remotes/origin/main 2>/dev/null || echo "0")
+    log "Commits behind remote: $commits_behind"
+    
+    if [[ "$current_commit" != "$remote_commit" ]] || [[ "$commits_behind" -gt 0 ]]; then
+        echo -e "${YELLOW}🔄 Update erkannt: ${current_commit:0:7} → ${remote_commit:0:7} ($commits_behind commits behind)${NC}"
+        log "Update erkannt: ${current_commit:0:7} → ${remote_commit:0:7} ($commits_behind commits)"
         
         # Log current status before update
         log "Vor Update - Aktueller Branch: $(sudo -u www-data git branch --show-current)"
@@ -225,6 +256,35 @@ deploy() {
 }
 
 # === MAIN ===
+test_git_detection() {
+    echo -e "${BLUE}🧪 Testing Git Change Detection${NC}"
+    cd "$REPO_DIR"
+    
+    local current_commit=$(sudo -u www-data git rev-parse HEAD 2>/dev/null || echo "unknown")
+    echo "Current local commit: ${current_commit:0:7}"
+    
+    echo "Fetching remote..."
+    sudo -u www-data git fetch origin main 2>&1
+    
+    local remote_commit=$(sudo -u www-data git rev-parse refs/remotes/origin/main 2>/dev/null || echo "unknown")
+    echo "Remote commit: ${remote_commit:0:7}"
+    
+    local commits_behind=$(sudo -u www-data git rev-list --count HEAD..refs/remotes/origin/main 2>/dev/null || echo "0")
+    echo "Commits behind: $commits_behind"
+    
+    echo "Recent remote commits:"
+    sudo -u www-data git log --oneline -5 refs/remotes/origin/main 2>/dev/null || echo "No remote commits found"
+    
+    echo "Git status:"
+    sudo -u www-data git status --porcelain
+    
+    if [[ "$current_commit" != "$remote_commit" ]] || [[ "$commits_behind" -gt 0 ]]; then
+        echo -e "${GREEN}✅ Changes detected!${NC}"
+    else
+        echo -e "${YELLOW}⚠️ No changes detected${NC}"
+    fi
+}
+
 main() {
     # Signal handlers
     trap cleanup EXIT INT TERM
@@ -255,17 +315,29 @@ main() {
     
     local check_count=0
     local last_status_time=0
+    local last_debug_time=0
     
     while true; do
         if deploy; then
             check_count=0
         else
             ((check_count++))
+            
             # Status nur alle 5 Minuten ausgeben (300 Sekunden)
             local current_time=$(date +%s)
             if (( current_time - last_status_time >= 300 )); then
                 echo -e "${BLUE}📊 Status: Aktiv (${check_count} Checks seit letztem Update)${NC}"
                 last_status_time=$current_time
+            fi
+            
+            # Debug-Info alle 10 Minuten (600 Sekunden)
+            if (( current_time - last_debug_time >= 600 )); then
+                cd "$REPO_DIR"
+                local current_commit=$(sudo -u www-data git rev-parse HEAD 2>/dev/null || echo "unknown")
+                local remote_commit=$(sudo -u www-data git rev-parse refs/remotes/origin/main 2>/dev/null || echo "unknown")
+                log "Debug - Local: ${current_commit:0:7}, Remote: ${remote_commit:0:7}"
+                log "Debug - Last fetch: $(sudo -u www-data git log -1 --format='%H %s' refs/remotes/origin/main 2>/dev/null || echo 'unknown')"
+                last_debug_time=$current_time
             fi
         fi
         
@@ -274,4 +346,12 @@ main() {
 }
 
 # Start
+if [[ "${1:-}" == "test" ]]; then
+    echo -e "${BLUE}🧪 Running in test mode${NC}"
+    check_prerequisites
+    setup_repository
+    test_git_detection
+    exit 0
+fi
+
 main "$@"
