@@ -26,13 +26,21 @@ function addError(error) {
     if (errors.length > 100) errors.pop();
     
     // Send to all SSE clients
+    let successCount = 0;
+    let failCount = 0;
+    
     clients.forEach(client => {
         try {
             client.write(`data: ${JSON.stringify({type: 'error', error: errorData})}\n\n`);
+            successCount++;
         } catch (e) {
-            console.log('Client disconnected');
+            console.log('Client disconnected during error broadcast');
+            failCount++;
         }
     });
+    
+    // Log the request result
+    console.log(`📨 Received request from ${errorData.ip}: sent to ${clients.length} browser(s) (✅ ${successCount} erfolg, ❌ ${failCount} fehlgeschlagen)`);
     
     return errorData;
 }
@@ -130,9 +138,12 @@ app.get('/fileinfo', (req, res) => {
 
 // Add new error (for testing)
 app.post('/error', (req, res) => {
+    const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+    console.log(`🔥 Error request received from ${clientIp}`);
+    
     const errorData = addError({
         message: req.body.message || 'Test Error',
-        ip: req.ip || req.connection.remoteAddress
+        ip: clientIp
     });
     res.json(errorData);
 });

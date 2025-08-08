@@ -14,11 +14,13 @@ class ErrorDisplay {
 
     // === INITIALIZATION === 
     init() {
+        console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🚀 Live Error Display v2.0 initializing...`);
         this.setupEventListeners();
         this.updateStats();
         this.connectSSE();
         this.setupModal();
         this.displayMode(this.currentMode);
+        console.log(`[${new Date().toLocaleTimeString('de-DE')}] ✅ Application initialized successfully`);
     }
 
     setupEventListeners() {
@@ -140,6 +142,7 @@ class ErrorDisplay {
 
     // === MODE SWITCHING ===
     switchMode(mode) {
+        console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔄 Switching to ${mode} mode`);
         this.currentMode = mode;
         
         // Update button states
@@ -191,15 +194,17 @@ class ErrorDisplay {
     connectSSE() {
         if (this.eventSource) return;
         
+        console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔌 Attempting SSE connection...`);
         this.eventSource = new EventSource('/events');
         
         this.eventSource.onopen = () => {
-            console.log('SSE connected');
+            console.log(`[${new Date().toLocaleTimeString('de-DE')}] ✅ SSE connected successfully`);
             this.updateStatus('online');
         };
         
         this.eventSource.onmessage = (event) => {
             const data = JSON.parse(event.data);
+            console.log(`[${new Date().toLocaleTimeString('de-DE')}] 📨 SSE message received:`, data.type);
             
             if (data.type === 'error') {
                 this.addError(data.error);
@@ -211,7 +216,7 @@ class ErrorDisplay {
         };
         
         this.eventSource.onerror = () => {
-            console.log('SSE connection error');
+            console.log(`[${new Date().toLocaleTimeString('de-DE')}] ❌ SSE connection error - attempting reconnection in 5s`);
             this.updateStatus('offline');
             this.eventSource = null;
             
@@ -222,6 +227,7 @@ class ErrorDisplay {
 
     disconnectSSE() {
         if (this.eventSource) {
+            console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔌 SSE connection closed`);
             this.eventSource.close();
             this.eventSource = null;
         }
@@ -436,7 +442,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Handle page visibility for SSE reconnection
 document.addEventListener('visibilitychange', () => {
+    const timestamp = new Date().toLocaleTimeString('de-DE');
     if (!document.hidden && window.errorDisplay) {
+        console.log(`[${timestamp}] 👁️ Page became visible - checking SSE connection`);
         window.errorDisplay.connectSSE();
+    } else {
+        console.log(`[${timestamp}] 🙈 Page became hidden`);
     }
 });
