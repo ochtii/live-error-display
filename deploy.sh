@@ -40,37 +40,29 @@ check_prerequisites() {
     command -v git >/dev/null 2>&1 || error_exit "Git ist nicht installiert"
     command -v node >/dev/null 2>&1 || error_exit "Node.js ist nicht installiert"
     command -v npm >/dev/null 2>&1 || error_exit "npm ist nicht installiert"
+    command -v pm2 >/dev/null 2>&1 || error_exit "PM2 ist nicht installiert. Installieren Sie es mit: npm install -g pm2"
     
     [[ $EUID -eq 0 ]] || error_exit "Skript muss als root ausgeführt werden"
 }
 
-create_systemd_service() {
-    local service_file="/etc/systemd/system/$SERVICE_NAME.service"
-    
-    if [[ ! -f "$service_file" ]]; then
-        log "Erstelle systemd Service..."
-        cat > "$service_file" <<EOF
-[Unit]
-Description=Live Error Display Server
-After=network.target
-
-[Service]
-Type=simple
-User=www-data
-Group=www-data
-WorkingDirectory=$REPO_DIR
-ExecStart=/usr/bin/node server.js
-Restart=always
-RestartSec=3
-Environment=NODE_ENV=production
-Environment=PORT=8080
-
-[Install]
-WantedBy=multi-user.target
-EOF
-        systemctl daemon-reload
-        systemctl enable "$SERVICE_NAME"
-        log "Systemd Service erstellt und aktiviert"
+check_pm2_app() {
+    # Check if the PM2 app exists and is configured
+    if sudo -u www-data pm2 describe live-error-display >/dev/null 2>&1; then
+        log "PM2 App 'live-error-display' ist bereits konfiguriert"
+        return 0
+    else
+        log "PM2 App wird gestartet..."
+        cd "$REPO_DIR"
+        if [[ -f "ecosystem.config.json" ]]; then
+            sudo -u www-data pm2 start ecosystem.config.json 2>&1 | tee -a "$LOG_FILE"
+            sudo -u www-data pm2 save
+            log "PM2 App gestartet und gespeichert"
+        else
+            log "WARNUNG: ecosystem.config.json nicht gefunden, starte server.js direkt"
+            sudo -u www-data pm2 start server.js --name live-error-display 2>&1 | tee -a "$LOG_FILE"
+            sudo -u www-data pm2 save
+        fi
+        return 0
     fi
 }
 
@@ -138,16 +130,34 @@ update_dependencies() {
 }
 
 restart_service() {
-    log "Starte Service neu..."
-    systemctl restart "$SERVICE_NAME"
+    log "Starte Service über PM2 neu..."
+    
+    # Check if PM2 is available
+    if ! command -v pm2 >/dev/null 2>&1; then
+        log "FEHLER: PM2 ist nicht installiert"
+        return 1
+    fi
+    
+    # Restart the app via PM2
+    sudo -u www-data pm2 restart live-error-display 2>&1 | tee -a "$LOG_FILE"
     sleep 3
     
-    if systemctl is-active --quiet "$SERVICE_NAME"; then
-        log "✓ Service erfolgreich gestartet"
-        return 0
+    # Check if the app is running
+    if sudo -u www-data pm2 describe live-error-display | grep -q "online"; then
+        log "✓ Service erfolgreich via PM2 gestartet"
+        
+        # Additional check: verify HTTP response
+        sleep 2
+        if curl -s --connect-timeout 5 http://localhost:8080 >/dev/null 2>&1; then
+            log "✓ Service antwortet auf Port 8080"
+            return 0
+        else
+            log "⚠ Service läuft, aber antwortet nicht auf Port 8080"
+            return 1
+        fi
     else
-        log "✗ Service-Start fehlgeschlagen"
-        systemctl status "$SERVICE_NAME" --no-pager
+        log "✗ Service-Start über PM2 fehlgeschlagen"
+        sudo -u www-data pm2 describe live-error-display | tee -a "$LOG_FILE"
         return 1
     fi
 }
@@ -301,12 +311,15 @@ main() {
     # Setup
     check_prerequisites
     setup_repository
-    create_systemd_service
+    check_pm2_app
     install_dependencies
     
-    # Initial service start
-    if ! systemctl is-active --quiet "$SERVICE_NAME"; then
+    # Initial service check and start if needed
+    if ! sudo -u www-data pm2 describe live-error-display | grep -q "online" 2>/dev/null; then
+        log "Starte PM2 App initial..."
         restart_service
+    else
+        log "PM2 App läuft bereits"
     fi
     
     echo -e "${GREEN}📡 Überwachung aktiv - prüfe alle ${CHECK_INTERVAL}s auf Updates${NC}"

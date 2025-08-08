@@ -68,19 +68,22 @@ sudo apt update && sudo apt upgrade -y
 curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo bash -
 sudo apt install -y nodejs git
 
-# 2. Repository klonen
+# 2. PM2 global installieren
+sudo npm install -g pm2
+
+# 3. Repository klonen
 sudo git clone https://github.com/ochtii/live-error-display.git /opt/live-error-display
 cd /opt/live-error-display
 
-# 3. Dependencies installieren
+# 4. Dependencies installieren
 sudo npm install --production
 
-# 4. Service erstellen
-sudo cp live-error-display.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable live-error-display
+# 5. PM2 App starten
+sudo -u www-data pm2 start ecosystem.config.json
+sudo -u www-data pm2 save
+sudo pm2 startup
 
-# 5. Auto-Deploy starten
+# 6. Auto-Deploy starten
 sudo chmod +x deploy.sh
 sudo ./deploy.sh
 ```
@@ -117,44 +120,50 @@ CHECK_INTERVAL=1                       # Prüfintervall in Sekunden
 SERVICE_NAME="live-error-display"     # Service-Name
 ```
 
-## 📝 Systemd Services
+## 📝 PM2 Process Management
 
 ### Live Error Display App
 ```bash
-sudo systemctl status live-error-display      # Status
-sudo systemctl restart live-error-display     # Neustart
-sudo systemctl stop live-error-display        # Stoppen
+sudo -u www-data pm2 status live-error-display    # Status
+sudo -u www-data pm2 restart live-error-display   # Neustart
+sudo -u www-data pm2 stop live-error-display      # Stoppen
+sudo -u www-data pm2 logs live-error-display      # Logs anzeigen
 ```
 
-### Auto-Deploy Service
+### PM2 Startup (System-Boot)
 ```bash
-sudo systemctl status live-error-display-deploy   # Status
-sudo systemctl stop live-error-display-deploy     # Stoppen
-sudo systemctl start live-error-display-deploy    # Starten
+# PM2 beim Systemstart aktivieren
+sudo pm2 startup
+sudo -u www-data pm2 save
+
+# PM2 Startup deaktivieren
+sudo pm2 unstartup
 ```
 
 ## 📊 Monitoring & Logs
 
 ### Anwendungs-Logs
 ```bash
-# Live App-Logs
-sudo journalctl -u live-error-display -f
+# Live App-Logs via PM2
+sudo -u www-data pm2 logs live-error-display
 
 # Deploy-Logs
 tail -f /var/log/live-error-display-deploy.log
 
-# System-Logs
-sudo journalctl -u live-error-display-deploy -f
+# PM2 Monitoring
+sudo -u www-data pm2 monit
 ```
 
 ### Fehlerdiagnose
 ```bash
-# Service-Status prüfen
-sudo systemctl is-active live-error-display
-sudo systemctl is-enabled live-error-display
+# PM2 Status prüfen
+sudo -u www-data pm2 describe live-error-display
 
 # Port-Verfügbarkeit prüfen
 sudo netstat -tlnp | grep :8080
+
+# PM2 Prozess neu starten
+sudo -u www-data pm2 reload live-error-display
 
 # Lock-Datei entfernen (falls Deploy hängt)
 sudo rm -f /tmp/live-error-display-deploy.lock
