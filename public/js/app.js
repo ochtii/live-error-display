@@ -383,8 +383,20 @@ class ErrorDisplay {
             
             if (response.ok) {
                 const data = await response.json();
-                this.errors = data.errors || [];
-                console.log(`📊 Loaded ${this.errors.length} session-specific errors`);
+                const now = Date.now();
+                const liveErrors = [];
+                const archiveErrors = [];
+                (data.errors || []).forEach(err => {
+                    const ts = new Date(err.timestamp || err.time || err.date || now).getTime();
+                    if (now - ts < 10 * 60 * 1000) {
+                        liveErrors.push(err);
+                    } else {
+                        archiveErrors.push(err);
+                    }
+                });
+                this.errors = liveErrors;
+                archiveErrors.forEach(e => this.saveToArchive(e, false));
+                console.log(`📊 Loaded ${liveErrors.length} live errors, ${archiveErrors.length} archived errors`);
             } else if (response.status === 401) {
                 console.error('❌ Invalid session token for loading errors');
                 this.showNotification('Session ungültig - bitte neue Session erstellen', 'error');
@@ -1868,7 +1880,8 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 body: JSON.stringify({
                     name: this.currentSession.name,
                     password: password || null,
-                    archiveData: this.archiveData || []
+                    archiveData: this.archiveData || [],
+                    settings: this.settings || {}
                 })
             });
             
