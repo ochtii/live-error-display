@@ -91,7 +91,8 @@ class ErrorDisplay {
             ...error,
             archivedAt: new Date().toISOString(),
             id: Date.now() + Math.random(),
-            isLive: isLive
+            isLive: isLive,
+            isServerBuffered: error.isServerBuffered || false
         };
         
         this.archiveData.unshift(archiveError);
@@ -317,16 +318,13 @@ class ErrorDisplay {
             `🕒 ${new Date(error.archivedAt).toLocaleString('de-DE')} (archiviert)` :
             `🕒 ${error.timestamp}`;
         
-        // Live indicator with server buffering info
-        let liveIndicator = '📝 Manual';
-        if (error.isLive) {
-            if (error.isServerBuffered) {
-                liveIndicator = '📦 Gepuffert (Server)';
-            } else if (error.buffered) {
-                liveIndicator = '📦 Gepuffert (Client)';
-            } else {
-                liveIndicator = '🔴 Live';
-            }
+        // Vereinfachte Kennzeichnung
+        let receivedIndicator = 'Live empfangen';
+        let indicatorClass = 'live';
+        
+        if (error.isServerBuffered === true || error.isServerBuffered === 'true') {
+            receivedIndicator = 'In Abwesenheit empfangen';
+            indicatorClass = 'buffered';
         }
         
         card.innerHTML = `
@@ -336,7 +334,7 @@ class ErrorDisplay {
                     <div class="error-meta">
                         <span>${timestamp}</span>
                         <span>🌐 ${this.cleanIP(error.ip)}</span>
-                        <span class="live-indicator ${error.isLive ? (error.isServerBuffered ? 'buffered' : 'live') : 'manual'}">${liveIndicator}</span>
+                        <span class="live-indicator ${indicatorClass}">${receivedIndicator}</span>
                         ${isArchive ? '<span>📂 Archiviert</span>' : ''}
                     </div>
                 </div>
