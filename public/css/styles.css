@@ -148,6 +148,59 @@ body {
     flex-wrap: wrap;
 }
 
+/* === SESSION BAR === */
+.session-bar {
+    background: var(--background-card);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.session-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 1;
+}
+
+.session-icon {
+    font-size: 1.2rem;
+}
+
+.session-name {
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.session-token {
+    font-family: monospace;
+    background: var(--background-alt);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.session-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.btn-small {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.9rem;
+    min-width: auto;
+}
+
 /* === BUTTONS === */
 .btn {
     padding: 0.75rem 1.5rem;

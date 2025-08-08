@@ -2,20 +2,303 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+
+// Ses// === SESSION API ROUTES ===
+
+// Get new session token
+app.get('/api/token', (req, res) => {
+    try {
+        const session = SessionManager.createSession();
+        res.json({
+            success: true,
+            token: session.token,
+            session: {
+                name: session.name,
+                createdAt: session.createdAt,
+                errorCount: session.errors.length
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to create session'
+        });
+    }
+});
+
+// Restore session with token
+app.get('/api/session/:token', (req, res) => {
+    try {
+        const { token } = req.params;
+        const session = SessionManager.getSession(token);
+        
+        if (!session) {
+            return res.status(404).json({
+                success: false,
+                error: 'Session not found'
+            });
+        }
+        
+        res.json({
+            success: true,
+            session: {
+                token: session.token,
+                name: session.name,
+                createdAt: session.createdAt,
+                lastAccessed: session.lastAccessed,
+                errorCount: session.errors.length
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to load session'
+        });
+    }
+});
+
+// Update session name
+app.put('/api/session/:token', (req, res) => {
+    try {
+        const { token } = req.params;
+        const { name } = req.body;
+        
+        const session = SessionManager.updateSession(token, { name });
+        
+        if (!session) {
+            return res.status(404).json({
+                success: false,
+                error: 'Session not found'
+            });
+        }
+        
+        res.json({
+            success: true,
+            session: {
+                token: session.token,
+                name: session.name,
+                createdAt: session.createdAt,
+                lastAccessed: session.lastAccessed,
+                errorCount: session.errors.length
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update session'
+        });
+    }
+});
+
+// Delete session
+app.delete('/api/session/:token', (req, res) => {
+    try {
+        const { token } = req.params;
+        SessionManager.deleteSession(token);
+        
+        res.json({
+            success: true,
+            message: 'Session deleted successfully'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to delete session'
+        });
+    }
+});
+
+// Get session errors
+app.get('/api/session/:token/errors', (req, res) => {
+    try {
+        const { token } = req.params;
+        const session = SessionManager.getSession(token);
+        
+        if (!session) {
+            return res.status(404).json({
+                success: false,
+                error: 'Session not found'
+            });
+        }
+        
+        res.json({
+            success: true,
+            errors: session.errors,
+            errorCount: session.errors.length
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get session errors'
+        });
+    }
+});
+
+// === MAIN ROUTES ===
+
+// Serve index.html for root
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Return all errors as JSON (session-aware)
+app.get('/errors', (req, res) => {
+    const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+    const sessionToken = req.headers['x-session-token'];
+    
+    console.log(`🔍 Request for all errors from ${ip}${sessionToken ? ` (session: ${sessionToken})` : ''}`);
+    
+    let errors = globalErrors;
+    if (sessionToken) {
+        const session = SessionManager.getSession(sessionToken);
+        if (session) {
+            errors = session.errors;
+        }
+    }
+    
+    const response = {
+        errors: errors,
+        offlineBuffer: offlineBuffer,
+        totalErrors: errors.length,
+        bufferedErrors: offlineBuffer.length,
+        clientCount: clients.size,
+        sessionActive: !!sessionToken
+    };
+    
+    res.json(response);
+});ry
+const SESSIONS_DIR = path.join(__dirname, 'sessions');
+const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+
+// Create sessions directory if it doesn't exist
+if (!fs.existsSync(SESSIONS_DIR)) {
+    fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+}
 
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static('public'));
 
-// In-Memory Error Storage
-let errors = [];
+// In-Memory Error Storage (now per session)
+let globalErrors = []; // Fallback for sessionless mode
 let clients = new Map(); // Use Map for better client management with unique IDs
 let offlineBuffer = []; // Buffer for errors when no clients connected
 let clientIdCounter = 0;
+let sessions = new Map(); // Active sessions in memory
+
+// Session encryption/decryption
+function encryptData(data, secret = SESSION_SECRET) {
+    const cipher = crypto.createCipher('aes-256-cbc', secret);
+    let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return encrypted;
+}
+
+function decryptData(encryptedData, secret = SESSION_SECRET) {
+    try {
+        const decipher = crypto.createDecipher('aes-256-cbc', secret);
+        let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        return JSON.parse(decrypted);
+    } catch (error) {
+        console.error('❌ Session decryption failed:', error.message);
+        return null;
+    }
+}
+
+// Generate secure session token
+function generateSessionToken() {
+    return crypto.randomBytes(32).toString('hex');
+}
+
+// Session management
+class SessionManager {
+    static createSession(name = '') {
+        const token = generateSessionToken();
+        const session = {
+            token,
+            name: name || `Session ${new Date().toLocaleString('de-DE')}`,
+            createdAt: new Date().toISOString(),
+            errors: [],
+            lastAccessed: new Date().toISOString()
+        };
+        
+        sessions.set(token, session);
+        this.saveSessionToDisk(session);
+        
+        console.log(`✅ Created new session: ${session.name} (${token})`);
+        return session;
+    }
+    
+    static getSession(token) {
+        if (sessions.has(token)) {
+            const session = sessions.get(token);
+            session.lastAccessed = new Date().toISOString();
+            return session;
+        }
+        
+        // Try to load from disk
+        return this.loadSessionFromDisk(token);
+    }
+    
+    static saveSessionToDisk(session) {
+        try {
+            const sessionFile = path.join(SESSIONS_DIR, `${session.token}.json`);
+            const encryptedSession = encryptData(session);
+            fs.writeFileSync(sessionFile, encryptedSession);
+        } catch (error) {
+            console.error('❌ Failed to save session to disk:', error.message);
+        }
+    }
+    
+    static loadSessionFromDisk(token) {
+        try {
+            const sessionFile = path.join(SESSIONS_DIR, `${token}.json`);
+            if (fs.existsSync(sessionFile)) {
+                const encryptedData = fs.readFileSync(sessionFile, 'utf8');
+                const session = decryptData(encryptedData);
+                if (session) {
+                    session.lastAccessed = new Date().toISOString();
+                    sessions.set(token, session);
+                    console.log(`📂 Loaded session from disk: ${session.name} (${token})`);
+                    return session;
+                }
+            }
+        } catch (error) {
+            console.error('❌ Failed to load session from disk:', error.message);
+        }
+        return null;
+    }
+    
+    static updateSession(token, updates) {
+        const session = this.getSession(token);
+        if (session) {
+            Object.assign(session, updates);
+            session.lastAccessed = new Date().toISOString();
+            this.saveSessionToDisk(session);
+            return session;
+        }
+        return null;
+    }
+    
+    static deleteSession(token) {
+        sessions.delete(token);
+        try {
+            const sessionFile = path.join(SESSIONS_DIR, `${token}.json`);
+            if (fs.existsSync(sessionFile)) {
+                fs.unlinkSync(sessionFile);
+                console.log(`🗑️ Deleted session: ${token}`);
+            }
+        } catch (error) {
+            console.error('❌ Failed to delete session file:', error.message);
+        }
+    }
+}
 
 // Clean up stale connections
 function cleanupStaleConnections() {
@@ -36,14 +319,27 @@ function cleanupStaleConnections() {
 }
 
 // Add error to storage (keep last 100)
-function addError(error) {
+function addError(error, sessionToken = null) {
     const errorData = {
         message: error.message || error,
         timestamp: new Date().toLocaleString('de-DE'),
-        ip: error.ip || 'unknown'
+        ip: error.ip || 'unknown',
+        id: crypto.randomUUID()
     };
-    errors.unshift(errorData);
-    if (errors.length > 100) errors.pop();
+    
+    // Add to session if provided
+    if (sessionToken) {
+        const session = SessionManager.getSession(sessionToken);
+        if (session) {
+            session.errors.unshift(errorData);
+            if (session.errors.length > 100) session.errors.pop();
+            SessionManager.saveSessionToDisk(session);
+        }
+    } else {
+        // Fallback to global errors
+        globalErrors.unshift(errorData);
+        if (globalErrors.length > 100) globalErrors.pop();
+    }
     
     // If no clients connected, buffer the error
     if (clients.size === 0) {
@@ -189,20 +485,22 @@ app.get('/live', (req, res) => {
     });
 });
 
-// Receive new errors
+// Receive new errors (session-aware)
 app.post('/error', (req, res) => {
     const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+    const sessionToken = req.headers['x-session-token'];
     
     const errorData = addError({
         message: req.body.message || req.body.error || 'Unknown error',
         ip: ip
-    });
+    }, sessionToken);
     
     res.json({ 
         success: true, 
         message: 'Error logged successfully', 
         error: errorData,
-        clientCount: clients.size
+        clientCount: clients.size,
+        sessionActive: !!sessionToken
     });
 });
 

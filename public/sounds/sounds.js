@@ -13,18 +13,22 @@ class SoundManager {
     }
 
     initOnUserGesture() {
-        const initAudio = async () => {
+        const initAudio = async (event) => {
             if (!this.initialized) {
+                console.log(`🎵 User gesture detected (${event.type}), initializing AudioContext...`);
                 await this.initAudioContext();
                 this.initialized = true;
                 // Event-Listener entfernen nach erster Initialisierung
                 document.removeEventListener('click', initAudio);
                 document.removeEventListener('keydown', initAudio);
+                document.removeEventListener('touchstart', initAudio);
+                console.log(`🎵 AudioContext ready for use`);
             }
         };
         
         document.addEventListener('click', initAudio);
         document.addEventListener('keydown', initAudio);
+        document.addEventListener('touchstart', initAudio);
     }
 
     async initAudioContext() {

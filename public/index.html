@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Error Display</title>
     <link rel="stylesheet" href="css/styles.css">
-    <script src="sounds/sounds.js?v=debug2"></script>
+    <script src="sounds/sounds.js?v=debug3"></script>
 </head>
 <body>
     <div class="container">
@@ -35,6 +35,21 @@
             <button class="btn btn-primary" id="archiveBtn">📂 Archiv</button>
             <button class="btn btn-primary" id="settingsBtn">⚙️ Einstellungen</button>
             <button class="btn btn-primary" id="apiBtn">📋 API</button>
+            <button class="btn btn-primary" id="sessionBtn">🔑 Session</button>
+        </div>
+        
+        <!-- Session Info Bar -->
+        <div class="session-bar" id="sessionBar" style="display: none;">
+            <div class="session-info">
+                <span class="session-icon">🔑</span>
+                <span class="session-name" id="sessionName">Session</span>
+                <span class="session-token" id="sessionTokenDisplay">No Session</span>
+            </div>
+            <div class="session-actions">
+                <button class="btn btn-small" onclick="copySessionToken()" title="Token kopieren">📋</button>
+                <button class="btn btn-small" onclick="saveCurrentSession()" title="Session speichern">💾</button>
+                <button class="btn btn-small btn-danger" onclick="endSession()" title="Session beenden">❌</button>
+            </div>
         </div>
         
         <div class="content-area">
@@ -959,6 +974,6 @@ curl -s "$SERVER_URL/errors" | jq '.errors[] | .timestamp + ": " + .message'</pr
         </div>
     </div>
 
-    <script src="js/app.js?v=debug2"></script>
+    <script src="js/app.js?v=debug4"></script>
 </body>
 </html>

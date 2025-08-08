@@ -15,6 +15,10 @@ class ErrorDisplay {
         this.settings = this.loadSettings();
         this.archiveData = this.loadArchive();
         
+        // Session Management
+        this.currentSession = null;
+        this.loadCurrentSession();
+        
         this.init();
     }
 
@@ -27,6 +31,7 @@ class ErrorDisplay {
         this.displayMode(this.currentMode);
         this.loadAndApplySettings();
         this.initPushNotifications();
+        this.updateSessionDisplay();
     }
 
     setupEventListeners() {
@@ -35,6 +40,11 @@ class ErrorDisplay {
         document.getElementById('archiveBtn').addEventListener('click', () => this.switchMode('archive'));
         document.getElementById('settingsBtn').addEventListener('click', () => this.switchMode('settings'));
         document.getElementById('apiBtn').addEventListener('click', () => this.switchMode('api'));
+        
+        // Session Management
+        document.getElementById('sessionBtn').addEventListener('click', () => this.openSessionManager());
+        document.getElementById('copyToken').addEventListener('click', () => this.copySessionToken());
+        document.getElementById('sessionManager').addEventListener('click', () => this.openSessionManager());
         
         // Settings
         document.getElementById('saveSettings').addEventListener('click', () => this.saveSettings());
@@ -351,12 +361,13 @@ class ErrorDisplay {
             
             if (data.type === 'error') {
                 if (this.currentMode === 'live') {
-                    this.addError(data.error, true, data.error.isBuffered); // Mark as live received
+                    // Korrekte Kennzeichnung: isServerBuffered = data.error.isBuffered (vom Server)
+                    this.addError(data.error, true, data.error.isBuffered);
                     // Sound und Benachrichtigung für neue Fehler
                     this.playNotificationSound('newError');
                 } else if (this.settings.bufferOfflineErrors) {
-                    // Buffer the error for later display
-                    this.bufferedErrors.unshift({...data.error, isLive: true, buffered: true});
+                    // Buffer the error for later display - diese sind lokal gepuffert, nicht server-gepuffert
+                    this.bufferedErrors.unshift({...data.error, isLive: false, buffered: true, isServerBuffered: data.error.isBuffered});
                 }
                 // Korrekte Übertragung der Server-Buffer-Information
                 const archiveError = {...data.error, isServerBuffered: data.error.isBuffered};
@@ -372,22 +383,12 @@ class ErrorDisplay {
         this.eventSource.onerror = () => {
             console.log(`[${new Date().toLocaleTimeString('de-DE')}] ❌ SSE connection error`);
             this.updateStatus('offline');
-            this.eventSource = null;
+            
             // Sound und Benachrichtigung für getrennte Verbindung
             this.playNotificationSound('connectionClosed');
             this.showEventNotification('connectionClosed', 'Verbindung zum Server getrennt');
             
-            // Reconnect after 5 seconds
-            setTimeout(() => this.connectSSE(), 5000);
-        };
-
-        this.eventSource.onclose = () => {
-            console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔌 SSE connection closed`);
-            this.updateStatus('offline');
             this.eventSource = null;
-            // Sound und Benachrichtigung für getrennte Verbindung
-            this.playNotificationSound('connectionClosed');
-            this.showEventNotification('connectionClosed', 'Verbindung zum Server getrennt');
             
             // Reconnect after 5 seconds
             setTimeout(() => this.connectSSE(), 5000);
@@ -396,9 +397,14 @@ class ErrorDisplay {
 
     disconnectSSE() {
         if (this.eventSource) {
-            console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔌 SSE connection closed`);
+            console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔌 SSE connection manually closed`);
             this.eventSource.close();
             this.eventSource = null;
+            
+            // Update status und Benachrichtigung auch bei manueller Trennung
+            this.updateStatus('offline');
+            this.playNotificationSound('connectionClosed');
+            this.showEventNotification('connectionClosed', 'Verbindung manuell getrennt');
         }
     }
 
@@ -456,13 +462,16 @@ class ErrorDisplay {
             `🕒 ${new Date(error.archivedAt).toLocaleString('de-DE')} (archiviert)` :
             `🕒 ${error.timestamp}`;
         
-        // Vereinfachte Kennzeichnung
-        let receivedIndicator = 'Live empfangen';
-        let indicatorClass = 'live';
+        // Einfache Kennzeichnung ohne Badge
+        let receivedIndicator = '';
+        let indicatorClass = '';
         
         if (error.isServerBuffered === true || error.isServerBuffered === 'true') {
-            receivedIndicator = 'In Abwesenheit empfangen';
+            receivedIndicator = 'Gepuffert empfangen';
             indicatorClass = 'buffered';
+        } else {
+            receivedIndicator = 'Live empfangen';
+            indicatorClass = 'live';
         }
         
         card.innerHTML = `
@@ -1156,6 +1165,112 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 
                 this.sendPushNotification(titles[eventType], message);
             }
+        }
+    }
+
+    // === SESSION MANAGEMENT ===
+    loadCurrentSession() {
+        const sessionData = localStorage.getItem('currentSession');
+        if (sessionData) {
+            try {
+                this.currentSession = JSON.parse(sessionData);
+                this.updateSessionDisplay();
+            } catch (error) {
+                console.error('Failed to load session data:', error);
+                localStorage.removeItem('currentSession');
+            }
+        }
+    }
+
+    async createNewSession() {
+        try {
+            const response = await fetch(`${this.serverUrl}/api/token`);
+            if (response.ok) {
+                const data = await response.json();
+                this.currentSession = {
+                    name: data.sessionName,
+                    token: data.token,
+                    created: new Date().toISOString()
+                };
+                localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+                this.updateSessionDisplay();
+                return this.currentSession;
+            }
+        } catch (error) {
+            console.error('Failed to create session:', error);
+        }
+        return null;
+    }
+
+    restoreSession(sessionData) {
+        this.currentSession = sessionData;
+        localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+        this.updateSessionDisplay();
+    }
+
+    clearSession() {
+        this.currentSession = null;
+        localStorage.removeItem('currentSession');
+        this.updateSessionDisplay();
+    }
+
+    updateSessionDisplay() {
+        const sessionBar = document.getElementById('sessionBar');
+        const sessionName = document.getElementById('sessionName');
+        const sessionToken = document.getElementById('sessionToken');
+        
+        if (this.currentSession) {
+            sessionBar.style.display = 'flex';
+            sessionName.textContent = this.currentSession.name;
+            sessionToken.textContent = this.currentSession.token.substring(0, 16) + '...';
+        } else {
+            sessionBar.style.display = 'none';
+        }
+    }
+
+    openSessionManager() {
+        window.open('session-manager.html', '_blank', 'width=800,height=600');
+    }
+
+    copySessionToken() {
+        if (this.currentSession && this.currentSession.token) {
+            navigator.clipboard.writeText(this.currentSession.token).then(() => {
+                this.showNotification('Session-Token kopiert!', 'success');
+            }).catch(err => {
+                console.error('Failed to copy token:', err);
+            });
+        }
+    }
+
+    // Override error reporting to include session token
+    async reportError(message, source = 'manual', level = 'error') {
+        const error = {
+            message: message,
+            timestamp: new Date().toISOString(),
+            source: source,
+            level: level,
+            sessionToken: this.currentSession ? this.currentSession.token : null
+        };
+
+        try {
+            const response = await fetch(`${this.serverUrl}/error`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(error)
+            });
+
+            if (response.ok) {
+                console.log('✅ Error sent to server');
+                return true;
+            } else {
+                console.error('❌ Failed to send error to server:', response.status);
+                return false;
+            }
+        } catch (err) {
+            console.error('❌ Error sending to server:', err);
+            return false;
         }
     }
 }
