@@ -37,6 +37,13 @@
                         </label>
                         <span class="toggle-label">Auto-Save</span>
                     </div>
+                    <div class="unsaved-changes-indicator" id="unsavedChangesIndicator" style="display: none;">
+                        <span class="unsaved-icon">⚠️</span>
+                        <span class="unsaved-text">Ungespeicherte Änderungen</span>
+                        <button class="btn btn-small btn-primary save-now-btn" id="saveNowBtn" onclick="errorDisplay.saveCurrentSessionDirect()">
+                            💾 Jetzt speichern
+                        </button>
+                    </div>
                     <span class="session-end-link" id="sessionEndLink">Session beenden ✖</span>
                 </div>
             </div>

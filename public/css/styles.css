@@ -175,6 +175,55 @@ input:checked + .toggle-slider:before {
     color: var(--success);
 }
 
+/* Unsaved Changes Indicator */
+.unsaved-changes-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(239, 68, 68, 0.1);
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    animation: pulse 2s infinite;
+}
+
+.unsaved-icon {
+    font-size: 1rem;
+    animation: bounce 1s infinite;
+}
+
+.unsaved-text {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #ef4444;
+}
+
+.save-now-btn {
+    font-size: 0.75rem !important;
+    padding: 0.25rem 0.5rem !important;
+    background: var(--primary) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 0.25rem !important;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.save-now-btn:hover {
+    background: var(--primary-dark) !important;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-3px); }
+    60% { transform: translateY(-2px); }
+}
+
 .session-end-link {
     cursor: pointer;
     color: #ef4444;

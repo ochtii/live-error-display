@@ -15,6 +15,7 @@ class ErrorDisplay {
         this.settings = this.loadSettings();
         this.archiveData = this.loadArchive();
         this.autoSaveEnabled = false; // Auto-save is disabled by default
+        this.hasUnsavedChanges = false; // Track unsaved changes
         
         // Session Management
         this.currentSession = null;
@@ -639,6 +640,59 @@ class ErrorDisplay {
         // Auto-save if enabled and session is saved
         if (this.autoSaveEnabled && this.isSessionSaved()) {
             this.saveToServer();
+        } else {
+            // Mark as having unsaved changes if auto-save is disabled
+            this.markAsUnsaved();
+        }
+    }
+
+    // === UNSAVED CHANGES TRACKING ===
+    markAsUnsaved() {
+        if (!this.autoSaveEnabled && this.currentSession && this.isSessionSaved()) {
+            this.hasUnsavedChanges = true;
+            this.updateUnsavedChangesIndicator();
+        }
+    }
+
+    markAsSaved() {
+        this.hasUnsavedChanges = false;
+        this.updateUnsavedChangesIndicator();
+    }
+
+    updateUnsavedChangesIndicator() {
+        const indicator = document.getElementById('unsavedChangesIndicator');
+        if (!indicator) return;
+
+        const shouldShow = !this.autoSaveEnabled && 
+                          this.hasUnsavedChanges && 
+                          this.currentSession && 
+                          this.isSessionSaved();
+
+        indicator.style.display = shouldShow ? 'flex' : 'none';
+    }
+
+    async saveCurrentSessionDirect() {
+        if (!this.currentSession || !this.isSessionSaved()) {
+            this.showNotification('Keine gespeicherte Session zum Aktualisieren', 'error');
+            return;
+        }
+
+        // Get the stored password for this session
+        const sessionData = this.getStoredSavedSession(this.currentSession.token);
+        if (!sessionData || !sessionData.password) {
+            this.showNotification('Session-Passwort nicht gefunden. Bitte Session erneut speichern.', 'error');
+            return;
+        }
+
+        try {
+            const success = await this.saveSessionToServer(sessionData.password);
+            if (success) {
+                this.markAsSaved();
+                this.showNotification('Session erfolgreich aktualisiert!', 'success');
+            }
+        } catch (error) {
+            console.error('Fehler beim direkten Speichern:', error);
+            this.showNotification('Fehler beim Speichern der Session', 'error');
         }
     }
 
@@ -1440,6 +1494,11 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         }
     }
     
+    getStoredSavedSession(token) {
+        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
+        return savedSessions.find(session => session.token === token);
+    }
+    
     checkForRecoverableSessions() {
         const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
         if (savedSessions.length > 0) {
@@ -1579,6 +1638,9 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             }
             this.updateHeaderSessionStatus(false);
         }
+        
+        // Update unsaved changes indicator
+        this.updateUnsavedChangesIndicator();
     }
     
     isSessionSaved() {
@@ -1774,6 +1836,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 
                 this.showNotification('Session serverseitig gespeichert! Browser-Daten wurden gelöscht.', 'success');
                 this.updateSessionDisplay();
+                this.markAsSaved(); // Mark as saved and hide unsaved changes indicator
                 
                 // Refresh session manager if open
                 if (this.currentMode === 'session-manager') {
@@ -2411,10 +2474,18 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         if (this.autoSaveEnabled) {
             // Save current session to server immediately when auto-save is enabled
             await this.saveToServer();
+            this.markAsSaved();
             this.showNotification('Auto-Save aktiviert - Änderungen werden automatisch gespeichert', 'success');
         } else {
             this.showNotification('Auto-Save deaktiviert', 'info');
+            // Check if there are unsaved changes and show indicator
+            if (this.errors.length > 0) {
+                this.markAsUnsaved();
+            }
         }
+        
+        // Update the indicator visibility
+        this.updateUnsavedChangesIndicator();
     }
     
     async saveToServer() {
@@ -2436,6 +2507,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             
             if (response.ok) {
                 console.log('Session auto-saved to server');
+                this.markAsSaved();
             } else {
                 console.error('Failed to auto-save session');
             }
