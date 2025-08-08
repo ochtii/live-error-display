@@ -617,16 +617,16 @@ class ErrorDisplay {
                 buttonElement.style.display = 'inline-block';
                 buttonElement.onclick = () => this.showPermissionResetInstructions();
                 
-                // Zusätzlichen Button für direkte Chrome-Einstellungen hinzufügen
-                let chromeButton = document.getElementById('openChromeSettings');
-                if (!chromeButton) {
-                    chromeButton = document.createElement('button');
-                    chromeButton.id = 'openChromeSettings';
-                    chromeButton.className = 'btn btn-outline';
-                    chromeButton.style.marginLeft = '0.5rem';
-                    chromeButton.textContent = '⚙️ Chrome-Einstellungen';
-                    chromeButton.onclick = () => this.openChromeNotificationSettings();
-                    buttonElement.parentNode.appendChild(chromeButton);
+                // Zusätzlichen Button für erneuten Versuch hinzufügen
+                let retryButton = document.getElementById('retryPushPermission');
+                if (!retryButton) {
+                    retryButton = document.createElement('button');
+                    retryButton.id = 'retryPushPermission';
+                    retryButton.className = 'btn btn-outline';
+                    retryButton.style.marginLeft = '0.5rem';
+                    retryButton.textContent = '🔔 Berechtigung anfordern';
+                    retryButton.onclick = () => this.requestPushPermission();
+                    buttonElement.parentNode.appendChild(retryButton);
                 }
                 break;
             case 'default':
@@ -713,37 +713,6 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         });
         
         document.body.appendChild(modal);
-    }
-    
-    // Direkt zu Chrome-Benachrichtigungseinstellungen
-    openChromeNotificationSettings() {
-        // Zeige Anleitung anstatt zu versuchen chrome:// URLs zu öffnen
-        const chromeInstructions = `
-Chrome-Benachrichtigungseinstellungen öffnen:
-
-1. Kopieren Sie diese URL: chrome://settings/content/notifications
-2. Öffnen Sie einen neuen Tab (Strg+T)
-3. Fügen Sie die URL in die Adressleiste ein
-4. Drücken Sie Enter
-5. Scrollen Sie zu "Zulassen"
-6. Klicken Sie "Hinzufügen" und geben Sie Ihre Website-URL ein
-7. Laden Sie diese Seite neu (F5)
-
-Alternativ:
-• Klicken Sie auf das Schloss-Symbol (🔒) in der Adressleiste
-• Setzen Sie "Benachrichtigungen" auf "Zulassen"
-        `;
-        
-        this.showInstructionModal('Chrome-Benachrichtigungseinstellungen', chromeInstructions);
-        
-        // Versuche trotzdem die URL zu kopieren
-        try {
-            navigator.clipboard.writeText('chrome://settings/content/notifications').then(() => {
-                this.showNotification('Chrome-URL in Zwischenablage kopiert', 'success');
-            });
-        } catch (error) {
-            console.log('Clipboard API nicht verfügbar');
-        }
     }
     
     // Push-Benachrichtigung senden
