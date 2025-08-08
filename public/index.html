@@ -337,6 +337,13 @@
                                 <label>Status:</label>
                                 <span class="server-status" id="serverStatus">🟢 Online</span>
                             </div>
+                            <div class="info-item" id="sessionTokenInfo" style="display: none;">
+                                <label>Session Token:</label>
+                                <div class="url-display">
+                                    <input type="text" id="apiSessionToken" readonly class="server-url-input">
+                                    <button class="copy-url-btn" onclick="errorDisplay.copySessionToken()">📋</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     

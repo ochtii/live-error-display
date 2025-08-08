@@ -28,6 +28,111 @@ class ErrorDisplay {
         this.updateStats();
         this.setupModal();
         this.loadAndApplySettings();
+    }
+
+    displaySessionManager() {
+        let sessionManagerContainer = document.getElementById('sessionManagerContainer');
+        
+        if (!sessionManagerContainer) {
+            // Create session manager container if it doesn't exist
+            sessionManagerContainer = document.createElement('div');
+            sessionManagerContainer.id = 'sessionManagerContainer';
+            sessionManagerContainer.className = 'content-container';
+            document.querySelector('.content-area').appendChild(sessionManagerContainer);
+        }
+        
+        sessionManagerContainer.style.display = 'block';
+        
+        sessionManagerContainer.innerHTML = `
+            <div class="session-manager-content">
+                <h1>🔑 Session Manager</h1>
+                <p class="session-description">Verwalten Sie Ihre API-Sessions für sichere Authentifizierung</p>
+                
+                <!-- Create New Session -->
+                <div class="session-card">
+                    <h2>✨ Neue Session erstellen</h2>
+                    <p>Erstellt eine neue Session mit individuellem API-Token</p>
+                    
+                    <div class="session-actions">
+                        <button class="btn btn-primary" onclick="window.errorDisplay.createNewSessionInline()">
+                            ✨ Session erstellen
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Restore Session -->
+                <div class="session-card">
+                    <h2>🔑 Session wiederherstellen</h2>
+                    <p>Laden Sie eine bestehende Session mit ihrem Token</p>
+                    
+                    <div class="input-group">
+                        <input type="text" id="sessionTokenInput" placeholder="Session Token eingeben..." class="session-input">
+                        <button class="btn btn-primary" onclick="window.errorDisplay.restoreSessionFromToken()">
+                            🔑 Session laden
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Current Session -->
+                ${this.currentSession ? `
+                <div class="session-card current-session">
+                    <h2>🟢 Aktuelle Session</h2>
+                    <div class="session-details">
+                        <div class="session-detail">
+                            <label>Name:</label>
+                            <span>${this.currentSession.name}</span>
+                        </div>
+                        <div class="session-detail">
+                            <label>Token:</label>
+                            <code class="token-display">${this.currentSession.token}</code>
+                            <button class="btn btn-small" onclick="window.errorDisplay.copySessionToken()">📋</button>
+                        </div>
+                        <div class="session-detail">
+                            <label>Erstellt:</label>
+                            <span>${new Date(this.currentSession.created).toLocaleString()}</span>
+                        </div>
+                    </div>
+                    <div class="session-actions">
+                        <button class="btn btn-success" onclick="window.errorDisplay.switchMode('live')">
+                            📡 Zu Live-View
+                        </button>
+                        <button class="btn btn-danger" onclick="window.errorDisplay.clearSession()">
+                            ❌ Session beenden
+                        </button>
+                    </div>
+                </div>
+                ` : ''}
+                
+                <!-- Saved Sessions -->
+                <div class="session-card">
+                    <h2>💾 Gespeicherte Sessions</h2>
+                    <div id="inlineSavedSessions" class="saved-sessions-list">
+                        <p class="no-sessions">Keine Sessions gespeichert</p>
+                    </div>
+                    <div class="session-actions">
+                        <button class="btn btn-secondary" onclick="window.errorDisplay.loadSavedSessionsInline()">
+                            🔄 Aktualisieren
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Session Info -->
+                <div class="session-card session-info-card">
+                    <h2>ℹ️ Was sind Sessions?</h2>
+                    <ul class="session-features">
+                        <li>🔐 Sichere API-Authentifizierung mit individuellem Token</li>
+                        <li>📊 Separate Error-Logs pro Session</li>
+                        <li>💾 Session-basierte Datenspeicherung</li>
+                        <li>🔄 Session-Wiederherstellung</li>
+                        <li>🌐 Cross-Platform API-Zugriff</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+        
+        // Load saved sessions
+        this.loadSavedSessionsInline();
+    }
         this.initPushNotifications();
         this.updateSessionDisplay();
         
@@ -55,16 +160,16 @@ class ErrorDisplay {
         const saveSession = document.getElementById('saveSession');
         const endSession = document.getElementById('endSession');
         
+        // Session Manager inline controls
+        const createNewSessionBtn = document.getElementById('createNewSessionBtn');
+        const restoreSessionBtn = document.getElementById('restoreSessionBtn');
+        const refreshSavedSessionsBtn = document.getElementById('refreshSavedSessionsBtn');
+        
         if (sessionBtn) sessionBtn.addEventListener('click', () => this.openSessionManager());
         if (copyToken) copyToken.addEventListener('click', () => this.copySessionToken());
         if (sessionManager) sessionManager.addEventListener('click', () => this.openSessionManager());
         if (saveSession) saveSession.addEventListener('click', () => this.saveCurrentSession());
         if (endSession) endSession.addEventListener('click', () => this.clearSession());
-        
-        // Session Manager inline controls
-        const createNewSessionBtn = document.getElementById('createNewSessionBtn');
-        const restoreSessionBtn = document.getElementById('restoreSessionBtn');
-        const refreshSavedSessionsBtn = document.getElementById('refreshSavedSessionsBtn');
         
         if (createNewSessionBtn) createNewSessionBtn.addEventListener('click', () => this.createNewSessionInline());
         if (restoreSessionBtn) restoreSessionBtn.addEventListener('click', () => this.restoreSessionFromToken());
@@ -253,6 +358,12 @@ class ErrorDisplay {
         document.getElementById('settingsContainer').style.display = 'none';
         document.getElementById('apiPanel').style.display = 'none';
         
+        // Hide session manager if it exists
+        const sessionManagerContainer = document.getElementById('sessionManagerContainer');
+        if (sessionManagerContainer) {
+            sessionManagerContainer.style.display = 'none';
+        }
+        
         if (mode === 'live') {
             document.getElementById('errorsContainer').style.display = 'flex';
             this.connectSSE();
@@ -281,15 +392,9 @@ class ErrorDisplay {
             this.updateStatus('📋 API');
             this.displayAPI();
         } else if (mode === 'session-manager') {
-            const sessionManagerContainer = document.getElementById('sessionManagerContainer');
-            if (sessionManagerContainer) {
-                sessionManagerContainer.style.display = 'block';
-                // Initialize session manager content
-                this.updateCurrentSessionCard();
-                this.loadSavedSessionsInline();
-            }
             this.disconnectSSE();
             this.updateStatus('🔑 Session Manager');
+            this.displaySessionManager();
         }
     }
 
@@ -319,17 +424,6 @@ class ErrorDisplay {
         // Update server URL with current location
         const serverUrl = `${window.location.protocol}//${window.location.host}`;
         document.getElementById('serverUrl').value = serverUrl;
-        
-        // Update session token display
-        const sessionTokenInfo = document.getElementById('sessionTokenInfo');
-        const apiSessionToken = document.getElementById('apiSessionToken');
-        
-        if (this.currentSession && this.currentSession.token) {
-            sessionTokenInfo.style.display = 'block';
-            apiSessionToken.value = this.currentSession.token;
-        } else {
-            sessionTokenInfo.style.display = 'none';
-        }
         
         // Update all code examples with the actual server URL
         this.updateCodeExamples(serverUrl);
@@ -1436,9 +1530,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
                 this.updateSessionDisplay();
                 this.showNotification('Session erfolgreich erstellt!', 'success');
-                
-                // Update current session display in session manager
-                this.updateCurrentSessionCard();
+                this.displaySessionManager(); // Refresh the session manager display
                 return this.currentSession;
             }
         } catch (error) {
@@ -1469,55 +1561,13 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
                 this.updateSessionDisplay();
                 this.showNotification(`Session "${data.session.name}" erfolgreich geladen!`, 'success');
-                
-                // Clear input and update current session display
-                document.getElementById('sessionTokenInput').value = '';
-                this.updateCurrentSessionCard();
+                this.displaySessionManager(); // Refresh the session manager display
             } else {
                 this.showNotification('Session nicht gefunden oder ungültig', 'error');
             }
         } catch (error) {
             console.error('Error restoring session:', error);
             this.showNotification('Verbindungsfehler beim Laden der Session', 'error');
-        }
-    }
-
-    updateCurrentSessionCard() {
-        const currentSessionCard = document.getElementById('currentSessionCard');
-        if (!currentSessionCard) return;
-
-        if (this.currentSession) {
-            currentSessionCard.style.display = 'block';
-            currentSessionCard.innerHTML = `
-                <div class="session-card current-session">
-                    <h2>🟢 Aktuelle Session</h2>
-                    <div class="session-details">
-                        <div class="session-detail">
-                            <label>Name:</label>
-                            <span>${this.currentSession.name}</span>
-                        </div>
-                        <div class="session-detail">
-                            <label>Token:</label>
-                            <code class="token-display">${this.currentSession.token}</code>
-                            <button class="btn btn-small" onclick="window.errorDisplay.copySessionToken()">📋</button>
-                        </div>
-                        <div class="session-detail">
-                            <label>Erstellt:</label>
-                            <span>${new Date(this.currentSession.created).toLocaleString()}</span>
-                        </div>
-                    </div>
-                    <div class="session-actions">
-                        <button class="btn btn-success" onclick="window.errorDisplay.switchMode('live')">
-                            📡 Zu Live-View
-                        </button>
-                        <button class="btn btn-danger" onclick="window.errorDisplay.clearSession()">
-                            ❌ Session beenden
-                        </button>
-                    </div>
-                </div>
-            `;
-        } else {
-            currentSessionCard.style.display = 'none';
         }
     }
 
@@ -1568,10 +1618,10 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
                 this.updateSessionDisplay();
                 this.showNotification(`Session "${data.session.name}" erfolgreich geladen!`, 'success');
-                this.updateCurrentSessionCard();
+                this.displaySessionManager(); // Refresh the session manager display
             } else {
                 this.showNotification('Session nicht mehr gültig', 'error');
-                this.deleteSavedSession(token);
+                this.deleteSavedSession(token); // Remove invalid session
             }
         } catch (error) {
             console.error('Error restoring session:', error);
