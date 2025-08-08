@@ -379,6 +379,7 @@ class ErrorDisplay {
         
         card.innerHTML = `
             <div class="error-header" onclick="this.parentElement.querySelector('.error-content').classList.toggle('open'); this.querySelector('.expand-indicator').classList.toggle('expanded')">
+                <button class="delete-error-btn" onclick="event.stopPropagation(); errorDisplay.deleteError(${index}, ${isArchive})" title="Fehler löschen">🗑️</button>
                 <div class="error-info">
                     <div class="error-preview">${this.escapeHtml(firstLine)}${error.message.length > 100 ? '...' : ''}</div>
                     <div class="error-meta">
@@ -388,12 +389,9 @@ class ErrorDisplay {
                         ${isArchive ? '<span>📂 Archiviert</span>' : ''}
                     </div>
                 </div>
-                <div class="header-actions">
-                    <div class="expand-indicator">
-                        <div class="expand-line expand-line-1"></div>
-                        <div class="expand-line expand-line-2"></div>
-                    </div>
-                    <button class="delete-error-btn" onclick="event.stopPropagation(); errorDisplay.deleteError(${index}, ${isArchive})" title="Fehler löschen">🗑️</button>
+                <div class="expand-indicator">
+                    <div class="expand-line expand-line-1"></div>
+                    <div class="expand-line expand-line-2"></div>
                 </div>
             </div>
             <div class="error-content">

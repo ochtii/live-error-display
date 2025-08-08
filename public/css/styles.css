@@ -437,13 +437,14 @@ body {
     justify-content: space-between;
     align-items: center;
     position: relative;
+    gap: 1rem;
 }
 
 .error-header:hover {
     background: rgba(255, 255, 255, 0.03);
 }
 
-/* Delete Button */
+/* Delete Button - Left positioned */
 .delete-error-btn {
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.2);
@@ -456,11 +457,13 @@ body {
     flex-shrink: 0;
     z-index: 10;
     position: relative;
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
+    margin-right: 0.5rem;
+    order: -1; /* Stellt sicher, dass der Button ganz links ist */
 }
 
 .delete-error-btn:hover {
@@ -477,6 +480,7 @@ body {
 
 .error-info {
     flex: 1;
+    min-width: 0; /* Wichtig für Text-Wrapping */
 }
 
 .error-preview {
@@ -495,20 +499,12 @@ body {
     flex-wrap: wrap;
 }
 
-/* Header Actions Container */
-.header-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
 /* Modern Expand Indicator */
 .expand-indicator {
     width: 24px;
     height: 24px;
     position: relative;
     cursor: pointer;
-    margin-left: 1rem;
     flex-shrink: 0;
     display: flex;
     align-items: center;
