@@ -1411,15 +1411,36 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         const sessionData = localStorage.getItem('currentSession');
         if (sessionData) {
             try {
-                this.currentSession = JSON.parse(sessionData);
-                console.log('📂 Loaded session from localStorage:', {
-                    name: this.currentSession.name,
-                    tokenPreview: this.currentSession.token?.substring(0, 16) + '...'
-                });
-                this.updateSessionDisplay();
+                const session = JSON.parse(sessionData);
                 
-                // Validate session token with server
-                this.validateSessionToken();
+                // Check if session is older than 24 hours
+                const sessionAge = Date.now() - new Date(session.createdAt || session.lastAccessed || 0).getTime();
+                const maxAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+                
+                if (sessionAge > maxAge) {
+                    console.log('🕐 Session older than 24 hours, removing from localStorage');
+                    localStorage.removeItem('currentSession');
+                    this.showNotification('Session abgelaufen (24h) - neue Session erforderlich', 'warning');
+                    return;
+                }
+                
+                // Only load unsaved sessions from localStorage
+                if (!session.isSaved) {
+                    this.currentSession = session;
+                    console.log('📂 Loaded unsaved session from localStorage:', {
+                        name: this.currentSession.name,
+                        tokenPreview: this.currentSession.token?.substring(0, 16) + '...',
+                        age: Math.round(sessionAge / (60 * 1000)) + ' minutes'
+                    });
+                    this.updateSessionDisplay();
+                    
+                    // Validate session token with server
+                    this.validateSessionToken();
+                } else {
+                    // Saved sessions should not be in localStorage
+                    console.log('🧹 Removing saved session from localStorage (should be server-side only)');
+                    localStorage.removeItem('currentSession');
+                }
             } catch (error) {
                 console.error('Failed to load session data:', error);
                 localStorage.removeItem('currentSession');
@@ -1427,8 +1448,6 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             }
         } else {
             console.log('📂 No session found in localStorage');
-            // Check if there are any saved sessions that could be restored
-            this.checkForRecoverableSessions();
         }
     }
     
@@ -1548,8 +1567,20 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     
     isSessionSaved() {
         if (!this.currentSession) return false;
-        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
-        return savedSessions.some(session => session.token === this.currentSession.token);
+        // Check if session is marked as saved (server-side only)
+        return this.currentSession.isSaved === true;
+    }
+    
+    saveCurrentSessionToStorage() {
+        if (!this.currentSession) return;
+        
+        // Update last accessed time for unsaved sessions
+        if (!this.currentSession.isSaved) {
+            this.currentSession.lastAccessed = new Date().toISOString();
+            // Only save unsaved sessions to localStorage
+            localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+        }
+        // Saved sessions are not stored in localStorage - they exist only server-side
     }
     
     addFloatingHideInfo() {
@@ -1719,25 +1750,67 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             return;
         }
         
-        const sessionData = {
-            ...this.currentSession,
-            name: name,
-            savedAt: new Date().toISOString(),
-            savedPassword: password || null,
-            hasPassword: !!password,
-            // Include current archive data
-            archiveData: this.archiveData || []
-        };
+        // Update current session with new name for server-side saving
+        this.currentSession.name = name;
         
-        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
-        savedSessions.push(sessionData);
-        localStorage.setItem('savedSessions', JSON.stringify(savedSessions));
+        // Save session server-side with password
+        this.saveSessionToServer(password).then((success) => {
+            if (success) {
+                // Clear ALL localStorage data when session is saved
+                this.clearLocalStorageForSavedSession();
+                
+                // Close modal
+                document.querySelector('.modal-overlay').remove();
+                
+                this.showNotification('Session serverseitig gespeichert! Browser-Daten wurden gelöscht.', 'success');
+                this.updateSessionDisplay();
+                
+                // Refresh session manager if open
+                if (this.currentMode === 'session-manager') {
+                    this.loadSavedSessionsInline();
+                }
+            }
+        });
+    }
+    
+    async saveSessionToServer(password) {
+        try {
+            const response = await fetch(`${this.serverUrl}/api/session/${this.currentSession.token}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: this.currentSession.name,
+                    password: password || null,
+                    archiveData: this.archiveData || []
+                })
+            });
+            
+            if (response.ok) {
+                // Mark session as saved
+                this.currentSession.isSaved = true;
+                this.currentSession.hasPassword = !!password;
+                return true;
+            } else {
+                this.showNotification('Fehler beim Speichern der Session', 'error');
+                return false;
+            }
+        } catch (error) {
+            console.error('Error saving session:', error);
+            this.showNotification('Verbindungsfehler beim Speichern', 'error');
+            return false;
+        }
+    }
+    
+    clearLocalStorageForSavedSession() {
+        // Clear all localStorage data when session becomes server-side only
+        localStorage.removeItem('currentSession');
+        localStorage.removeItem('savedSessions');
+        localStorage.removeItem('errorArchive');
+        localStorage.removeItem(`errorArchive_${this.currentSession.token}`);
         
-        // Close modal
-        document.querySelector('.modal-overlay').remove();
-        
-        this.showNotification('Session gespeichert!', 'success');
-        this.loadSavedSessionsInline();
+        console.log('🧹 Cleared localStorage - session is now server-side only');
     }
 
     showSessionRequiredMessage() {
@@ -1892,14 +1965,18 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 this.currentSession = {
                     name: data.session.name,
                     token: data.token,
-                    createdAt: data.session.createdAt,
+                    createdAt: data.session.createdAt || new Date().toISOString(),
                     lastModified: data.session.lastModified,
                     modifiedBy: data.session.modifiedBy,
-                    hasPassword: data.session.hasPassword
+                    hasPassword: data.session.hasPassword,
+                    isSaved: false, // Mark as unsaved
+                    lastAccessed: new Date().toISOString()
                 };
-                localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+                
+                // Only save unsaved sessions to localStorage
+                this.saveCurrentSessionToStorage();
                 this.updateSessionDisplay();
-                this.showNotification('Session erfolgreich erstellt!', 'success');
+                this.showNotification('Unsaved Session erstellt (24h gültig)', 'success');
                 
                 // Clear input field
                 document.getElementById('newSessionName').value = '';
@@ -2033,49 +2110,62 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         }
     }
 
-    loadSavedSessionsInline() {
+    async loadSavedSessionsInline() {
         const container = document.getElementById('inlineSavedSessions');
         if (!container) return;
 
-        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
-        
-        if (savedSessions.length === 0) {
-            container.innerHTML = '<p class="no-sessions">Keine Sessions gespeichert</p>';
-            return;
-        }
-
-        // Sort sessions by last modification date (newest first)
-        savedSessions.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
-
-        container.innerHTML = savedSessions.map(session => {
-            const createdDate = new Date(session.createdAt || session.created);
-            const savedDate = new Date(session.savedAt);
-            const modifiedDate = session.lastModified ? new Date(session.lastModified) : null;
+        // Load saved sessions from server instead of localStorage
+        try {
+            const response = await fetch(`${this.serverUrl}/api/sessions/saved`);
+            if (!response.ok) {
+                container.innerHTML = '<p class="no-sessions">Fehler beim Laden der Sessions</p>';
+                return;
+            }
             
-            return `
-                <div class="saved-session-item">
-                    <div class="saved-session-info">
-                        <div class="session-name">
-                            ${session.name}
-                            <span class="password-icon" title="Passwortgeschützt">🔒</span>
-                        </div>
-                        <div class="session-meta">
-                            <div class="session-dates">
-                                <div><strong>Erstellt:</strong> ${createdDate.toLocaleDateString('de-DE')} ${createdDate.toLocaleTimeString('de-DE')}</div>
-                                <div><strong>Gespeichert:</strong> ${savedDate.toLocaleDateString('de-DE')} ${savedDate.toLocaleTimeString('de-DE')}</div>
-                                ${modifiedDate ? `<div><strong>Letzte Änderung:</strong> ${modifiedDate.toLocaleDateString('de-DE')} ${modifiedDate.toLocaleTimeString('de-DE')} (${session.modifiedBy || 'System'})</div>` : ''}
+            const data = await response.json();
+            const savedSessions = data.sessions || [];
+            
+            if (savedSessions.length === 0) {
+                container.innerHTML = '<p class="no-sessions">Keine Sessions gespeichert</p>';
+                return;
+            }
+
+            // Sort sessions by last modification date (newest first)
+            savedSessions.sort((a, b) => new Date(b.savedAt || b.lastModified) - new Date(a.savedAt || a.lastModified));
+
+            container.innerHTML = savedSessions.map(session => {
+                const createdDate = new Date(session.createdAt || session.created);
+                const savedDate = new Date(session.savedAt || session.lastModified);
+                const modifiedDate = session.lastModified ? new Date(session.lastModified) : null;
+                
+                return `
+                    <div class="saved-session-item">
+                        <div class="saved-session-info">
+                            <div class="session-name">
+                                ${session.name}
+                                <span class="password-icon" title="Passwortgeschützt">🔒</span>
                             </div>
+                            <div class="session-meta">
+                                <div class="session-dates">
+                                    <div><strong>Erstellt:</strong> ${createdDate.toLocaleDateString('de-DE')} ${createdDate.toLocaleTimeString('de-DE')}</div>
+                                    <div><strong>Gespeichert:</strong> ${savedDate.toLocaleDateString('de-DE')} ${savedDate.toLocaleTimeString('de-DE')}</div>
+                                    ${modifiedDate ? `<div><strong>Letzte Änderung:</strong> ${modifiedDate.toLocaleDateString('de-DE')} ${modifiedDate.toLocaleTimeString('de-DE')} (${session.modifiedBy || 'System'})</div>` : ''}
+                                </div>
+                            </div>
+                            <code class="session-token-preview">${session.token.substring(0, 16)}...</code>
                         </div>
-                        <code class="session-token-preview">${session.token.substring(0, 16)}...</code>
+                        <div class="saved-session-actions">
+                            <button class="btn btn-small btn-primary" onclick="window.errorDisplay.restoreSessionFromSaved('${session.token}', true)">
+                                🔄 Laden
+                            </button>
+                        </div>
                     </div>
-                    <div class="saved-session-actions">
-                        <button class="btn btn-small btn-primary" onclick="window.errorDisplay.restoreSessionFromSaved('${session.token}', true)">
-                            🔄 Laden
-                        </button>
-                    </div>
-                </div>
-            `;
-        }).join('');
+                `;
+            }).join('');
+        } catch (error) {
+            console.error('Error loading saved sessions:', error);
+            container.innerHTML = '<p class="no-sessions">Verbindungsfehler beim Laden der Sessions</p>';
+        }
     }
 
     async restoreSessionFromSaved(token, requirePassword = true) {
@@ -2164,23 +2254,21 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                     createdAt: data.session.createdAt || data.session.created,
                     lastModified: data.session.lastModified,
                     modifiedBy: data.session.modifiedBy,
-                    hasPassword: data.session.hasPassword
+                    hasPassword: data.session.hasPassword,
+                    isSaved: true // Mark as saved since it was loaded from server
                 };
-                localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+                
+                // DO NOT save restored sessions to localStorage - they are server-side only
+                console.log('📂 Restored saved session from server (no localStorage)');
+                
                 this.updateSessionDisplay();
                 this.showNotification(`Session "${data.session.name}" erfolgreich geladen!`, 'success');
                 this.updateCurrentSessionCard();
                 
-                // Delete saved session from list after successful loading
-                this.deleteSavedSession(token);
-                
-                // Restore archived data if available
-                const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
-                const savedSession = savedSessions.find(s => s.token === token);
-                if (savedSession && savedSession.archiveData) {
+                // Restore archived data from server if available
+                if (data.session.archive) {
                     console.log('📂 Restoring archived data for session');
-                    this.archiveData = savedSession.archiveData;
-                    this.saveArchive(); // Save to session-specific archive key
+                    this.archiveData = data.session.archive;
                 }
                 
                 // Global session load - unlock tabs and connect
@@ -2189,7 +2277,6 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 this.showNotification('Falsches Passwort!', 'error');
             } else {
                 this.showNotification('Session nicht mehr gültig', 'error');
-                this.deleteSavedSession(token);
             }
         } catch (error) {
             console.error('Error restoring session:', error);

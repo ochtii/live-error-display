@@ -478,6 +478,27 @@ class SessionManager {
             console.error('❌ Failed to delete session file:', error.message);
         }
     }
+    
+    static getSavedSessions() {
+        const savedSessions = [];
+        
+        sessions.forEach((session, token) => {
+            if (session.isSaved) {
+                savedSessions.push({
+                    token: session.token,
+                    name: session.name,
+                    createdAt: session.createdAt,
+                    savedAt: session.savedAt,
+                    lastModified: session.lastModified,
+                    modifiedBy: session.modifiedBy,
+                    hasPassword: session.hasPassword,
+                    errorCount: session.errors ? session.errors.length : 0
+                });
+            }
+        });
+        
+        return savedSessions;
+    }
 }
 
 // Clean up stale connections
@@ -780,6 +801,60 @@ app.get('/live', (req, res) => {
             broadcastClientCount();
         }
     });
+});
+
+// Save session with password (PUT /api/session/:token)
+app.put('/api/session/:token', (req, res) => {
+    try {
+        const { token } = req.params;
+        const { name, password, archiveData } = req.body;
+        
+        const session = SessionManager.getSession(token);
+        if (!session) {
+            return res.status(404).json({
+                success: false,
+                error: 'Session not found'
+            });
+        }
+        
+        // Update session with save information
+        SessionManager.updateSession(token, {
+            name: name || session.name,
+            hasPassword: !!password,
+            passwordHash: password ? crypto.createHash('sha256').update(password).digest('hex') : session.passwordHash,
+            isSaved: true,
+            savedAt: new Date().toISOString(),
+            archive: archiveData || session.archive || []
+        });
+        
+        res.json({
+            success: true,
+            message: 'Session saved successfully'
+        });
+    } catch (error) {
+        console.error('❌ Error saving session:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to save session'
+        });
+    }
+});
+
+// Get all saved sessions (GET /api/sessions/saved)
+app.get('/api/sessions/saved', (req, res) => {
+    try {
+        const savedSessions = SessionManager.getSavedSessions();
+        res.json({
+            success: true,
+            sessions: savedSessions
+        });
+    } catch (error) {
+        console.error('❌ Error loading saved sessions:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to load saved sessions'
+        });
+    }
 });
 
 // Receive new errors (session-aware with required token)
