@@ -903,13 +903,24 @@ app.post('/error', (req, res) => {
         });
     }
     
-    // Check if session has active clients (only allow errors for active sessions)
-    if (!session.clients || session.clients.size === 0) {
+    // Check if session has active clients or was recently active (allow 5 minutes grace period)
+    const now = Date.now();
+    const lastAccessed = session.lastAccessed ? new Date(session.lastAccessed).getTime() : 0;
+    const gracePeriod = 5 * 60 * 1000; // 5 minutes in milliseconds
+    const hasActiveClients = session.clients && session.clients.size > 0;
+    const withinGracePeriod = (now - lastAccessed) < gracePeriod;
+    
+    if (!hasActiveClients && !withinGracePeriod) {
         return res.status(423).json({
             success: false,
-            error: 'Session is not active. Errors can only be sent to sessions with active connections.'
+            error: 'Session is not active. Errors can only be sent to sessions with active connections or within 5 minutes of last activity.'
         });
     }
+    
+    // Update session lastAccessed timestamp
+    SessionManager.updateSession(sessionToken, {
+        lastAccessed: new Date().toISOString()
+    });
     
     const errorData = addError({
         message: req.body.message || req.body.error || 'Unknown error',
