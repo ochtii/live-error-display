@@ -14,6 +14,7 @@ class ErrorDisplay {
         this.eventSource = null;
         this.settings = this.loadSettings();
         this.archiveData = this.loadArchive();
+        this.autoSaveEnabled = false; // Auto-save is disabled by default
         
         // Session Management
         this.currentSession = null;
@@ -57,6 +58,7 @@ class ErrorDisplay {
         const copyTokenHeader = document.getElementById('copyTokenHeader');
         const sessionEndLink = document.getElementById('sessionEndLink');
         const hideSessionInfo = document.getElementById('hideSessionInfo');
+        const autoSaveCheckbox = document.getElementById('autoSaveCheckbox');
         
         if (sessionBtn) sessionBtn.addEventListener('click', () => this.openSessionManager());
         if (copyToken) copyToken.addEventListener('click', () => this.copySessionToken());
@@ -66,6 +68,7 @@ class ErrorDisplay {
         if (copyTokenHeader) copyTokenHeader.addEventListener('click', () => this.copySessionToken());
         if (sessionEndLink) sessionEndLink.addEventListener('click', () => this.endCurrentSession());
         if (hideSessionInfo) hideSessionInfo.addEventListener('click', () => this.toggleSessionInfoVisibility());
+        if (autoSaveCheckbox) autoSaveCheckbox.addEventListener('change', (e) => this.toggleAutoSave(e.target.checked));
         
         // Session Manager inline controls
         const createNewSessionBtn = document.getElementById('createNewSessionBtn');
@@ -195,6 +198,11 @@ class ErrorDisplay {
         this.archiveData.unshift(archiveError);
         this.cleanupArchive();
         this.saveArchive();
+        
+        // Auto-save if enabled and session is saved
+        if (this.autoSaveEnabled && this.isSessionSaved()) {
+            this.saveToServer();
+        }
     }
 
     saveArchive() {
@@ -202,6 +210,9 @@ class ErrorDisplay {
             // Save to session-specific archive
             const sessionArchiveKey = `archive_${this.currentSession.token}`;
             localStorage.setItem(sessionArchiveKey, JSON.stringify(this.archiveData));
+            
+            // Update session's archive property for server sync
+            this.currentSession.archive = this.archiveData;
         } else {
             // Fallback to global archive
             localStorage.setItem('errorDisplayArchive', JSON.stringify(this.archiveData));
@@ -387,18 +398,31 @@ class ErrorDisplay {
             // Disable session creation and restoration when session is active
             this.disableSessionCard(createCard, 'Neue Session erstellen', 'aktuelle Session beenden');
             this.disableSessionCard(restoreCard, 'Session wiederherstellen', 'aktuelle Session beenden');
+            
+            // For saved sessions, also disable the saved sessions list
+            const savedSessionsCard = document.querySelector('.session-card:has(#inlineSavedSessions)');
+            if (this.isSessionSaved()) {
+                this.disableSessionCard(savedSessionsCard, 'Gespeicherte Sessions verwenden', 'aktuelle Session beenden', false);
+            } else {
+                // For unsaved sessions, enable the saved sessions card
+                this.enableSessionCard(savedSessionsCard);
+            }
         } else {
             // Enable session creation and restoration when no session is active
+            const savedSessionsCard = document.querySelector('.session-card:has(#inlineSavedSessions)');
             this.enableSessionCard(createCard);
             this.enableSessionCard(restoreCard);
+            this.enableSessionCard(savedSessionsCard);
         }
     }
     
-    disableSessionCard(card, action, requirement) {
+    disableSessionCard(card, action, requirement, grayOut = true) {
         if (!card) return;
         
-        // Add disabled class
-        card.classList.add('session-card-disabled');
+        // Add disabled class only if graying out
+        if (grayOut) {
+            card.classList.add('session-card-disabled');
+        }
         
         // Disable all inputs and buttons
         const inputs = card.querySelectorAll('input, button');
@@ -406,21 +430,23 @@ class ErrorDisplay {
             input.disabled = true;
         });
         
-        // Add warning message if not already present
-        let warningDiv = card.querySelector('.session-warning');
-        if (!warningDiv) {
-            warningDiv = document.createElement('div');
-            warningDiv.className = 'session-warning';
-            warningDiv.innerHTML = `
-                <div class="warning-content">
-                    <span class="warning-icon">⚠️</span>
-                    <span class="warning-text">Um ${action} zu können, müssen Sie zuerst die ${requirement}.</span>
-                    <span class="session-end-text" onclick="window.errorDisplay.clearSession()">
-                        Session beenden ✖
-                    </span>
-                </div>
-            `;
-            card.appendChild(warningDiv);
+        // Add warning message if not already present and if graying out
+        if (grayOut) {
+            let warningDiv = card.querySelector('.session-warning');
+            if (!warningDiv) {
+                warningDiv = document.createElement('div');
+                warningDiv.className = 'session-warning';
+                warningDiv.innerHTML = `
+                    <div class="warning-content">
+                        <span class="warning-icon">⚠️</span>
+                        <span class="warning-text">Um ${action} zu können, müssen Sie zuerst die ${requirement}.</span>
+                        <span class="session-end-text" onclick="window.errorDisplay.clearSession()">
+                            Session beenden ✖
+                        </span>
+                    </div>
+                `;
+                card.appendChild(warningDiv);
+            }
         }
     }
     
@@ -444,6 +470,16 @@ class ErrorDisplay {
     }
     
     showSessionManagerAtBottom() {
+        // Don't show session manager footer if session is saved
+        if (this.currentSession && this.isSessionSaved()) {
+            // Remove any existing footer
+            const existingFooter = document.getElementById('sessionManagerFooter');
+            if (existingFooter) {
+                existingFooter.remove();
+            }
+            return;
+        }
+        
         // Ensure session manager is visible at the bottom of all pages
         const sessionManagerContainer = document.getElementById('sessionManagerContainer');
         if (sessionManagerContainer && this.currentMode !== 'session-manager') {
@@ -660,6 +696,11 @@ class ErrorDisplay {
         
         this.displayErrors(this.errors);
         this.updateStats();
+        
+        // Auto-save if enabled and session is saved
+        if (this.autoSaveEnabled && this.isSessionSaved()) {
+            this.saveToServer();
+        }
     }
 
     displayErrors(errors, isArchive = false) {
@@ -1526,6 +1567,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         const headerSession = document.getElementById('headerSession');
         const sessionNameHeader = document.getElementById('sessionNameHeader');
         const sessionTokenHeader = document.getElementById('sessionTokenHeader');
+        const autoSaveToggle = document.getElementById('autoSaveToggle');
         
         console.log('🔄 Updating session display:', {
             hasSession: !!this.currentSession,
@@ -1545,12 +1587,22 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 headerSession.style.display = 'flex';
                 sessionNameHeader.textContent = sessionNameText;
                 sessionTokenHeader.textContent = tokenPreview;
+                
+                // Show auto-save toggle for saved sessions
+                if (autoSaveToggle) {
+                    autoSaveToggle.style.display = 'flex';
+                }
             } else {
                 // Show session bar with hide option for unsaved sessions
                 sessionBar.style.display = 'flex';
                 headerSession.style.display = 'none';
                 sessionName.textContent = sessionNameText;
                 sessionToken.textContent = tokenPreview;
+                
+                // Hide auto-save toggle for unsaved sessions
+                if (autoSaveToggle) {
+                    autoSaveToggle.style.display = 'none';
+                }
                 
                 // Add floating hide info
                 this.addFloatingHideInfo();
@@ -1561,6 +1613,9 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         } else {
             sessionBar.style.display = 'none';
             headerSession.style.display = 'none';
+            if (autoSaveToggle) {
+                autoSaveToggle.style.display = 'none';
+            }
             this.updateHeaderSessionStatus(false);
         }
     }
@@ -2290,6 +2345,49 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         localStorage.setItem('savedSessions', JSON.stringify(filteredSessions));
         this.loadSavedSessionsInline();
         this.showNotification('Session aus Speicher entfernt', 'success');
+    }
+
+    async toggleAutoSave(checked) {
+        if (!this.currentSession || !this.isSessionSaved()) {
+            return;
+        }
+        
+        this.autoSaveEnabled = checked;
+        
+        if (this.autoSaveEnabled) {
+            // Save current session to server immediately when auto-save is enabled
+            await this.saveToServer();
+            this.showNotification('Auto-Save aktiviert - Änderungen werden automatisch gespeichert', 'success');
+        } else {
+            this.showNotification('Auto-Save deaktiviert', 'info');
+        }
+    }
+    
+    async saveToServer() {
+        if (!this.currentSession || !this.isSessionSaved()) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/session/${this.currentSession.token}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    password: this.currentSession.password,
+                    archive: this.currentSession.archive
+                })
+            });
+            
+            if (response.ok) {
+                console.log('Session auto-saved to server');
+            } else {
+                console.error('Failed to auto-save session');
+            }
+        } catch (error) {
+            console.error('Error during auto-save:', error);
+        }
     }
 }
 
