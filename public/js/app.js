@@ -277,15 +277,22 @@ class ErrorDisplay {
 
     updateCodeExamples(serverUrl) {
         const codeBlocks = [
-            'js-example', 'python-example', 'php-example', 
-            'java-example', 'csharp-example', 'kotlin-example', 'curl-example',
-            'powershell-example', 'cmd-example', 'macos-example', 'linux-example'
+            // JavaScript
+            'js-send', 'js-get', 'js-live', 'js-clear',
+            // Python
+            'py-send', 'py-get', 'py-monitor', 'py-clear',
+            // PHP
+            'php-send', 'php-get', 'php-clear',
+            // Andere Sprachen (werden später hinzugefügt)
+            'java-example', 'csharp-example', 'kotlin-example', 
+            'curl-example', 'powershell-example', 'cmd-example', 'macos-example', 'linux-example'
         ];
         
         codeBlocks.forEach(id => {
             const element = document.getElementById(id);
             if (element) {
                 element.textContent = element.textContent.replace(/SERVER_URL/g, serverUrl);
+                element.textContent = element.textContent.replace(/http:\/\/localhost:3000/g, serverUrl);
             }
         });
     }

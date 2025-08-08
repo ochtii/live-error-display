@@ -391,107 +391,283 @@
                     <div class="api-section">
                         <h3>💻 Verwendungsbeispiele</h3>
                         <div class="code-examples">
-                            <!-- JavaScript Example -->
-                            <div class="code-example">
-                                <div class="code-header">
+                            <!-- JavaScript Examples -->
+                            <div class="language-section">
+                                <h4 class="language-title">
                                     <span class="language-badge js">JavaScript</span>
-                                    <button class="copy-code-btn" onclick="errorDisplay.copyCode('js-example')">📋 Kopieren</button>
-                                </div>
-                                <pre class="code-block" id="js-example">// Fehler senden
-async function sendError(message) {
-    try {
-        const response = await fetch('SERVER_URL/error', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message })
+                                    JavaScript / Node.js Integration
+                                </h4>
+                                
+                                <!-- JS: Send Error -->
+                                <div class="code-example">
+                                    <div class="code-header">
+                                        <span class="function-name">Fehler senden</span>
+                                        <button class="copy-code-btn" onclick="errorDisplay.copyCode('js-send')">📋 Kopieren</button>
+                                    </div>
+                                    <pre class="code-block js-code" id="js-send"><span class="js-comment">// Fehler an Server senden</span>
+<span class="js-keyword">async function</span> <span class="js-function">sendError</span>(<span class="js-param">message</span>) {
+    <span class="js-keyword">try</span> {
+        <span class="js-keyword">const</span> <span class="js-variable">response</span> = <span class="js-keyword">await</span> <span class="js-function">fetch</span>(<span class="js-string">'SERVER_URL/error'</span>, {
+            <span class="js-property">method</span>: <span class="js-string">'POST'</span>,
+            <span class="js-property">headers</span>: { <span class="js-string">'Content-Type'</span>: <span class="js-string">'application/json'</span> },
+            <span class="js-property">body</span>: <span class="js-object">JSON</span>.<span class="js-function">stringify</span>({ <span class="js-property">message</span>: <span class="js-param">message</span> })
         });
-        const result = await response.json();
-        console.log('Fehler gesendet:', result);
-    } catch (error) {
-        console.error('Fehler beim Senden:', error);
+        <span class="js-keyword">const</span> <span class="js-variable">result</span> = <span class="js-keyword">await</span> <span class="js-variable">response</span>.<span class="js-function">json</span>();
+        <span class="js-object">console</span>.<span class="js-function">log</span>(<span class="js-string">'Fehler gesendet:'</span>, <span class="js-variable">result</span>);
+    } <span class="js-keyword">catch</span> (<span class="js-param">error</span>) {
+        <span class="js-object">console</span>.<span class="js-function">error</span>(<span class="js-string">'Fehler beim Senden:'</span>, <span class="js-param">error</span>);
     }
-}
-
-// Live Events empfangen
-const eventSource = new EventSource('SERVER_URL/live');
-eventSource.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    if (data.type === 'error') {
-        console.log('Neuer Fehler:', data.error);
+}</pre>
+                                </div>
+                                
+                                <!-- JS: Get Errors -->
+                                <div class="code-example">
+                                    <div class="code-header">
+                                        <span class="function-name">Alle Fehler abrufen</span>
+                                        <button class="copy-code-btn" onclick="errorDisplay.copyCode('js-get')">📋 Kopieren</button>
+                                    </div>
+                                    <pre class="code-block js-code" id="js-get"><span class="js-comment">// Alle gespeicherten Fehler abrufen</span>
+<span class="js-keyword">async function</span> <span class="js-function">getAllErrors</span>() {
+    <span class="js-keyword">try</span> {
+        <span class="js-keyword">const</span> <span class="js-variable">response</span> = <span class="js-keyword">await</span> <span class="js-function">fetch</span>(<span class="js-string">'SERVER_URL/errors'</span>);
+        <span class="js-keyword">const</span> <span class="js-variable">data</span> = <span class="js-keyword">await</span> <span class="js-variable">response</span>.<span class="js-function">json</span>();
+        
+        <span class="js-object">console</span>.<span class="js-function">log</span>(<span class="js-template">`Gefunden: ${<span class="js-variable">data</span>.<span class="js-property">totalErrors</span>} Fehler`</span>);
+        <span class="js-keyword">return</span> <span class="js-variable">data</span>.<span class="js-property">errors</span>;
+    } <span class="js-keyword">catch</span> (<span class="js-param">error</span>) {
+        <span class="js-object">console</span>.<span class="js-function">error</span>(<span class="js-string">'Fehler beim Abrufen:'</span>, <span class="js-param">error</span>);
     }
-};</pre>
+}</pre>
+                                </div>
+                                
+                                <!-- JS: Live Events -->
+                                <div class="code-example">
+                                    <div class="code-header">
+                                        <span class="function-name">Live Events empfangen</span>
+                                        <button class="copy-code-btn" onclick="errorDisplay.copyCode('js-live')">📋 Kopieren</button>
+                                    </div>
+                                    <pre class="code-block js-code" id="js-live"><span class="js-comment">// Live Error-Stream via Server-Sent Events</span>
+<span class="js-keyword">function</span> <span class="js-function">connectToLiveStream</span>() {
+    <span class="js-keyword">const</span> <span class="js-variable">eventSource</span> = <span class="js-keyword">new</span> <span class="js-function">EventSource</span>(<span class="js-string">'SERVER_URL/live'</span>);
+    
+    <span class="js-variable">eventSource</span>.<span class="js-property">onmessage</span> = (<span class="js-param">event</span>) => {
+        <span class="js-keyword">const</span> <span class="js-variable">data</span> = <span class="js-object">JSON</span>.<span class="js-function">parse</span>(<span class="js-param">event</span>.<span class="js-property">data</span>);
+        
+        <span class="js-keyword">if</span> (<span class="js-variable">data</span>.<span class="js-property">type</span> === <span class="js-string">'error'</span>) {
+            <span class="js-object">console</span>.<span class="js-function">log</span>(<span class="js-string">'Neuer Fehler:'</span>, <span class="js-variable">data</span>.<span class="js-property">error</span>);
+        }
+    };
+    
+    <span class="js-keyword">return</span> <span class="js-variable">eventSource</span>;
+}</pre>
+                                </div>
+                                
+                                <!-- JS: Clear Errors -->
+                                <div class="code-example">
+                                    <div class="code-header">
+                                        <span class="function-name">Alle Fehler löschen</span>
+                                        <button class="copy-code-btn" onclick="errorDisplay.copyCode('js-clear')">📋 Kopieren</button>
+                                    </div>
+                                    <pre class="code-block js-code" id="js-clear"><span class="js-comment">// Alle Fehler vom Server löschen</span>
+<span class="js-keyword">async function</span> <span class="js-function">clearAllErrors</span>() {
+    <span class="js-keyword">try</span> {
+        <span class="js-keyword">const</span> <span class="js-variable">response</span> = <span class="js-keyword">await</span> <span class="js-function">fetch</span>(<span class="js-string">'SERVER_URL/errors'</span>, {
+            <span class="js-property">method</span>: <span class="js-string">'DELETE'</span>
+        });
+        
+        <span class="js-keyword">const</span> <span class="js-variable">result</span> = <span class="js-keyword">await</span> <span class="js-variable">response</span>.<span class="js-function">json</span>();
+        <span class="js-object">console</span>.<span class="js-function">log</span>(<span class="js-string">'Alle Fehler gelöscht:'</span>, <span class="js-variable">result</span>);
+    } <span class="js-keyword">catch</span> (<span class="js-param">error</span>) {
+        <span class="js-object">console</span>.<span class="js-function">error</span>(<span class="js-string">'Fehler beim Löschen:'</span>, <span class="js-param">error</span>);
+    }
+}</pre>
+                                </div>
                             </div>
                             
-                            <!-- Python Example -->
-                            <div class="code-example">
-                                <div class="code-header">
+                            <!-- Python Examples -->
+                            <div class="language-section">
+                                <h4 class="language-title">
                                     <span class="language-badge python">Python</span>
-                                    <button class="copy-code-btn" onclick="errorDisplay.copyCode('python-example')">📋 Kopieren</button>
-                                </div>
-                                <pre class="code-block" id="python-example">import requests
-import json
+                                    Python mit requests Library
+                                </h4>
+                                
+                                <!-- Python: Send Error -->
+                                <div class="code-example">
+                                    <div class="code-header">
+                                        <span class="function-name">Fehler senden</span>
+                                        <button class="copy-code-btn" onclick="errorDisplay.copyCode('py-send')">📋 Kopieren</button>
+                                    </div>
+                                    <pre class="code-block py-code" id="py-send"><span class="py-keyword">import</span> <span class="py-module">requests</span>
 
-# Fehler senden
-def send_error(message):
-    url = "SERVER_URL/error"
-    payload = {"message": message}
+<span class="py-keyword">def</span> <span class="py-function">send_error</span>(<span class="py-param">message</span>):
+    <span class="py-string">"""Sendet einen Fehler an den Error Display Server"""</span>
+    <span class="py-variable">url</span> = <span class="py-string">"SERVER_URL/error"</span>
+    <span class="py-variable">payload</span> = {<span class="py-string">"message"</span>: <span class="py-param">message</span>}
     
-    try:
-        response = requests.post(url, json=payload)
-        result = response.json()
-        print(f"Fehler gesendet: {result}")
-    except Exception as e:
-        print(f"Fehler beim Senden: {e}")
+    <span class="py-keyword">try</span>:
+        <span class="py-variable">response</span> = <span class="py-module">requests</span>.<span class="py-function">post</span>(<span class="py-variable">url</span>, <span class="py-param">json</span>=<span class="py-variable">payload</span>)
+        <span class="py-variable">result</span> = <span class="py-variable">response</span>.<span class="py-function">json</span>()
+        <span class="py-function">print</span>(<span class="py-fstring">f"Fehler gesendet: {<span class="py-variable">result</span>}"</span>)
+        <span class="py-keyword">return</span> <span class="py-variable">result</span>
+    <span class="py-keyword">except</span> <span class="py-exception">Exception</span> <span class="py-keyword">as</span> <span class="py-variable">e</span>:
+        <span class="py-function">print</span>(<span class="py-fstring">f"Fehler beim Senden: {<span class="py-variable">e</span>}"</span>)</pre>
+                                </div>
+                                
+                                <!-- Python: Get Errors -->
+                                <div class="code-example">
+                                    <div class="code-header">
+                                        <span class="function-name">Alle Fehler abrufen</span>
+                                        <button class="copy-code-btn" onclick="errorDisplay.copyCode('py-get')">📋 Kopieren</button>
+                                    </div>
+                                    <pre class="code-block py-code" id="py-get"><span class="py-keyword">def</span> <span class="py-function">get_all_errors</span>():
+    <span class="py-string">"""Ruft alle gespeicherten Fehler ab"""</span>
+    <span class="py-variable">url</span> = <span class="py-string">"SERVER_URL/errors"</span>
+    
+    <span class="py-keyword">try</span>:
+        <span class="py-variable">response</span> = <span class="py-module">requests</span>.<span class="py-function">get</span>(<span class="py-variable">url</span>)
+        <span class="py-variable">data</span> = <span class="py-variable">response</span>.<span class="py-function">json</span>()
+        
+        <span class="py-function">print</span>(<span class="py-fstring">f"Gesamt: {<span class="py-variable">data</span>[<span class="py-string">'totalErrors'</span>]} Fehler"</span>)
+        <span class="py-keyword">return</span> <span class="py-variable">data</span>[<span class="py-string">'errors'</span>]
+    <span class="py-keyword">except</span> <span class="py-exception">Exception</span> <span class="py-keyword">as</span> <span class="py-variable">e</span>:
+        <span class="py-function">print</span>(<span class="py-fstring">f"Fehler beim Abrufen: {<span class="py-variable">e</span>}"</span>)
+        <span class="py-keyword">return</span> []</pre>
+                                </div>
+                                
+                                <!-- Python: Monitor -->
+                                <div class="code-example">
+                                    <div class="code-header">
+                                        <span class="function-name">Server Status überwachen</span>
+                                        <button class="copy-code-btn" onclick="errorDisplay.copyCode('py-monitor')">📋 Kopieren</button>
+                                    </div>
+                                    <pre class="code-block py-code" id="py-monitor"><span class="py-keyword">import</span> <span class="py-module">time</span>
 
-# Alle Fehler abrufen
-def get_errors():
-    response = requests.get("SERVER_URL/errors")
-    return response.json()
-
-# Beispiel-Verwendung
-send_error("Python-Anwendung: Datenbankverbindung fehlgeschlagen")
-errors = get_errors()
-print(f"Gesamt: {errors['totalErrors']} Fehler")</pre>
+<span class="py-keyword">def</span> <span class="py-function">monitor_server_status</span>(<span class="py-param">interval</span>=<span class="py-number">30</span>):
+    <span class="py-string">"""Überwacht kontinuierlich den Server-Status"""</span>
+    <span class="py-variable">url</span> = <span class="py-string">"SERVER_URL/status"</span>
+    
+    <span class="py-keyword">while</span> <span class="py-boolean">True</span>:
+        <span class="py-keyword">try</span>:
+            <span class="py-variable">response</span> = <span class="py-module">requests</span>.<span class="py-function">get</span>(<span class="py-variable">url</span>)
+            <span class="py-variable">status</span> = <span class="py-variable">response</span>.<span class="py-function">json</span>()
+            
+            <span class="py-function">print</span>(<span class="py-fstring">f"Status: {<span class="py-variable">status</span>[<span class="py-string">'connectedClients'</span>]} Clients, "</span>
+                  <span class="py-fstring">f"{<span class="py-variable">status</span>[<span class="py-string">'totalErrors'</span>]} Fehler"</span>)
+                  
+            <span class="py-module">time</span>.<span class="py-function">sleep</span>(<span class="py-param">interval</span>)
+        <span class="py-keyword">except</span> <span class="py-exception">KeyboardInterrupt</span>:
+            <span class="py-function">print</span>(<span class="py-string">"Monitoring beendet"</span>)
+            <span class="py-keyword">break</span></pre>
+                                </div>
+                                
+                                <!-- Python: Clear -->
+                                <div class="code-example">
+                                    <div class="code-header">
+                                        <span class="function-name">Alle Fehler löschen</span>
+                                        <button class="copy-code-btn" onclick="errorDisplay.copyCode('py-clear')">📋 Kopieren</button>
+                                    </div>
+                                    <pre class="code-block py-code" id="py-clear"><span class="py-keyword">def</span> <span class="py-function">clear_all_errors</span>():
+    <span class="py-string">"""Löscht alle Fehler vom Server"""</span>
+    <span class="py-variable">url</span> = <span class="py-string">"SERVER_URL/errors"</span>
+    
+    <span class="py-keyword">try</span>:
+        <span class="py-variable">response</span> = <span class="py-module">requests</span>.<span class="py-function">delete</span>(<span class="py-variable">url</span>)
+        <span class="py-variable">result</span> = <span class="py-variable">response</span>.<span class="py-function">json</span>()
+        
+        <span class="py-function">print</span>(<span class="py-fstring">f"Alle Fehler gelöscht: {<span class="py-variable">result</span>[<span class="py-string">'message'</span>]}"</span>)
+        <span class="py-keyword">return</span> <span class="py-variable">result</span>
+    <span class="py-keyword">except</span> <span class="py-exception">Exception</span> <span class="py-keyword">as</span> <span class="py-variable">e</span>:
+        <span class="py-function">print</span>(<span class="py-fstring">f"Fehler beim Löschen: {<span class="py-variable">e</span>}"</span>)</pre>
+                                </div>
                             </div>
                             
-                            <!-- PHP Example -->
-                            <div class="code-example">
-                                <div class="code-header">
-                                    <span class="language-badge php">PHP</span>
-                                    <button class="copy-code-btn" onclick="errorDisplay.copyCode('php-example')">📋 Kopieren</button>
+                            <!-- PHP Examples -->
+                            <div class="language-section">
+                                <div class="language-title">
+                                    <div class="language-badge php">PHP</div>
+                                    <span>PHP Code Examples</span>
                                 </div>
-                                <pre class="code-block" id="php-example">&lt;?php
-// Fehler senden
-function sendError($message) {
-    $url = "SERVER_URL/error";
-    $data = json_encode(["message" => $message]);
+                                <div class="code-examples">
+                                    <!-- Send Error -->
+                                    <div class="code-example">
+                                        <div class="code-header">
+                                            <span class="function-name">Send Error</span>
+                                            <button class="copy-code-btn" onclick="copyCode('php-send')">Copy</button>
+                                        </div>
+                                        <pre class="code-block php-code" id="php-send"><?php
+<span class="php-comment">// Send error to server</span>
+<span class="php-function">function</span> <span class="php-function">sendError</span>(<span class="php-variable">$error</span>, <span class="php-variable">$url</span> = <span class="php-string">'http://localhost:3000'</span>) {
+    <span class="php-variable">$data</span> = <span class="php-keyword">array</span>(
+        <span class="php-string">'error'</span> => <span class="php-variable">$error</span>,
+        <span class="php-string">'timestamp'</span> => <span class="php-function">date</span>(<span class="php-string">'c'</span>),
+        <span class="php-string">'source'</span> => <span class="php-string">'php-script'</span>
+    );
     
-    $context = stream_context_create([
-        "http" => [
-            "method" => "POST",
-            "header" => "Content-Type: application/json",
-            "content" => $data
-        ]
-    ]);
+    <span class="php-variable">$options</span> = <span class="php-keyword">array</span>(
+        <span class="php-string">'http'</span> => <span class="php-keyword">array</span>(
+            <span class="php-string">'header'</span> => <span class="php-string">"Content-Type: application/json\r\n"</span>,
+            <span class="php-string">'method'</span> => <span class="php-string">'POST'</span>,
+            <span class="php-string">'content'</span> => <span class="php-function">json_encode</span>(<span class="php-variable">$data</span>)
+        )
+    );
     
-    $result = file_get_contents($url, false, $context);
-    return json_decode($result, true);
+    <span class="php-variable">$context</span> = <span class="php-function">stream_context_create</span>(<span class="php-variable">$options</span>);
+    <span class="php-variable">$response</span> = <span class="php-function">file_get_contents</span>(<span class="php-variable">$url</span> . <span class="php-string">'/error'</span>, <span class="php-keyword">false</span>, <span class="php-variable">$context</span>);
+    
+    <span class="php-keyword">return</span> <span class="php-variable">$response</span>;
 }
 
-// Alle Fehler abrufen
-function getErrors() {
-    $response = file_get_contents("SERVER_URL/errors");
-    return json_decode($response, true);
+<span class="php-comment">// Usage example</span>
+<span class="php-function">sendError</span>(<span class="php-string">'Database connection failed'</span>);</pre>
+                                    </div>
+
+                                    <!-- Get Errors -->
+                                    <div class="code-example">
+                                        <div class="code-header">
+                                            <span class="function-name">Get All Errors</span>
+                                            <button class="copy-code-btn" onclick="copyCode('php-get')">Copy</button>
+                                        </div>
+                                        <pre class="code-block php-code" id="php-get"><?php
+<span class="php-comment">// Get all errors from server</span>
+<span class="php-function">function</span> <span class="php-function">getErrors</span>(<span class="php-variable">$url</span> = <span class="php-string">'http://localhost:3000'</span>) {
+    <span class="php-variable">$response</span> = <span class="php-function">file_get_contents</span>(<span class="php-variable">$url</span> . <span class="php-string">'/errors'</span>);
+    <span class="php-variable">$errors</span> = <span class="php-function">json_decode</span>(<span class="php-variable">$response</span>, <span class="php-keyword">true</span>);
+    
+    <span class="php-keyword">return</span> <span class="php-variable">$errors</span>;
 }
 
-// Beispiel-Verwendung
-try {
-    $result = sendError("PHP-Anwendung: Session-Fehler aufgetreten");
-    echo "Fehler gesendet: " . json_encode($result);
-} catch (Exception $e) {
-    echo "Fehler: " . $e->getMessage();
+<span class="php-comment">// Usage example</span>
+<span class="php-variable">$errors</span> = <span class="php-function">getErrors</span>();
+<span class="php-keyword">foreach</span> (<span class="php-variable">$errors</span> <span class="php-keyword">as</span> <span class="php-variable">$error</span>) {
+    <span class="php-keyword">echo</span> <span class="php-variable">$error</span>[<span class="php-string">'error'</span>] . <span class="php-string">"\n"</span>;
+}</pre>
+                                    </div>
+
+                                    <!-- Clear Errors -->
+                                    <div class="code-example">
+                                        <div class="code-header">
+                                            <span class="function-name">Clear All Errors</span>
+                                            <button class="copy-code-btn" onclick="copyCode('php-clear')">Copy</button>
+                                        </div>
+                                        <pre class="code-block php-code" id="php-clear"><?php
+<span class="php-comment">// Clear all errors from server</span>
+<span class="php-function">function</span> <span class="php-function">clearErrors</span>(<span class="php-variable">$url</span> = <span class="php-string">'http://localhost:3000'</span>) {
+    <span class="php-variable">$options</span> = <span class="php-keyword">array</span>(
+        <span class="php-string">'http'</span> => <span class="php-keyword">array</span>(
+            <span class="php-string">'method'</span> => <span class="php-string">'DELETE'</span>
+        )
+    );
+    
+    <span class="php-variable">$context</span> = <span class="php-function">stream_context_create</span>(<span class="php-variable">$options</span>);
+    <span class="php-variable">$response</span> = <span class="php-function">file_get_contents</span>(<span class="php-variable">$url</span> . <span class="php-string">'/clear'</span>, <span class="php-keyword">false</span>, <span class="php-variable">$context</span>);
+    
+    <span class="php-keyword">return</span> <span class="php-variable">$response</span>;
 }
-?&gt;</pre>
+
+<span class="php-comment">// Usage example</span>
+<span class="php-function">clearErrors</span>();</pre>
+                                    </div>
+                                </div>
                             </div>
                             
                             <!-- Java Example -->

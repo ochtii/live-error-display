@@ -1063,7 +1063,7 @@ body {
 
 /* === API DOCUMENTATION STYLES === */
 .api-content {
-    max-height: 80vh;
+    height: calc(100vh - 200px);
     overflow-y: auto;
     padding-right: 1rem;
 }
@@ -1214,11 +1214,33 @@ body {
     gap: 1.5rem;
 }
 
+.language-section {
+    margin-bottom: 3rem;
+}
+
+.language-title {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+.function-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
 .code-example {
     background: rgba(0, 0, 0, 0.4);
     border: 1px solid var(--border-color);
     border-radius: 0.5rem;
     overflow: hidden;
+    margin-bottom: 1rem;
 }
 
 .code-header {
@@ -1229,6 +1251,77 @@ body {
     background: rgba(0, 0, 0, 0.3);
     border-bottom: 1px solid var(--border-color);
 }
+
+.code-block {
+    margin: 0;
+    padding: 1.5rem;
+    background: rgba(0, 0, 0, 0.6);
+    color: var(--text-primary);
+    font-family: 'Fira Code', 'Cascadia Code', 'SF Mono', Consolas, monospace;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+}
+
+/* JavaScript Syntax Highlighting */
+.js-code .js-keyword { color: #ff79c6; font-weight: 600; }
+.js-code .js-function { color: #50fa7b; }
+.js-code .js-variable { color: #f8f8f2; }
+.js-code .js-string { color: #f1fa8c; }
+.js-code .js-comment { color: #6272a4; font-style: italic; }
+.js-code .js-property { color: #8be9fd; }
+.js-code .js-param { color: #ffb86c; }
+.js-code .js-object { color: #bd93f9; }
+.js-code .js-template { color: #f1fa8c; }
+
+/* Python Syntax Highlighting */
+.py-code .py-keyword { color: #ff79c6; font-weight: 600; }
+.py-code .py-function { color: #50fa7b; }
+.py-code .py-variable { color: #f8f8f2; }
+.py-code .py-string { color: #f1fa8c; }
+.py-code .py-fstring { color: #f1fa8c; }
+.py-code .py-comment { color: #6272a4; font-style: italic; }
+.py-code .py-param { color: #ffb86c; }
+.py-code .py-module { color: #8be9fd; }
+.py-code .py-exception { color: #ff5555; }
+.py-code .py-number { color: #bd93f9; }
+.py-code .py-boolean { color: #bd93f9; }
+
+/* PHP Syntax Highlighting */
+.php-code .php-keyword { color: #ff79c6; font-weight: 600; }
+.php-code .php-function { color: #50fa7b; }
+.php-code .php-variable { color: #f8f8f2; }
+.php-code .php-string { color: #f1fa8c; }
+.php-code .php-comment { color: #6272a4; font-style: italic; }
+.php-code .php-class { color: #8be9fd; }
+.php-code .php-method { color: #50fa7b; }
+
+/* Java Syntax Highlighting */
+.java-code .java-keyword { color: #ff79c6; font-weight: 600; }
+.java-code .java-class { color: #50fa7b; }
+.java-code .java-method { color: #50fa7b; }
+.java-code .java-variable { color: #f8f8f2; }
+.java-code .java-string { color: #f1fa8c; }
+.java-code .java-comment { color: #6272a4; font-style: italic; }
+.java-code .java-type { color: #8be9fd; }
+
+/* C# Syntax Highlighting */
+.cs-code .cs-keyword { color: #ff79c6; font-weight: 600; }
+.cs-code .cs-class { color: #50fa7b; }
+.cs-code .cs-method { color: #50fa7b; }
+.cs-code .cs-variable { color: #f8f8f2; }
+.cs-code .cs-string { color: #f1fa8c; }
+.cs-code .cs-comment { color: #6272a4; font-style: italic; }
+.cs-code .cs-type { color: #8be9fd; }
+
+/* Kotlin Syntax Highlighting */
+.kt-code .kt-keyword { color: #ff79c6; font-weight: 600; }
+.kt-code .kt-function { color: #50fa7b; }
+.kt-code .kt-variable { color: #f8f8f2; }
+.kt-code .kt-string { color: #f1fa8c; }
+.kt-code .kt-comment { color: #6272a4; font-style: italic; }
+.kt-code .kt-class { color: #8be9fd; }
 
 .language-badge {
     padding: 0.25rem 0.75rem;
@@ -1334,7 +1427,15 @@ body {
         align-items: flex-start;
     }
     
-    .api-content {
-        max-height: 70vh;
-    }
+.code-block {
+    margin: 0;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.5);
+    color: var(--text-primary);
+    font-family: 'Fira Code', 'Cascadia Code', 'SF Mono', Consolas, monospace;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+}
 }
