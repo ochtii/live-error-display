@@ -35,7 +35,8 @@ class ErrorDisplay {
         document.getElementById('clearStorage').addEventListener('click', () => this.clearArchive());
         document.getElementById('showAllData').addEventListener('click', () => this.showAllLocalStorageData());
         document.getElementById('deleteAllData').addEventListener('click', () => this.deleteAllData());
-        document.getElementById('requestPushPermission').addEventListener('click', () => this.requestPushPermission());
+        
+        // Push-Permission Button wird später in initPushNotifications hinzugefügt
         
         // Range slider updates
         document.getElementById('archiveRetentionDays').addEventListener('input', (e) => {
@@ -579,7 +580,19 @@ class ErrorDisplay {
     
     // Push-Benachrichtigungen initialisieren
     initPushNotifications() {
-        this.updatePushPermissionStatus();
+        // Kurz warten bis DOM vollständig geladen ist
+        setTimeout(() => {
+            // Event-Listener für Push-Button hinzufügen
+            const pushButton = document.getElementById('requestPushPermission');
+            if (pushButton) {
+                pushButton.addEventListener('click', () => this.requestPushPermission());
+                console.log('Push-Button Event-Listener hinzugefügt');
+            } else {
+                console.error('Push-Button nicht gefunden');
+            }
+            
+            this.updatePushPermissionStatus();
+        }, 100);
     }
     
     // Push-Berechtigung prüfen und Status aktualisieren
@@ -587,13 +600,24 @@ class ErrorDisplay {
         const statusElement = document.getElementById('pushStatus');
         const buttonElement = document.getElementById('requestPushPermission');
         
+        console.log('updatePushPermissionStatus called');
+        console.log('statusElement:', statusElement);
+        console.log('buttonElement:', buttonElement);
+        
+        if (!statusElement || !buttonElement) {
+            console.error('Push-Elemente nicht gefunden im DOM');
+            return;
+        }
+        
         if (!('Notification' in window)) {
             statusElement.textContent = 'Browser unterstützt keine Push-Benachrichtigungen';
             statusElement.className = 'push-status denied';
+            console.log('Browser unterstützt keine Notifications');
             return;
         }
         
         const permission = Notification.permission;
+        console.log('Current permission:', permission);
         
         switch (permission) {
             case 'granted':
