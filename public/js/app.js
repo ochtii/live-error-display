@@ -497,6 +497,9 @@ class ErrorDisplay {
                                 Verwalten
                             </button>
                         </div>
+                        <button class="btn btn-small btn-outline" onclick="window.errorDisplay.hideSessionManagerFooter()" title="Footer ausblenden">
+                            ✖
+                        </button>
                     </div>
                 `;
                 document.body.appendChild(footerManager);
@@ -535,6 +538,13 @@ class ErrorDisplay {
                     Session erstellen
                 </button>
             `;
+        }
+    }
+
+    hideSessionManagerFooter() {
+        const footerManager = document.getElementById('sessionManagerFooter');
+        if (footerManager) {
+            footerManager.remove();
         }
     }
 
@@ -1532,13 +1542,29 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             if (response.ok) {
                 const data = await response.json();
                 this.currentSession = {
-                    name: data.sessionName,
+                    name: data.session.name,
                     token: data.token,
-                    created: new Date().toISOString()
+                    createdAt: data.session.createdAt,
+                    lastModified: data.session.lastModified,
+                    modifiedBy: data.session.modifiedBy,
+                    errorCount: data.session.errorCount,
+                    hasPassword: data.session.hasPassword,
+                    isSaved: false // New sessions are not saved initially
                 };
                 localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
                 this.updateSessionDisplay();
+                
+                // Connect to SSE with new session token
+                this.disconnectSSE();
+                this.connectSSE();
+                
+                console.log('✅ New session created:', {
+                    name: this.currentSession.name,
+                    token: this.currentSession.token.substring(0, 16) + '...'
+                });
                 return this.currentSession;
+            } else {
+                console.error('Failed to create session:', response.status);
             }
         } catch (error) {
             console.error('Failed to create session:', error);
@@ -1651,14 +1677,21 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 👁️ℹ️
             </div>
         `;
+        
+        // Add click handler to show session manager footer
+        floatingInfo.addEventListener('click', () => {
+            this.showSessionManagerAtBottom();
+            floatingInfo.remove();
+        });
+        
         document.body.appendChild(floatingInfo);
         
-        // Auto-hide after 5 seconds
+        // Auto-hide after 10 seconds
         setTimeout(() => {
             if (floatingInfo && floatingInfo.parentNode) {
                 floatingInfo.remove();
             }
-        }, 5000);
+        }, 10000);
     }
     
     toggleSessionInfoVisibility() {
@@ -1910,6 +1943,9 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 }
             });
         }
+        
+        // Show session manager footer when no session is active
+        this.showSessionManagerAtBottom();
     }
 
     // Override session methods to reload page after session changes
