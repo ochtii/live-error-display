@@ -32,6 +32,21 @@
             color: #60a5fa;
             font-weight: 700;
             font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .last-change {
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+        
+        .last-change-label {
+            font-weight: 600;
+        }
+        
+        .last-change-info {
+            color: #fbbf24;
+            font-family: 'Courier New', monospace;
         }
         
         .controls {
@@ -247,7 +262,13 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🚨 Live Error Display</h1>
+            <div>
+                <h1>🚨 Live Error Display</h1>
+                <div class="last-change" id="last-change">
+                    <span class="last-change-label">Last Change:</span>
+                    <span class="last-change-info" id="last-change-info">Lade...</span>
+                </div>
+            </div>
             <div class="controls">
                 <button class="btn active" id="btn-live">📡 Live</button>
                 <button class="btn" id="btn-archive">📦 Archiv</button>
@@ -292,7 +313,8 @@
                     waiting: document.getElementById('waiting'),
                     errorList: document.getElementById('error-list'),
                     totalErrors: document.getElementById('total-errors'),
-                    sessionErrors: document.getElementById('session-errors')
+                    sessionErrors: document.getElementById('session-errors'),
+                    lastChangeInfo: document.getElementById('last-change-info')
                 };
                 
                 this.init();
@@ -305,6 +327,12 @@
                 
                 // Initial status test
                 this.setStatus('offline', 'Initialisiere...');
+                
+                // Load file info
+                this.loadFileInfo();
+                
+                // Update file info every 30 seconds
+                setInterval(() => this.loadFileInfo(), 30000);
                 
                 // Start with live mode
                 this.switchToLive();
@@ -510,6 +538,27 @@
                 } catch (error) {
                     button.textContent = '❌ Fehler';
                     setTimeout(() => button.textContent = originalText, 2000);
+                }
+            }
+            
+            async loadFileInfo() {
+                try {
+                    console.log('📄 Loading file info...');
+                    const response = await fetch('/fileinfo');
+                    if (response.ok) {
+                        const fileInfo = await response.json();
+                        if (fileInfo.file && fileInfo.formatted) {
+                            this.elements.lastChangeInfo.textContent = `${fileInfo.formatted} - ${fileInfo.file}`;
+                            console.log(`📄 Last change: ${fileInfo.file} at ${fileInfo.formatted}`);
+                        } else {
+                            this.elements.lastChangeInfo.textContent = 'Keine Daten verfügbar';
+                        }
+                    } else {
+                        this.elements.lastChangeInfo.textContent = 'Fehler beim Laden';
+                    }
+                } catch (error) {
+                    console.error('❌ Failed to load file info:', error);
+                    this.elements.lastChangeInfo.textContent = 'Fehler beim Laden';
                 }
             }
             

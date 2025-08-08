@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -73,6 +74,37 @@ app.get('/events', (req, res) => {
 // Get archived errors
 app.get('/archive', (req, res) => {
     res.json(errors);
+});
+
+// Get file modification info
+app.get('/fileinfo', (req, res) => {
+    const filesToCheck = ['server.js', 'public/index.html', 'package.json', 'deploy.sh', 'setup.sh'];
+    let lastModified = { file: '', time: 0, formatted: '' };
+    
+    filesToCheck.forEach(file => {
+        const filePath = path.join(__dirname, file);
+        try {
+            const stats = fs.statSync(filePath);
+            if (stats.mtime.getTime() > lastModified.time) {
+                lastModified = {
+                    file: file,
+                    time: stats.mtime.getTime(),
+                    formatted: stats.mtime.toLocaleString('de-DE', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    })
+                };
+            }
+        } catch (e) {
+            // File doesn't exist, skip
+        }
+    });
+    
+    res.json(lastModified);
 });
 
 // Add new error (for testing)
