@@ -2,7 +2,7 @@
 
 **Kompakte Live-Fehleranzeige mit automatischem Deployment für Ubuntu Server**
 
-*🧪 Deploy Test #3 - 2025-08-08 06:15:00 - Testing /opt with clean repository*
+*🎉 Deploy Test #4 - 2025-08-08 06:20:00 - Testing with correct deploy-opt.sh script*
 
 ## 🚀 Quick Start (Ubuntu Server)
 
