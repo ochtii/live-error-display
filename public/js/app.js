@@ -582,15 +582,6 @@ class ErrorDisplay {
     initPushNotifications() {
         // Kurz warten bis DOM vollständig geladen ist
         setTimeout(() => {
-            // Event-Listener für Push-Button hinzufügen
-            const pushButton = document.getElementById('requestPushPermission');
-            if (pushButton) {
-                pushButton.addEventListener('click', () => this.requestPushPermission());
-                console.log('Push-Button Event-Listener hinzugefügt');
-            } else {
-                console.error('Push-Button nicht gefunden');
-            }
-            
             this.updatePushPermissionStatus();
         }, 100);
     }
@@ -600,10 +591,6 @@ class ErrorDisplay {
         const statusElement = document.getElementById('pushStatus');
         const buttonElement = document.getElementById('requestPushPermission');
         
-        console.log('updatePushPermissionStatus called');
-        console.log('statusElement:', statusElement);
-        console.log('buttonElement:', buttonElement);
-        
         if (!statusElement || !buttonElement) {
             console.error('Push-Elemente nicht gefunden im DOM');
             return;
@@ -612,12 +599,10 @@ class ErrorDisplay {
         if (!('Notification' in window)) {
             statusElement.textContent = 'Browser unterstützt keine Push-Benachrichtigungen';
             statusElement.className = 'push-status denied';
-            console.log('Browser unterstützt keine Notifications');
             return;
         }
         
         const permission = Notification.permission;
-        console.log('Current permission:', permission);
         
         switch (permission) {
             case 'granted':
@@ -628,12 +613,16 @@ class ErrorDisplay {
             case 'denied':
                 statusElement.textContent = '❌ Berechtigung verweigert';
                 statusElement.className = 'push-status denied';
-                buttonElement.style.display = 'none';
+                buttonElement.textContent = '🔧 Berechtigung zurücksetzen';
+                buttonElement.style.display = 'inline-block';
+                buttonElement.onclick = () => this.showPermissionResetInstructions();
                 break;
             case 'default':
                 statusElement.textContent = '⚠️ Berechtigung erforderlich';
                 statusElement.className = 'push-status default';
+                buttonElement.textContent = '🔔 Berechtigung anfordern';
                 buttonElement.style.display = 'inline-block';
+                buttonElement.onclick = () => this.requestPushPermission();
                 break;
         }
     }
@@ -653,6 +642,30 @@ class ErrorDisplay {
             console.error('Fehler beim Anfordern der Push-Berechtigung:', error);
             this.showNotification('Fehler beim Anfordern der Berechtigung', 'error');
         }
+    }
+    
+    // Anleitung zum Zurücksetzen der Berechtigung
+    showPermissionResetInstructions() {
+        const instructions = `
+So können Sie Push-Benachrichtigungen wieder aktivieren:
+
+🔧 Chrome/Edge:
+1. Klicken Sie auf das Schloss-Symbol in der Adressleiste
+2. Setzen Sie "Benachrichtigungen" auf "Zulassen"
+3. Laden Sie die Seite neu
+
+🦊 Firefox:
+1. Klicken Sie auf das Schild-Symbol in der Adressleiste
+2. Klicken Sie auf "Berechtigung entfernen"
+3. Laden Sie die Seite neu und erlauben Sie Benachrichtigungen
+
+🍎 Safari:
+1. Safari > Einstellungen > Websites > Benachrichtigungen
+2. Entfernen Sie diese Website aus der Liste
+3. Laden Sie die Seite neu
+        `;
+        
+        this.showDataModal('Push-Benachrichtigungen aktivieren', instructions);
     }
     
     // Push-Benachrichtigung senden
