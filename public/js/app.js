@@ -616,6 +616,18 @@ class ErrorDisplay {
                 buttonElement.textContent = '🔧 Berechtigung zurücksetzen';
                 buttonElement.style.display = 'inline-block';
                 buttonElement.onclick = () => this.showPermissionResetInstructions();
+                
+                // Zusätzlichen Button für direkte Chrome-Einstellungen hinzufügen
+                let chromeButton = document.getElementById('openChromeSettings');
+                if (!chromeButton) {
+                    chromeButton = document.createElement('button');
+                    chromeButton.id = 'openChromeSettings';
+                    chromeButton.className = 'btn btn-outline';
+                    chromeButton.style.marginLeft = '0.5rem';
+                    chromeButton.textContent = '⚙️ Chrome-Einstellungen';
+                    chromeButton.onclick = () => this.openChromeNotificationSettings();
+                    buttonElement.parentNode.appendChild(chromeButton);
+                }
                 break;
             case 'default':
                 statusElement.textContent = '⚠️ Berechtigung erforderlich';
@@ -647,12 +659,21 @@ class ErrorDisplay {
     // Anleitung zum Zurücksetzen der Berechtigung
     showPermissionResetInstructions() {
         const instructions = `
-So können Sie Push-Benachrichtigungen wieder aktivieren:
+So können Sie Push-Benachrichtigungen aktivieren:
 
 🔧 Chrome/Edge:
-1. Klicken Sie auf das Schloss-Symbol in der Adressleiste
-2. Setzen Sie "Benachrichtigungen" auf "Zulassen"
-3. Laden Sie die Seite neu
+METHODE 1 - Über die Adressleiste:
+1. Klicken Sie auf das Schloss-Symbol (🔒) in der Adressleiste
+2. Klicken Sie bei "Benachrichtigungen" auf "Blockiert"
+3. Wählen Sie "Zulassen" aus
+4. Laden Sie die Seite neu (F5)
+
+METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
+1. Öffnen Sie Chrome-Einstellungen (chrome://settings/)
+2. Gehen Sie zu "Datenschutz und Sicherheit" > "Website-Einstellungen"
+3. Klicken Sie auf "Benachrichtigungen" 
+4. Fügen Sie diese Website zu "Zulassen" hinzu
+5. Laden Sie die Seite neu (F5)
 
 🦊 Firefox:
 1. Klicken Sie auf das Schild-Symbol in der Adressleiste
@@ -663,9 +684,26 @@ So können Sie Push-Benachrichtigungen wieder aktivieren:
 1. Safari > Einstellungen > Websites > Benachrichtigungen
 2. Entfernen Sie diese Website aus der Liste
 3. Laden Sie die Seite neu
+
+💡 TIPP: Nach dem Zurücksetzen laden Sie die Seite neu und klicken Sie auf "Zulassen" wenn die Berechtigung angefragt wird.
         `;
         
         this.showDataModal('Push-Benachrichtigungen aktivieren', instructions);
+    }
+    
+    // Direkt zu Chrome-Benachrichtigungseinstellungen
+    openChromeNotificationSettings() {
+        if (navigator.userAgent.includes('Chrome') || navigator.userAgent.includes('Chromium')) {
+            try {
+                // Öffnet Chrome-Benachrichtigungseinstellungen in neuem Tab
+                window.open('chrome://settings/content/notifications', '_blank');
+            } catch (error) {
+                // Fallback falls chrome:// URLs blockiert sind
+                this.showNotification('Öffnen Sie chrome://settings/content/notifications manuell', 'info');
+            }
+        } else {
+            this.showNotification('Diese Funktion ist nur für Chrome/Chromium verfügbar', 'warning');
+        }
     }
     
     // Push-Benachrichtigung senden
