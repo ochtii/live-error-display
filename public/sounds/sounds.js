@@ -30,8 +30,14 @@ class SoundManager {
     async initAudioContext() {
         try {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            // Warten bis AudioContext läuft oder nach User-Geste resumed werden kann
+            if (this.audioContext.state === 'suspended') {
+                // Nicht automatisch resume - warten auf User-Geste
+                return;
+            }
         } catch (error) {
-            console.warn('Web Audio API nicht verfügbar:', error);
+            // Stille Behandlung - AudioContext nicht verfügbar
+            this.audioContext = null;
         }
     }
 
@@ -88,29 +94,29 @@ class SoundManager {
             oscillator.stop(currentTime);
 
         } catch (error) {
-            // Stillen Fallback - keine Warnung in der Konsole
-            if (!error.message.includes('AudioContext')) {
-                console.warn('Fehler beim Abspielen des Sounds:', error);
-            }
+            // Komplett stille Behandlung - keine Ausgabe
         }
     }
 
     async playSound(soundName) {
         if (!this.enabled || !this.sounds[soundName]) return;
         
-        // AudioContext bei Bedarf initialisieren
+        // AudioContext bei Bedarf initialisieren (nach User-Geste)
         if (!this.initialized) {
-            await this.initAudioContext();
-            this.initialized = true;
+            try {
+                await this.initAudioContext();
+                this.initialized = true;
+            } catch (error) {
+                // Stille Behandlung - Sound wird einfach nicht abgespielt
+                return;
+            }
         }
         
         try {
             await this.sounds[soundName]();
         } catch (error) {
             // Stille Fehlerbehandlung für AudioContext-Probleme
-            if (!error.message.includes('AudioContext')) {
-                console.warn(`Fehler beim Abspielen von ${soundName}:`, error);
-            }
+            // Keine Konsolen-Ausgabe um Spam zu vermeiden
         }
     }
 
