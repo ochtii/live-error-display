@@ -67,7 +67,8 @@ class ErrorDisplay {
             pushConnectionClosed: true,
             notifyBufferedErrors: true,
             soundBufferedErrors: true,
-            pushBufferedErrors: true
+            pushBufferedErrors: true,
+            showDeleteConfirmation: true // Neue Einstellung für Lösch-Bestätigung
         };
         
         const saved = localStorage.getItem('errorDisplaySettings');
@@ -94,7 +95,8 @@ class ErrorDisplay {
             pushConnectionClosed: formData.get('pushConnectionClosed') === 'on',
             notifyBufferedErrors: formData.get('notifyBufferedErrors') === 'on',
             soundBufferedErrors: formData.get('soundBufferedErrors') === 'on',
-            pushBufferedErrors: formData.get('pushBufferedErrors') === 'on'
+            pushBufferedErrors: formData.get('pushBufferedErrors') === 'on',
+            showDeleteConfirmation: formData.get('showDeleteConfirmation') === 'on'
         };
         
         localStorage.setItem('errorDisplaySettings', JSON.stringify(this.settings));
@@ -387,6 +389,7 @@ class ErrorDisplay {
                     </div>
                 </div>
                 <div class="toggle-icon">▶</div>
+                <button class="delete-error-btn" onclick="event.stopPropagation(); errorDisplay.deleteError(${index}, ${isArchive})" title="Fehler löschen">🗑️</button>
             </div>
             <div class="error-content">
                 <div class="error-body">
@@ -521,6 +524,86 @@ class ErrorDisplay {
         } finally {
             document.body.removeChild(textArea);
         }
+    }
+
+    // === ERROR DELETION ===
+    deleteError(index, isArchive = false) {
+        if (this.settings.showDeleteConfirmation) {
+            this.showDeleteConfirmation(index, isArchive);
+        } else {
+            this.performDeleteError(index, isArchive);
+        }
+    }
+
+    showDeleteConfirmation(index, isArchive) {
+        const errorData = isArchive ? this.archiveData[index] : this.errors[index];
+        const errorPreview = errorData.message.substring(0, 100) + (errorData.message.length > 100 ? '...' : '');
+        
+        const modal = document.createElement('div');
+        modal.className = 'delete-confirmation-modal';
+        modal.innerHTML = `
+            <div class="delete-confirmation-content">
+                <div class="delete-confirmation-header">
+                    <span class="delete-icon">🗑️</span>
+                    <h3>Fehler löschen</h3>
+                </div>
+                <div class="delete-confirmation-body">
+                    <p>Möchten Sie diesen Fehler wirklich löschen?</p>
+                    <div class="error-preview-box">
+                        <strong>Zeitstempel:</strong> ${errorData.timestamp}<br>
+                        <strong>IP:</strong> ${this.cleanIP(errorData.ip)}<br>
+                        <strong>Nachricht:</strong> ${this.escapeHtml(errorPreview)}
+                    </div>
+                    <label class="dont-ask-again">
+                        <input type="checkbox" id="dontAskAgain">
+                        Nicht erneut fragen
+                    </label>
+                </div>
+                <div class="delete-confirmation-actions">
+                    <button class="cancel-btn" onclick="this.closest('.delete-confirmation-modal').remove()">Abbrechen</button>
+                    <button class="delete-btn" onclick="errorDisplay.confirmDelete(${index}, ${isArchive}, document.getElementById('dontAskAgain').checked); this.closest('.delete-confirmation-modal').remove()">Löschen</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Modal mit Escape-Taste schließen
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                modal.remove();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+    }
+
+    confirmDelete(index, isArchive, dontAskAgain) {
+        if (dontAskAgain) {
+            this.settings.showDeleteConfirmation = false;
+            localStorage.setItem('errorDisplaySettings', JSON.stringify(this.settings));
+        }
+        this.performDeleteError(index, isArchive);
+    }
+
+    performDeleteError(index, isArchive) {
+        if (isArchive) {
+            // Fehler aus Archiv löschen
+            this.archiveData.splice(index, 1);
+            this.saveArchive();
+            this.displayErrors(this.archiveData, true);
+            this.showNotification(`Fehler aus Archiv gelöscht`, 'success');
+        } else {
+            // Fehler aus Live-Liste löschen
+            this.errors.splice(index, 1);
+            this.displayErrors(this.errors);
+            this.showNotification(`Live-Fehler gelöscht`, 'success');
+        }
+        
+        this.updateStats();
+        
+        // Sound für erfolgreiche Löschung
+        this.playNotificationSound('connectionSuccess'); // Wir verwenden den Success-Sound
     }
 
     showBufferedNotification(count, oldestErrorTime) {
@@ -796,6 +879,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         document.getElementById('maxItemsValue').textContent = this.settings.maxArchiveItems;
         document.getElementById('autoArchive').checked = this.settings.autoArchive;
         document.getElementById('bufferOfflineErrors').checked = this.settings.bufferOfflineErrors;
+        document.getElementById('showDeleteConfirmation').checked = this.settings.showDeleteConfirmation;
         
         // Sound-Einstellungen
         document.getElementById('enableSounds').checked = this.settings.enableSounds;
