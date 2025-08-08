@@ -2,6 +2,8 @@
 
 **Kompakte Live-Fehleranzeige mit automatischem Deployment für Ubuntu Server**
 
+*🔄 Test Push - $(date '+%Y-%m-%d %H:%M:%S') - Auto-Deploy Test*
+
 ## 🚀 Quick Start (Ubuntu Server)
 
 ### 1. Repository klonen
