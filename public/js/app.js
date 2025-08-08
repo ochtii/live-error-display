@@ -1,6 +1,16 @@
 // Live Error Display - Main JavaScript
 
 class ErrorDisplay {
+    archiveLiveError(index) {
+        if (this.errors && this.errors[index]) {
+            const error = this.errors[index];
+            this.saveToArchive(error, false);
+            this.errors.splice(index, 1);
+            this.displayErrors(this.errors);
+            this.updateStats();
+            this.showNotification('Fehler ins Archiv verschoben', 'success');
+        }
+    }
     constructor() {
         // Server läuft auf demselben Host und Port wie das Frontend
         this.serverUrl = `${window.location.protocol}//${window.location.host}`;
@@ -407,33 +417,8 @@ class ErrorDisplay {
     }
     
     updateSessionManagerState() {
-        // Update session manager based on current session state
-        const hasActiveSession = !!this.currentSession;
-        
-        // Get session creation and restoration cards
-        const createCard = document.querySelector('.session-card:has(#createNewSessionBtn)');
-        const restoreCard = document.querySelector('.session-card:has(#restoreSessionBtn)');
-        
-        if (hasActiveSession) {
-            // Disable session creation and restoration when session is active
-            this.disableSessionCard(createCard, 'Neue Session erstellen', 'aktuelle Session beenden');
-            this.disableSessionCard(restoreCard, 'Session wiederherstellen', 'aktuelle Session beenden');
-            
-            // For saved sessions, also disable the saved sessions list
-            const savedSessionsCard = document.querySelector('.session-card:has(#inlineSavedSessions)');
-            if (this.isSessionSaved()) {
-                this.disableSessionCard(savedSessionsCard, 'Gespeicherte Sessions verwenden', 'aktuelle Session beenden', false);
-            } else {
-                // For unsaved sessions, enable the saved sessions card
-                this.enableSessionCard(savedSessionsCard);
-            }
-        } else {
-            // Enable session creation and restoration when no session is active
-            const savedSessionsCard = document.querySelector('.session-card:has(#inlineSavedSessions)');
-            this.enableSessionCard(createCard);
-            this.enableSessionCard(restoreCard);
-            this.enableSessionCard(savedSessionsCard);
-        }
+        // Session Manager UI wird nur angezeigt, wenn explizit geöffnet
+        // ...existing code...
     }
     
     disableSessionCard(card, action, requirement, grayOut = true) {
@@ -773,6 +758,7 @@ class ErrorDisplay {
         card.innerHTML = `
             <div class="error-header" onclick="this.parentElement.querySelector('.error-content').classList.toggle('open'); this.querySelector('.expand-indicator').classList.toggle('expanded')">
                 <button class="delete-error-btn" onclick="event.stopPropagation(); errorDisplay.deleteError(${index}, ${isArchive})" title="Fehler löschen">🗑️</button>
+                ${!isArchive ? `<button class="archive-error-btn" onclick="event.stopPropagation(); errorDisplay.archiveLiveError(${index})" title="Fehler archivieren">📂</button>` : ''}
                 <div class="error-info">
                     <div class="error-preview">${this.escapeHtml(firstLine)}${error.message.length > 100 ? '...' : ''}</div>
                     <div class="error-meta">
