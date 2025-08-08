@@ -392,6 +392,7 @@ class SessionManager {
                 if (session) {
                     // Ensure session has required fields
                     if (!session.archive) session.archive = [];
+                    if (!session.errors) session.errors = [];
                     
                     session.lastAccessed = new Date().toISOString();
                     sessions.set(token, session);
@@ -408,6 +409,37 @@ class SessionManager {
         }
         console.log(`❌ Session not found: ${token.substring(0, 8)}...`);
         return null;
+    }
+    
+    // Load all existing sessions on server startup
+    static loadAllSessionsFromDisk() {
+        try {
+            if (fs.existsSync(SESSIONS_DIR)) {
+                const sessionFiles = fs.readdirSync(SESSIONS_DIR);
+                let loadedCount = 0;
+                
+                sessionFiles.forEach(file => {
+                    if (file.endsWith('.json')) {
+                        const token = file.replace('.json', '');
+                        try {
+                            const session = this.loadSessionFromDisk(token);
+                            if (session) {
+                                loadedCount++;
+                            }
+                        } catch (error) {
+                            console.error(`❌ Failed to load session file ${file}:`, error.message);
+                        }
+                    }
+                });
+                
+                console.log(`📚 Loaded ${loadedCount} existing sessions from disk`);
+            } else {
+                console.log(`📁 Sessions directory doesn't exist, creating: ${SESSIONS_DIR}`);
+                fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+            }
+        } catch (error) {
+            console.error('❌ Failed to load sessions on startup:', error.message);
+        }
     }
     
     static updateSession(token, updates) {
@@ -854,6 +886,9 @@ app.delete('/errors', (req, res) => {
 
 // Clean up stale connections every 5 minutes
 setInterval(cleanupStaleConnections, 5 * 60 * 1000);
+
+// Load existing sessions on startup
+SessionManager.loadAllSessionsFromDisk();
 
 app.listen(PORT, () => {
     console.log(`🚀 Live Error Display Server running on port ${PORT}`);

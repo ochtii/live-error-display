@@ -1423,9 +1423,22 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             } catch (error) {
                 console.error('Failed to load session data:', error);
                 localStorage.removeItem('currentSession');
+                this.showNotification('Fehlerhafte Session-Daten entfernt', 'warning');
             }
         } else {
             console.log('📂 No session found in localStorage');
+            // Check if there are any saved sessions that could be restored
+            this.checkForRecoverableSessions();
+        }
+    }
+    
+    checkForRecoverableSessions() {
+        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
+        if (savedSessions.length > 0) {
+            console.log(`🔍 Found ${savedSessions.length} saved sessions that could be restored`);
+            setTimeout(() => {
+                this.showNotification(`${savedSessions.length} gespeicherte Session(s) verfügbar - Session Manager öffnen zum Wiederherstellen`, 'info');
+            }, 2000);
         }
     }
     
@@ -1436,14 +1449,20 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             const response = await fetch(`${this.serverUrl}/api/session/${this.currentSession.token}`);
             if (!response.ok) {
                 console.warn('❌ Session token validation failed, clearing session');
-                this.showNotification('Session ungültig - neue Session erforderlich', 'warning');
+                this.showNotification('Session ungültig - neue Session wird erstellt', 'warning');
                 this.clearSession();
+                
+                // Automatically create a new session
+                setTimeout(() => {
+                    this.createNewSessionInline();
+                }, 1000);
             } else {
                 console.log('✅ Session token validated successfully');
             }
         } catch (error) {
             console.warn('⚠️ Could not validate session token:', error);
-            // Don't clear session if server is unreachable
+            // Don't clear session if server is unreachable, but show warning
+            this.showNotification('Verbindung zum Server nicht möglich - Session-Status unbekannt', 'warning');
         }
     }
 
@@ -1497,7 +1516,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         });
         
         if (this.currentSession) {
-            const sessionName = this.currentSession.name || 'Unbenannte Session';
+            const sessionNameText = this.currentSession.name || 'Unbenannte Session';
             const tokenPreview = this.currentSession.token.substring(0, 16) + '...';
             
             // Check if session is saved to determine display location
@@ -1505,13 +1524,13 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 // Show in header permanently for saved sessions
                 sessionBar.style.display = 'none';
                 headerSession.style.display = 'flex';
-                sessionNameHeader.textContent = sessionName;
+                sessionNameHeader.textContent = sessionNameText;
                 sessionTokenHeader.textContent = tokenPreview;
             } else {
                 // Show session bar with hide option for unsaved sessions
                 sessionBar.style.display = 'flex';
                 headerSession.style.display = 'none';
-                sessionName.textContent = sessionName;
+                sessionName.textContent = sessionNameText;
                 sessionToken.textContent = tokenPreview;
                 
                 // Add floating hide info
