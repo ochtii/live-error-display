@@ -362,10 +362,12 @@ class SessionManager {
         if (sessions.has(token)) {
             const session = sessions.get(token);
             session.lastAccessed = new Date().toISOString();
+            console.log(`✅ Found session in memory: ${session.name} (${token.substring(0, 8)}...)`);
             return session;
         }
         
         // Try to load from disk
+        console.log(`🔍 Session not in memory, trying to load from disk: ${token.substring(0, 8)}...`);
         return this.loadSessionFromDisk(token);
     }
     
@@ -382,19 +384,29 @@ class SessionManager {
     static loadSessionFromDisk(token) {
         try {
             const sessionFile = path.join(SESSIONS_DIR, `${token}.json`);
+            console.log(`📁 Checking session file: ${sessionFile}`);
+            
             if (fs.existsSync(sessionFile)) {
                 const encryptedData = fs.readFileSync(sessionFile, 'utf8');
                 const session = decryptData(encryptedData);
                 if (session) {
+                    // Ensure session has required fields
+                    if (!session.archive) session.archive = [];
+                    
                     session.lastAccessed = new Date().toISOString();
                     sessions.set(token, session);
-                    console.log(`📂 Loaded session from disk: ${session.name} (${token})`);
+                    console.log(`📂 Loaded session from disk: ${session.name} (${token.substring(0, 8)}...)`);
                     return session;
+                } else {
+                    console.log(`❌ Failed to decrypt session file: ${sessionFile}`);
                 }
+            } else {
+                console.log(`❌ Session file not found: ${sessionFile}`);
             }
         } catch (error) {
             console.error('❌ Failed to load session from disk:', error.message);
         }
+        console.log(`❌ Session not found: ${token.substring(0, 8)}...`);
         return null;
     }
     
@@ -779,12 +791,30 @@ app.post('/error', (req, res) => {
 app.get('/status', (req, res) => {
     cleanupStaleConnections(); // Clean up before reporting
     
+    // List all active sessions
+    const activeSessions = [];
+    for (const [token, session] of sessions.entries()) {
+        activeSessions.push({
+            token: token.substring(0, 8) + '...',
+            name: session.name,
+            createdAt: session.createdAt,
+            lastAccessed: session.lastAccessed,
+            errorCount: session.errors.length
+        });
+    }
+    
+    // Check sessions directory
+    const sessionFiles = fs.existsSync(SESSIONS_DIR) ? fs.readdirSync(SESSIONS_DIR) : [];
+    
     res.json({
         connectedClients: clients.size,
-        totalErrors: errors.length,
+        totalErrors: globalErrors.length,
         bufferedErrors: offlineBuffer.length,
         serverUptime: process.uptime(),
-        memoryUsage: process.memoryUsage()
+        memoryUsage: process.memoryUsage(),
+        activeSessions: activeSessions,
+        sessionFilesOnDisk: sessionFiles.length,
+        sessionsDirectory: SESSIONS_DIR
     });
 });
 

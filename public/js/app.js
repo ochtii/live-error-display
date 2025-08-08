@@ -491,8 +491,8 @@ class ErrorDisplay {
             
             this.eventSource = null;
             
-            // Reconnect after 5 seconds
-            setTimeout(() => this.connectSSE(), 5000);
+            // NO AUTOMATIC RECONNECT - only reconnect when switching to live mode
+            console.log('🔌 SSE disconnected - manual reconnection required via Live tab');
         };
     }
 
@@ -1931,9 +1931,10 @@ document.addEventListener('DOMContentLoaded', () => {
     window.errorDisplay = new ErrorDisplay();
 });
 
-// Handle page visibility for SSE reconnection
+// Handle page visibility - only reconnect if in live mode
 document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && window.errorDisplay) {
+    if (!document.hidden && window.errorDisplay && window.errorDisplay.currentMode === 'live') {
+        console.log('📡 Page visible - reconnecting SSE in live mode');
         window.errorDisplay.connectSSE();
     }
 });
