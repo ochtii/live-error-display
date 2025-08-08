@@ -6,8 +6,25 @@ class SoundManager {
         this.audioContext = null;
         this.sounds = {};
         this.enabled = true;
-        this.initAudioContext();
+        this.initialized = false;
         this.generateSounds();
+        // AudioContext erst bei erster Interaktion initialisieren
+        this.initOnUserGesture();
+    }
+
+    initOnUserGesture() {
+        const initAudio = async () => {
+            if (!this.initialized) {
+                await this.initAudioContext();
+                this.initialized = true;
+                // Event-Listener entfernen nach erster Initialisierung
+                document.removeEventListener('click', initAudio);
+                document.removeEventListener('keydown', initAudio);
+            }
+        };
+        
+        document.addEventListener('click', initAudio);
+        document.addEventListener('keydown', initAudio);
     }
 
     async initAudioContext() {
@@ -41,7 +58,7 @@ class SoundManager {
         if (!this.audioContext || !this.enabled) return;
 
         try {
-            // Resume AudioContext falls suspended
+            // Resume AudioContext falls suspended (User-Geste erforderlich)
             if (this.audioContext.state === 'suspended') {
                 await this.audioContext.resume();
             }
@@ -71,17 +88,29 @@ class SoundManager {
             oscillator.stop(currentTime);
 
         } catch (error) {
-            console.warn('Fehler beim Abspielen des Sounds:', error);
+            // Stillen Fallback - keine Warnung in der Konsole
+            if (!error.message.includes('AudioContext')) {
+                console.warn('Fehler beim Abspielen des Sounds:', error);
+            }
         }
     }
 
     async playSound(soundName) {
         if (!this.enabled || !this.sounds[soundName]) return;
         
+        // AudioContext bei Bedarf initialisieren
+        if (!this.initialized) {
+            await this.initAudioContext();
+            this.initialized = true;
+        }
+        
         try {
             await this.sounds[soundName]();
         } catch (error) {
-            console.warn(`Fehler beim Abspielen von ${soundName}:`, error);
+            // Stille Fehlerbehandlung für AudioContext-Probleme
+            if (!error.message.includes('AudioContext')) {
+                console.warn(`Fehler beim Abspielen von ${soundName}:`, error);
+            }
         }
     }
 

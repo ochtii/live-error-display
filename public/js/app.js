@@ -565,7 +565,7 @@ class ErrorDisplay {
         document.getElementById('archiveRetentionDays').value = this.settings.archiveRetentionDays;
         document.getElementById('retentionValue').textContent = this.settings.archiveRetentionDays;
         document.getElementById('maxArchiveItems').value = this.settings.maxArchiveItems;
-        document.getElementById('itemsValue').textContent = this.settings.maxArchiveItems;
+        document.getElementById('maxItemsValue').textContent = this.settings.maxArchiveItems;
         document.getElementById('autoArchive').checked = this.settings.autoArchive;
         document.getElementById('bufferOfflineErrors').checked = this.settings.bufferOfflineErrors;
         
@@ -644,7 +644,7 @@ class ErrorDisplay {
                 </div>
                 <div class="data-display">${content}</div>
                 <div style="margin-top: 1rem;">
-                    <button class="btn btn-outline" onclick="navigator.clipboard.writeText(\`${content.replace(/`/g, '\\`')}\`).then(() => errorDisplay.showNotification('In Zwischenablage kopiert', 'success'))">📋 Kopieren</button>
+                    <button class="btn btn-outline" onclick="navigator.clipboard.writeText(\`${content.replace(/`/g, '\\`')}\`).then(() => window.errorDisplay.showNotification('In Zwischenablage kopiert', 'success'))">📋 Kopieren</button>
                 </div>
             </div>
         `;
