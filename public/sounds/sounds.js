@@ -102,22 +102,33 @@ class SoundManager {
     }
 
     async playSound(soundName) {
-        if (!this.enabled || !this.sounds[soundName]) return;
+        console.log(`🎵 SoundManager.playSound called with: ${soundName}`);
+        console.log(`🎵 enabled: ${this.enabled}, soundExists: ${!!this.sounds[soundName]}, initialized: ${this.initialized}`);
+        
+        if (!this.enabled || !this.sounds[soundName]) {
+            console.log(`🎵 Sound blocked - enabled: ${this.enabled}, soundExists: ${!!this.sounds[soundName]}`);
+            return;
+        }
         
         // AudioContext bei Bedarf initialisieren (nach User-Geste)
         if (!this.initialized) {
             try {
+                console.log(`🎵 Initializing AudioContext...`);
                 await this.initAudioContext();
                 this.initialized = true;
+                console.log(`🎵 AudioContext initialized successfully`);
             } catch (error) {
-                // Stille Behandlung - Sound wird einfach nicht abgespielt
+                console.log(`🎵 AudioContext initialization failed:`, error);
                 return;
             }
         }
         
         try {
+            console.log(`🎵 Playing sound: ${soundName}`);
             await this.sounds[soundName]();
+            console.log(`🎵 Sound played successfully: ${soundName}`);
         } catch (error) {
+            console.log(`🎵 Error playing sound:`, error);
             // Stille Fehlerbehandlung für AudioContext-Probleme
             // Keine Konsolen-Ausgabe um Spam zu vermeiden
         }

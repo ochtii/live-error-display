@@ -1079,7 +1079,14 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     
     // Sound-Events
     playNotificationSound(eventType) {
-        if (!this.settings.enableSounds || !window.soundManager) return;
+        console.log(`🔊 playNotificationSound called with: ${eventType}`);
+        console.log(`🔊 enableSounds: ${this.settings.enableSounds}`);
+        console.log(`🔊 soundManager exists: ${!!window.soundManager}`);
+        
+        if (!this.settings.enableSounds || !window.soundManager) {
+            console.log(`🔊 Sound blocked - enableSounds: ${this.settings.enableSounds}, soundManager: ${!!window.soundManager}`);
+            return;
+        }
         
         const eventSettings = {
             newError: { enabled: this.settings.soundNewError },
@@ -1090,6 +1097,8 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         };
         
         const setting = eventSettings[eventType];
+        console.log(`🔊 Event setting for ${eventType}:`, setting);
+        
         if (setting && setting.enabled) {
             const soundTypes = {
                 newError: 'notification',
@@ -1099,7 +1108,11 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 errorDeleted: 'delete'
             };
             
-            window.soundManager.playSound(soundTypes[eventType]);
+            const soundType = soundTypes[eventType];
+            console.log(`🔊 Playing sound: ${soundType}`);
+            window.soundManager.playSound(soundType);
+        } else {
+            console.log(`🔊 Sound not enabled for event: ${eventType}`);
         }
     }
     
