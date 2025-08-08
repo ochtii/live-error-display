@@ -81,7 +81,9 @@ sudo -u www-data npm install --production --silent
 # 10. Setup PM2 for www-data user
 echo -e "${YELLOW}🎯 Konfiguriere PM2 für www-data...${NC}"
 sudo -u www-data pm2 kill 2>/dev/null || true
-sudo -u www-data pm2 start ecosystem.config.json
+
+# Explicitly set NODE_ENV=production and start the app
+sudo -u www-data NODE_ENV=production pm2 start ecosystem.config.json
 sudo -u www-data pm2 save
 sudo -u www-data pm2 startup systemd -u www-data --hp /var/www
 
