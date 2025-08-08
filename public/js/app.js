@@ -2,14 +2,9 @@
 
 class ErrorDisplay {
     constructor() {
-        // Bestimme die korrekte Server-URL basierend auf der aktuellen Umgebung
-        const currentHost = window.location.hostname;
-        const isRemote = currentHost !== 'localhost' && currentHost !== '127.0.0.1';
+        // Server läuft auf demselben Host und Port wie das Frontend
+        this.serverUrl = `${window.location.protocol}//${window.location.host}`;
         
-        this.serverUrl = isRemote 
-            ? `http://${currentHost}:3000`  // Remote: gleicher Host, Port 3000
-            : 'http://localhost:3000';     // Lokal: localhost:3000
-            
         console.log(`🔗 Server URL: ${this.serverUrl}`);
         
         this.errors = [];
@@ -340,8 +335,8 @@ class ErrorDisplay {
     connectSSE() {
         if (this.eventSource) return;
         
-        console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔌 Attempting SSE connection to ${this.serverUrl}/live...`);
-        this.eventSource = new EventSource(`${this.serverUrl}/live`);
+        console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔌 Attempting SSE connection to /live...`);
+        this.eventSource = new EventSource('/live');
         
         this.eventSource.onopen = () => {
             console.log(`[${new Date().toLocaleTimeString('de-DE')}] ✅ SSE connected successfully`);
