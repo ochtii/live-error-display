@@ -57,7 +57,6 @@ class ErrorDisplay {
         const endSession = document.getElementById('endSession');
         const copyTokenHeader = document.getElementById('copyTokenHeader');
         const sessionEndLink = document.getElementById('sessionEndLink');
-        const hideSessionInfo = document.getElementById('hideSessionInfo');
         const autoSaveCheckbox = document.getElementById('autoSaveCheckbox');
         
         if (sessionBtn) sessionBtn.addEventListener('click', () => this.openSessionManager());
@@ -67,7 +66,6 @@ class ErrorDisplay {
         if (endSession) endSession.addEventListener('click', () => this.clearSession());
         if (copyTokenHeader) copyTokenHeader.addEventListener('click', () => this.copySessionToken());
         if (sessionEndLink) sessionEndLink.addEventListener('click', () => this.endCurrentSession());
-        if (hideSessionInfo) hideSessionInfo.addEventListener('click', () => this.toggleSessionInfoVisibility());
         if (autoSaveCheckbox) autoSaveCheckbox.addEventListener('change', (e) => this.toggleAutoSave(e.target.checked));
         
         // Session Manager inline controls
@@ -1663,12 +1661,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 if (autoSaveToggle) {
                     autoSaveToggle.style.display = 'none';
                 }
-                
-                // Add floating hide info
-                this.addFloatingHideInfo();
-            }
-            
-            // Also update the header controls to show session status
+            }            // Also update the header controls to show session status
             this.updateHeaderSessionStatus(true);
         } else {
             sessionBar.style.display = 'none';
@@ -1696,57 +1689,6 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
         }
         // Saved sessions are not stored in localStorage - they exist only server-side
-    }
-    
-    addFloatingHideInfo() {
-        // Remove existing floating info
-        const existing = document.querySelector('.floating-hide-info');
-        if (existing) existing.remove();
-        
-        // Add floating info icon
-        const floatingInfo = document.createElement('div');
-        floatingInfo.className = 'floating-hide-info';
-        floatingInfo.innerHTML = `
-            <div class="floating-icon" title="Session ausblenden möglich - speichere die Session für permanente Header-Anzeige">
-                👁️ℹ️
-            </div>
-        `;
-        
-        // Add click handler to show session manager footer
-        floatingInfo.addEventListener('click', () => {
-            this.showSessionManagerAtBottom();
-            floatingInfo.remove();
-        });
-        
-        document.body.appendChild(floatingInfo);
-        
-        // Auto-hide after 10 seconds
-        setTimeout(() => {
-            if (floatingInfo && floatingInfo.parentNode) {
-                floatingInfo.remove();
-            }
-        }, 10000);
-    }
-    
-    toggleSessionInfoVisibility() {
-        const sessionBar = document.getElementById('sessionBar');
-        const headerSession = document.getElementById('headerSession');
-        
-        if (this.currentSession && !this.isSessionSaved()) {
-            if (sessionBar.style.display === 'none') {
-                sessionBar.style.display = 'flex';
-                headerSession.style.display = 'none';
-            } else {
-                sessionBar.style.display = 'none';
-                headerSession.style.display = 'flex';
-                
-                // Update header with current session info
-                const sessionNameHeader = document.getElementById('sessionNameHeader');
-                const sessionTokenHeader = document.getElementById('sessionTokenHeader');
-                sessionNameHeader.textContent = this.currentSession.name || 'Unbenannte Session';
-                sessionTokenHeader.textContent = this.currentSession.token.substring(0, 16) + '...';
-            }
-        }
     }
     
     endCurrentSession() {

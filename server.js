@@ -148,39 +148,6 @@ app.get('/api/session/:token', (req, res) => {
     }
 });
 
-// Update session name
-app.put('/api/session/:token', (req, res) => {
-    try {
-        const { token } = req.params;
-        const { name } = req.body;
-        
-        const session = SessionManager.updateSession(token, { name });
-        
-        if (!session) {
-            return res.status(404).json({
-                success: false,
-                error: 'Session not found'
-            });
-        }
-        
-        res.json({
-            success: true,
-            session: {
-                token: session.token,
-                name: session.name,
-                createdAt: session.createdAt,
-                lastAccessed: session.lastAccessed,
-                errorCount: session.errors.length
-            }
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: 'Failed to update session'
-        });
-    }
-});
-
 // Delete session
 app.delete('/api/session/:token', (req, res) => {
     try {
@@ -834,13 +801,22 @@ app.put('/api/session/:token', (req, res) => {
         }
         
         // Update session with save information
-        SessionManager.updateSession(token, {
+        const updatedSession = SessionManager.updateSession(token, {
             name: name || session.name,
             hasPassword: !!password,
             passwordHash: password ? crypto.createHash('sha256').update(password).digest('hex') : session.passwordHash,
             isSaved: true,
             savedAt: new Date().toISOString(),
             archive: archiveData || session.archive || []
+        });
+        
+        // Save session to disk
+        SessionManager.saveSessionToDisk(updatedSession);
+        
+        console.log('✅ Session saved to disk:', {
+            token: token.substring(0, 16) + '...',
+            name: updatedSession.name,
+            hasPassword: updatedSession.hasPassword
         });
         
         res.json({
