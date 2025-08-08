@@ -304,10 +304,19 @@ class ErrorDisplay {
             // Load session-specific errors from server
             this.loadSessionErrors();
             
-            // Add buffered errors to live view
+            // Add buffered errors to live view and archive them
             if (this.bufferedErrors.length > 0 && this.settings.bufferOfflineErrors) {
-                this.errors = [...this.bufferedErrors, ...this.errors];
+                // Add to live errors and archive each buffered error
+                for (const bufferedError of this.bufferedErrors) {
+                    this.errors.unshift(bufferedError);
+                    this.saveToArchive(bufferedError, false); // Archive the buffered error
+                }
                 this.bufferedErrors = [];
+                
+                // Limit live errors to 100
+                if (this.errors.length > 100) {
+                    this.errors = this.errors.slice(0, 100);
+                }
             }
             
             this.displayErrors(this.errors);
@@ -580,9 +589,7 @@ class ErrorDisplay {
                     // Buffer the error for later display - diese sind lokal gepuffert, nicht server-gepuffert
                     this.bufferedErrors.unshift({...data.error, isLive: false, buffered: true, isServerBuffered: data.error.isBuffered});
                 }
-                // Korrekte Übertragung der Server-Buffer-Information
-                const archiveError = {...data.error, isServerBuffered: data.error.isBuffered};
-                this.saveToArchive(archiveError, true);
+                // Note: Archiving is now handled automatically in addError()
             } else if (data.type === 'clients') {
                 this.clients = data.count;
                 this.updateStats();
@@ -628,8 +635,13 @@ class ErrorDisplay {
             isLive: isLive,
             isServerBuffered: isServerBuffered
         };
+        
+        // Add to live errors array (for current display)
         this.errors.unshift(errorWithMeta);
         if (this.errors.length > 100) this.errors.pop();
+        
+        // Also save to archive automatically (persistent storage)
+        this.saveToArchive(errorWithMeta, isLive);
         
         this.displayErrors(this.errors);
         this.updateStats();
