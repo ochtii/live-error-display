@@ -130,7 +130,11 @@ deploy() {
     local backup_branch="backup-$(date +%Y%m%d-%H%M%S)"
     git branch "$backup_branch" 2>/dev/null || true
     
-    # Pull changes
+    # Stash any local changes to avoid conflicts
+    log "Sichere lokale Änderungen..."
+    git stash push -m "Auto-deploy stash $(date)" 2>/dev/null || true
+    
+    # Pull changes with force
     if git pull origin main 2>&1 | tee -a "$LOG_FILE"; then
         log "✅ Git Pull erfolgreich"
         
@@ -148,8 +152,19 @@ deploy() {
             return 1
         fi
     else
-        log "❌ Git Pull fehlgeschlagen"
-        return 1
+        log "❌ Git Pull fehlgeschlagen, versuche Hard Reset..."
+        # Force reset to remote state
+        git fetch origin main
+        git reset --hard origin/main
+        
+        # Try restart after force reset
+        if restart_service; then
+            log "🎉 Deployment mit Hard Reset erfolgreich"
+            return 0
+        else
+            log "❌ Auch Hard Reset fehlgeschlagen"
+            return 1
+        fi
     fi
 }
 
