@@ -53,13 +53,12 @@ class ErrorDisplay {
             autoArchive: true,
             bufferOfflineErrors: true,
             enableSounds: true,
-            soundLibrary: 'default',
+            notifyNewError: true,
             soundNewError: true,
-            soundNewErrorType: 'notification',
+            notifyConnectionSuccess: true,
             soundConnectionSuccess: true,
-            soundConnectionSuccessType: 'success',
-            soundConnectionClosed: true,
-            soundConnectionClosedType: 'disconnect'
+            notifyConnectionClosed: true,
+            soundConnectionClosed: true
         };
         
         const saved = localStorage.getItem('errorDisplaySettings');
@@ -75,13 +74,12 @@ class ErrorDisplay {
             autoArchive: formData.get('autoArchive') === 'on',
             bufferOfflineErrors: formData.get('bufferOfflineErrors') === 'on',
             enableSounds: formData.get('enableSounds') === 'on',
-            soundLibrary: formData.get('soundLibrary'),
+            notifyNewError: formData.get('notifyNewError') === 'on',
             soundNewError: formData.get('soundNewError') === 'on',
-            soundNewErrorType: formData.get('soundNewErrorType'),
+            notifyConnectionSuccess: formData.get('notifyConnectionSuccess') === 'on',
             soundConnectionSuccess: formData.get('soundConnectionSuccess') === 'on',
-            soundConnectionSuccessType: formData.get('soundConnectionSuccessType'),
-            soundConnectionClosed: formData.get('soundConnectionClosed') === 'on',
-            soundConnectionClosedType: formData.get('soundConnectionClosedType')
+            notifyConnectionClosed: formData.get('notifyConnectionClosed') === 'on',
+            soundConnectionClosed: formData.get('soundConnectionClosed') === 'on'
         };
         
         localStorage.setItem('errorDisplaySettings', JSON.stringify(this.settings));
@@ -571,13 +569,12 @@ class ErrorDisplay {
         
         // Sound-Einstellungen
         document.getElementById('enableSounds').checked = this.settings.enableSounds;
-        document.getElementById('soundLibrary').value = this.settings.soundLibrary;
+        document.getElementById('notifyNewError').checked = this.settings.notifyNewError;
         document.getElementById('soundNewError').checked = this.settings.soundNewError;
-        document.getElementById('soundNewErrorType').value = this.settings.soundNewErrorType;
+        document.getElementById('notifyConnectionSuccess').checked = this.settings.notifyConnectionSuccess;
         document.getElementById('soundConnectionSuccess').checked = this.settings.soundConnectionSuccess;
-        document.getElementById('soundConnectionSuccessType').value = this.settings.soundConnectionSuccessType;
+        document.getElementById('notifyConnectionClosed').checked = this.settings.notifyConnectionClosed;
         document.getElementById('soundConnectionClosed').checked = this.settings.soundConnectionClosed;
-        document.getElementById('soundConnectionClosedType').value = this.settings.soundConnectionClosedType;
         
         // Sound-Manager konfigurieren
         if (window.soundManager) {
@@ -663,13 +660,14 @@ class ErrorDisplay {
     testSound(eventType) {
         if (!window.soundManager) return;
         
-        const soundTypeMap = {
-            newError: this.settings.soundNewErrorType,
-            connectionSuccess: this.settings.soundConnectionSuccessType,
-            connectionClosed: this.settings.soundConnectionClosedType
+        // Standard-Sound-Typen verwenden
+        const soundTypes = {
+            newError: 'notification',
+            connectionSuccess: 'success',
+            connectionClosed: 'disconnect'
         };
         
-        const soundType = soundTypeMap[eventType];
+        const soundType = soundTypes[eventType];
         if (soundType) {
             window.soundManager.testSound(eventType, soundType);
         }
@@ -680,9 +678,9 @@ class ErrorDisplay {
         if (!this.settings.enableSounds || !window.soundManager) return;
         
         const eventSettings = {
-            newError: { enabled: this.settings.soundNewError, type: this.settings.soundNewErrorType },
-            connectionSuccess: { enabled: this.settings.soundConnectionSuccess, type: this.settings.soundConnectionSuccessType },
-            connectionClosed: { enabled: this.settings.soundConnectionClosed, type: this.settings.soundConnectionClosedType }
+            newError: { enabled: this.settings.soundNewError, type: 'notification' },
+            connectionSuccess: { enabled: this.settings.soundConnectionSuccess, type: 'success' },
+            connectionClosed: { enabled: this.settings.soundConnectionClosed, type: 'disconnect' }
         };
         
         const setting = eventSettings[eventType];

@@ -142,62 +142,73 @@
                                 </label>
                             </div>
                             
-                            <div class="form-group">
-                                <label for="soundLibrary">Sound-Bibliothek:</label>
-                                <select id="soundLibrary" name="soundLibrary" class="form-select">
-                                    <option value="default">Standard Sounds</option>
-                                    <option value="modern">Moderne Sounds</option>
-                                    <option value="subtle">Dezente Sounds</option>
-                                </select>
-                            </div>
-                            
-                            <div class="sound-events">
-                                <h4>Sound-Ereignisse:</h4>
-                                
-                                <div class="sound-event">
-                                    <div class="form-group">
-                                        <label>
-                                            <input type="checkbox" id="soundNewError" name="soundNewError" checked>
-                                            Neue Fehlermeldung
-                                        </label>
-                                        <select id="soundNewErrorType" name="soundNewErrorType" class="form-select-small">
-                                            <option value="notification">Benachrichtigung</option>
-                                            <option value="alert">Alarm</option>
-                                            <option value="chime">Glocke</option>
-                                        </select>
-                                        <button type="button" class="btn btn-test" onclick="window.errorDisplay.testSound('newError')">🔊 Test</button>
-                                    </div>
-                                </div>
-                                
-                                <div class="sound-event">
-                                    <div class="form-group">
-                                        <label>
-                                            <input type="checkbox" id="soundConnectionSuccess" name="soundConnectionSuccess" checked>
-                                            SSE Verbindung erfolgreich
-                                        </label>
-                                        <select id="soundConnectionSuccessType" name="soundConnectionSuccessType" class="form-select-small">
-                                            <option value="success">Erfolg</option>
-                                            <option value="connect">Verbindung</option>
-                                            <option value="chime">Glocke</option>
-                                        </select>
-                                        <button type="button" class="btn btn-test" onclick="window.errorDisplay.testSound('connectionSuccess')">🔊 Test</button>
-                                    </div>
-                                </div>
-                                
-                                <div class="sound-event">
-                                    <div class="form-group">
-                                        <label>
-                                            <input type="checkbox" id="soundConnectionClosed" name="soundConnectionClosed" checked>
-                                            SSE Verbindung getrennt
-                                        </label>
-                                        <select id="soundConnectionClosedType" name="soundConnectionClosedType" class="form-select-small">
-                                            <option value="disconnect">Trennung</option>
-                                            <option value="error">Fehler</option>
-                                            <option value="warning">Warnung</option>
-                                        </select>
-                                        <button type="button" class="btn btn-test" onclick="window.errorDisplay.testSound('connectionClosed')">🔊 Test</button>
-                                    </div>
-                                </div>
+                            <div class="notification-table">
+                                <table class="settings-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Aktion</th>
+                                            <th>Benachrichtigung</th>
+                                            <th>Sound</th>
+                                            <th>Test</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Neuer Fehler</td>
+                                            <td>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="notifyNewError" name="notifyNewError" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="soundNewError" name="soundNewError" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-test" onclick="window.errorDisplay.testSound('newError')">🔊</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>Verbindung erfolgreich</td>
+                                            <td>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="notifyConnectionSuccess" name="notifyConnectionSuccess" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="soundConnectionSuccess" name="soundConnectionSuccess" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-test" onclick="window.errorDisplay.testSound('connectionSuccess')">🔊</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>Verbindung getrennt</td>
+                                            <td>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="notifyConnectionClosed" name="notifyConnectionClosed" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="soundConnectionClosed" name="soundConnectionClosed" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-test" onclick="window.errorDisplay.testSound('connectionClosed')">🔊</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                         
