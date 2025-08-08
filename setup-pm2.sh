@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Live Error Display - PM2 Setup Script
-# Installiert PM2 und richtet das System ohne systemctl ein
+# Live Error Display - Clean PM2 Setup Script
+# Frische Installation ohne systemctl
 
 set -euo pipefail
 
@@ -12,8 +12,8 @@ readonly YELLOW='\033[1;33m'
 readonly BLUE='\033[0;34m'
 readonly NC='\033[0m'
 
-echo -e "${BLUE}🚀 Live Error Display - PM2 Setup${NC}"
-echo "==================================="
+echo -e "${BLUE}🚀 Live Error Display - Fresh PM2 Setup${NC}"
+echo "======================================"
 
 # Root check
 if [[ $EUID -ne 0 ]]; then
@@ -43,87 +43,74 @@ npm install -g pm2@latest
 echo -e "${YELLOW}📦 Installiere Git und Tools...${NC}"
 apt install -y git curl wget htop nano ufw
 
-# 5. Setup www-data user
-echo -e "${YELLOW}👤 Konfiguriere www-data User...${NC}"
-usermod -s /bin/bash www-data
-mkdir -p /var/www
-chown www-data:www-data /var/www
-
-# 6. Create log directories
-echo -e "${YELLOW}📁 Erstelle Log-Verzeichnisse...${NC}"
-mkdir -p /var/log
-touch /var/log/live-error-display-deploy.log
-touch /var/log/live-error-display-app.log
-touch /var/log/live-error-display-out.log
-touch /var/log/live-error-display-error.log
-chown www-data:www-data /var/log/live-error-display-*.log
-
-# 7. Configure firewall
+# 5. Configure firewall
 echo -e "${YELLOW}🔥 Konfiguriere Firewall...${NC}"
 ufw --force enable
 ufw allow 22    # SSH
 ufw allow 8080  # Application
 ufw --force reload
 
-# 8. Clone repository if not exists
+# 6. Clone repository to ubuntu user home
 echo -e "${YELLOW}📥 Repository Setup...${NC}"
-if [[ ! -d "/opt/live-error-display" ]]; then
-    cd /opt
+if [[ ! -d "/home/ubuntu/live-error-display" ]]; then
+    cd /home/ubuntu
     git clone https://github.com/ochtii/live-error-display.git
-    chown -R www-data:www-data /opt/live-error-display
+    chown -R ubuntu:ubuntu /home/ubuntu/live-error-display
+    echo "✅ Repository geklont nach /home/ubuntu/live-error-display"
+else
+    echo "✅ Repository bereits vorhanden"
+    cd /home/ubuntu/live-error-display
+    chown -R ubuntu:ubuntu /home/ubuntu/live-error-display
+    sudo -u ubuntu git pull
 fi
 
-# 9. Install NPM dependencies
+# 7. Install NPM dependencies
 echo -e "${YELLOW}📦 Installiere NPM Dependencies...${NC}"
-cd /opt/live-error-display
-sudo -u www-data npm install --production --silent
+cd /home/ubuntu/live-error-display
+sudo -u ubuntu npm install --production
 
-# 10. Setup PM2 for www-data user
-echo -e "${YELLOW}🎯 Konfiguriere PM2 für www-data...${NC}"
-sudo -u www-data pm2 kill 2>/dev/null || true
+# 8. Setup PM2 as ubuntu user
+echo -e "${YELLOW}🎯 Starte PM2 App als ubuntu User...${NC}"
+sudo -u ubuntu pm2 kill 2>/dev/null || true
+sudo -u ubuntu NODE_ENV=production PORT=8080 pm2 start server.js --name live-error-display
+sudo -u ubuntu pm2 save
 
-# Explicitly set NODE_ENV=production and start the app
-sudo -u www-data NODE_ENV=production pm2 start ecosystem.config.json
-sudo -u www-data pm2 save
-sudo -u www-data pm2 startup systemd -u www-data --hp /var/www
-
-# Execute the startup command that PM2 provides
-echo -e "${YELLOW}🔧 Installiere PM2 Startup...${NC}"
-# Get the startup command from PM2 and execute it
-startup_cmd=$(sudo -u www-data pm2 startup systemd -u www-data --hp /var/www | grep "sudo" | head -1)
-if [[ -n "$startup_cmd" ]]; then
-    echo "Executing: $startup_cmd"
-    eval "$startup_cmd"
+# 9. Setup PM2 to start on boot
+echo -e "${YELLOW}🔧 Konfiguriere PM2 Autostart...${NC}"
+sudo -u ubuntu pm2 startup | grep "sudo" | head -1 > /tmp/pm2_startup.sh
+if [[ -s /tmp/pm2_startup.sh ]]; then
+    bash /tmp/pm2_startup.sh
+    rm /tmp/pm2_startup.sh
 fi
 
-# 11. Remove old systemctl services if they exist
-echo -e "${YELLOW}🗑️ Entferne alte systemctl Services...${NC}"
-systemctl stop live-error-display 2>/dev/null || true
-systemctl disable live-error-display 2>/dev/null || true
-systemctl stop live-error-display-deploy 2>/dev/null || true
-systemctl disable live-error-display-deploy 2>/dev/null || true
-
-rm -f /etc/systemd/system/live-error-display.service
-rm -f /etc/systemd/system/live-error-display-deploy.service
-systemctl daemon-reload
+# 10. Test the application
+echo -e "${YELLOW}🧪 Teste Anwendung...${NC}"
+sleep 3
+if curl -s http://localhost:8080 >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ Application läuft erfolgreich!${NC}"
+else
+    echo -e "${RED}⚠️ Application antwortet nicht auf Port 8080${NC}"
+fi
 
 echo -e "${GREEN}✅ Setup erfolgreich abgeschlossen!${NC}"
 echo ""
 echo -e "${BLUE}🎯 PM2 Status:${NC}"
-sudo -u www-data pm2 status
+sudo -u ubuntu pm2 status
 
 echo ""
-echo -e "${BLUE}📊 Nützliche PM2 Befehle:${NC}"
-echo "• sudo -u www-data pm2 status              # Status anzeigen"
-echo "• sudo -u www-data pm2 logs                # Logs anzeigen"
-echo "• sudo -u www-data pm2 restart all         # App neustarten"
-echo "• sudo -u www-data pm2 stop all            # App stoppen"
-echo "• sudo -u www-data pm2 monit               # Monitoring"
+echo -e "${BLUE}📊 Nützliche Befehle:${NC}"
+echo "• sudo -u ubuntu pm2 status         # Status anzeigen"
+echo "• sudo -u ubuntu pm2 logs           # Logs anzeigen"
+echo "• sudo -u ubuntu pm2 restart all    # App neustarten"
+echo "• sudo -u ubuntu pm2 stop all       # App stoppen"
+echo "• sudo -u ubuntu pm2 monit          # Monitoring"
 
 echo ""
 echo -e "${BLUE}🚀 Anwendung verfügbar:${NC}"
 echo "• Web-Interface: http://$(hostname -I | awk '{print $1}'):8080"
-echo "• Logs: sudo -u www-data pm2 logs"
+echo "• Demo-Modus: AUS (NODE_ENV=production)"
 
 echo ""
-echo -e "${YELLOW}💡 Auto-Deploy wird separat gestartet...${NC}"
+echo -e "${YELLOW}💡 Deploy-Skript für Auto-Updates:${NC}"
+echo "• sudo chmod +x deploy.sh"
+echo "• sudo ./deploy.sh"

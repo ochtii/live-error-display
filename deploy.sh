@@ -6,12 +6,13 @@
 set -euo pipefail
 
 # === KONFIGURATION ===
-REPO_DIR="/opt/live-error-display"
+REPO_DIR="/home/ubuntu/live-error-display"
 REPO_URL="https://github.com/ochtii/live-error-display.git"
 SERVICE_NAME="live-error-display"
 LOG_FILE="/var/log/live-error-display-deploy.log"
 LOCK_FILE="/tmp/live-error-display-deploy.lock"
 CHECK_INTERVAL=1
+PM2_USER="ubuntu"
 
 # Farben
 readonly RED='\033[0;31m'
@@ -47,21 +48,15 @@ check_prerequisites() {
 
 check_pm2_app() {
     # Check if the PM2 app exists and is configured
-    if sudo -u www-data pm2 describe live-error-display >/dev/null 2>&1; then
-        log "PM2 App 'live-error-display' ist bereits konfiguriert"
+    if sudo -u "$PM2_USER" pm2 describe "$SERVICE_NAME" >/dev/null 2>&1; then
+        log "PM2 App '$SERVICE_NAME' ist bereits konfiguriert"
         return 0
     else
         log "PM2 App wird gestartet..."
         cd "$REPO_DIR"
-        if [[ -f "ecosystem.config.json" ]]; then
-            sudo -u www-data pm2 start ecosystem.config.json 2>&1 | tee -a "$LOG_FILE"
-            sudo -u www-data pm2 save
-            log "PM2 App gestartet und gespeichert"
-        else
-            log "WARNUNG: ecosystem.config.json nicht gefunden, starte server.js direkt"
-            sudo -u www-data pm2 start server.js --name live-error-display 2>&1 | tee -a "$LOG_FILE"
-            sudo -u www-data pm2 save
-        fi
+        sudo -u "$PM2_USER" NODE_ENV=production PORT=8080 pm2 start server.js --name "$SERVICE_NAME" 2>&1 | tee -a "$LOG_FILE"
+        sudo -u "$PM2_USER" pm2 save
+        log "PM2 App gestartet und gespeichert"
         return 0
     fi
 }
@@ -69,14 +64,15 @@ check_pm2_app() {
 setup_repository() {
     if [[ ! -d "$REPO_DIR" ]]; then
         log "Klone Repository..."
-        mkdir -p "$REPO_DIR"
+        mkdir -p "$(dirname "$REPO_DIR")"
         git clone "$REPO_URL" "$REPO_DIR" || error_exit "Git Clone fehlgeschlagen"
-        chown -R www-data:www-data "$REPO_DIR"
+        chown -R "$PM2_USER:$PM2_USER" "$REPO_DIR"
     fi
     
     cd "$REPO_DIR"
     
     # Ensure proper ownership
+    chown -R "$PM2_USER:$PM2_USER" "$REPO_DIR"
     chown -R www-data:www-data "$REPO_DIR"
     
     # Git configuration
@@ -130,34 +126,23 @@ update_dependencies() {
 }
 
 restart_service() {
-    log "Starte Service über PM2 neu..."
+    log "Starte PM2 App neu..."
     
-    # Check if PM2 is available
-    if ! command -v pm2 >/dev/null 2>&1; then
-        log "FEHLER: PM2 ist nicht installiert"
-        return 1
-    fi
+    # Stop and restart PM2 app
+    sudo -u "$PM2_USER" pm2 stop "$SERVICE_NAME" 2>/dev/null || true
+    sleep 2
+    sudo -u "$PM2_USER" NODE_ENV=production PORT=8080 pm2 start "$REPO_DIR/server.js" --name "$SERVICE_NAME" 2>&1 | tee -a "$LOG_FILE"
     
-    # Restart the app via PM2
-    sudo -u www-data pm2 restart live-error-display 2>&1 | tee -a "$LOG_FILE"
-    sleep 3
+    # Wait for app to start
+    sleep 5
     
-    # Check if the app is running
-    if sudo -u www-data pm2 describe live-error-display | grep -q "online"; then
-        log "✓ Service erfolgreich via PM2 gestartet"
-        
-        # Additional check: verify HTTP response
-        sleep 2
-        if curl -s --connect-timeout 5 http://localhost:8080 >/dev/null 2>&1; then
-            log "✓ Service antwortet auf Port 8080"
-            return 0
-        else
-            log "⚠ Service läuft, aber antwortet nicht auf Port 8080"
-            return 1
-        fi
+    # Health check
+    if curl -s http://localhost:8080 >/dev/null 2>&1; then
+        log "✅ PM2 App erfolgreich gestartet und erreichbar"
+        sudo -u "$PM2_USER" pm2 save
+        return 0
     else
-        log "✗ Service-Start über PM2 fehlgeschlagen"
-        sudo -u www-data pm2 describe live-error-display | tee -a "$LOG_FILE"
+        log "❌ PM2 App ist nicht erreichbar"
         return 1
     fi
 }
