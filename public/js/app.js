@@ -271,6 +271,13 @@ class ErrorDisplay {
             this.disconnectSSE();
             this.updateStatus('📋 API');
             this.displayAPI();
+        } else if (mode === 'session-manager') {
+            const sessionManagerContainer = document.getElementById('sessionManagerContainer');
+            if (sessionManagerContainer) {
+                sessionManagerContainer.style.display = 'block';
+            }
+            this.disconnectSSE();
+            this.updateStatus('🔑 Session Manager');
         }
     }
 
@@ -1244,7 +1251,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     }
 
     openSessionManager() {
-        window.open('session-manager.html', '_blank', 'width=800,height=600');
+        this.switchMode('session-manager');
     }
 
     copySessionToken() {
