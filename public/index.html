@@ -70,7 +70,11 @@
         
         .status.online .status-dot { background: #10b981; }
         .status.offline .status-dot { background: #ef4444; }
-        .status.archive .status-dot { background: #f59e0b; }
+        .status.archive .status-dot { background: #f59e0b; animation: none; }
+        
+        .status.online #status-text { color: #10b981; }
+        .status.offline #status-text { color: #ef4444; }
+        .status.archive #status-text { color: #f59e0b; }
         
         @keyframes pulse {
             0%, 100% { opacity: 1; }
@@ -295,8 +299,14 @@
             }
             
             init() {
+                console.log('🚀 ErrorDisplay initialized');
                 this.elements.btnLive.addEventListener('click', () => this.switchToLive());
                 this.elements.btnArchive.addEventListener('click', () => this.switchToArchive());
+                
+                // Initial status test
+                this.setStatus('offline', 'Initialisiere...');
+                
+                // Start with live mode
                 this.switchToLive();
             }
             
@@ -319,40 +329,99 @@
                 this.updateStats();
                 this.showWaiting(true);
                 
+                // Initial status
+                this.setStatus('offline', 'Verbinde...');
+                console.log('🔄 Attempting SSE connection to /events');
+                
                 this.eventSource = new EventSource('/events');
                 
-                this.eventSource.onopen = () => {
+                this.eventSource.onopen = (event) => {
+                    console.log('✅ SSE connection opened', event);
                     this.setStatus('online', 'Online');
                 };
                 
-                this.eventSource.onerror = () => {
+                this.eventSource.onerror = (error) => {
+                    console.error('❌ SSE connection error:', error);
                     this.setStatus('offline', 'Offline');
+                    
+                    // Retry connection after 5 seconds
+                    setTimeout(() => {
+                        if (this.elements.btnLive.classList.contains('active')) {
+                            console.log('🔄 Retrying SSE connection...');
+                            this.connectSSE();
+                        }
+                    }, 5000);
                 };
                 
                 this.eventSource.onmessage = (event) => {
-                    const data = JSON.parse(event.data);
-                    this.showWaiting(false);
-                    this.addError(data, true);
-                    this.sessionErrors++;
-                    this.updateStats();
+                    console.log('📨 SSE message received:', event.data);
+                    try {
+                        const data = JSON.parse(event.data);
+                        
+                        // Handle heartbeat
+                        if (data.type === 'heartbeat') {
+                            console.log('💓 Heartbeat received');
+                            this.setStatus('online', 'Online');
+                            return;
+                        }
+                        
+                        // Handle error messages
+                        this.showWaiting(false);
+                        this.addError(data, true);
+                        this.sessionErrors++;
+                        this.updateStats();
+                    } catch (e) {
+                        console.error('❌ Failed to parse SSE message:', e);
+                    }
                 };
+                
+                // Connection timeout check
+                setTimeout(() => {
+                    if (this.eventSource && this.eventSource.readyState !== EventSource.OPEN) {
+                        console.warn('⚠️ SSE connection timeout - trying direct server test');
+                        this.testServerConnection();
+                    }
+                }, 3000);
             }
             
             async loadArchive() {
                 this.cleanup();
                 this.clearErrors();
                 this.showWaiting(false);
-                this.setStatus('archive', 'Archiv');
+                this.setStatus('archive', 'Lade Archiv...');
                 
                 try {
+                    console.log('📦 Loading archive from /archive');
                     const response = await fetch('/archive');
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
                     const errors = await response.json();
+                    console.log(`📦 Loaded ${errors.length} archived errors`);
                     errors.forEach(error => this.addError(error, false));
                     this.totalErrors = errors.length;
                     this.updateStats();
+                    this.setStatus('archive', 'Archiv');
                 } catch (error) {
+                    console.error('❌ Archive load failed:', error);
                     this.setStatus('offline', 'Fehler beim Laden');
-                    console.error('Archive load failed:', error);
+                }
+            }
+            
+            async testServerConnection() {
+                try {
+                    console.log('🧪 Testing server connection...');
+                    const response = await fetch('/archive');
+                    if (response.ok) {
+                        console.log('✅ Server is reachable, but SSE might have issues');
+                        this.setStatus('offline', 'SSE-Fehler');
+                    } else {
+                        console.log('❌ Server returned error:', response.status);
+                        this.setStatus('offline', `Server Error ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error('❌ Server unreachable:', error);
+                    this.setStatus('offline', 'Server nicht erreichbar');
                 }
             }
             
@@ -445,8 +514,13 @@
             }
             
             setStatus(type, text) {
+                console.log(`🔄 Status changed: ${type} - ${text}`);
                 this.elements.status.className = `status ${type}`;
                 this.elements.statusText.textContent = text;
+                
+                // Add timestamp for debugging
+                const timestamp = new Date().toLocaleTimeString();
+                console.log(`[${timestamp}] Status: ${type} - ${text}`);
             }
             
             showWaiting(show) {

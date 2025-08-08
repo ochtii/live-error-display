@@ -43,6 +43,8 @@ app.get('/', (req, res) => {
 
 // SSE endpoint for live updates
 app.get('/events', (req, res) => {
+    console.log(`New SSE connection from ${req.ip}`);
+    
     res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -51,12 +53,20 @@ app.get('/events', (req, res) => {
         'Access-Control-Allow-Headers': 'Cache-Control'
     });
 
+    // Send initial heartbeat
+    res.write('data: {"type":"heartbeat","message":"Connected"}\n\n');
+
     clients.push(res);
-    console.log(`SSE Client connected. Total: ${clients.length}`);
+    console.log(`✅ SSE Client connected. Total: ${clients.length}`);
 
     req.on('close', () => {
         clients = clients.filter(client => client !== res);
-        console.log(`SSE Client disconnected. Total: ${clients.length}`);
+        console.log(`❌ SSE Client disconnected. Total: ${clients.length}`);
+    });
+    
+    req.on('error', (err) => {
+        console.error('SSE connection error:', err);
+        clients = clients.filter(client => client !== res);
     });
 });
 
