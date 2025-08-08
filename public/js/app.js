@@ -26,12 +26,19 @@ class ErrorDisplay {
     init() {
         this.setupEventListeners();
         this.updateStats();
-        this.connectSSE();
         this.setupModal();
-        this.displayMode(this.currentMode);
         this.loadAndApplySettings();
         this.initPushNotifications();
         this.updateSessionDisplay();
+        
+        // Check for valid session before proceeding
+        if (!this.currentSession) {
+            this.showSessionRequiredMessage();
+            return; // Don't connect SSE or display mode without session
+        }
+        
+        this.connectSSE();
+        this.displayMode(this.currentMode);
     }
 
     setupEventListeners() {
@@ -1298,6 +1305,93 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             this.showNotification('Keine aktive Session zum Speichern', 'warning');
         }
     }
+
+    showSessionRequiredMessage() {
+        const errorsContainer = document.getElementById('errorsContainer');
+        if (errorsContainer) {
+            errorsContainer.innerHTML = `
+                <div class="session-required">
+                    <div class="session-required-content">
+                        <h2>🔑 Session erforderlich</h2>
+                        <p>Für die Nutzung der Error Display App benötigen Sie eine gültige Session.</p>
+                        <div class="session-actions-large">
+                            <button class="btn btn-primary" onclick="window.errorDisplay.openSessionManager()">
+                                🔑 Session Manager öffnen
+                            </button>
+                            <button class="btn btn-secondary" onclick="window.errorDisplay.createNewSession().then(() => window.location.reload())">
+                                ✨ Neue Session erstellen
+                            </button>
+                        </div>
+                        <div class="session-info-text">
+                            <h3>Was ist eine Session?</h3>
+                            <p>Eine Session ermöglicht es Ihnen:</p>
+                            <ul>
+                                <li>🔐 Sichere API-Authentifizierung mit individuellem Token</li>
+                                <li>📊 Separate Error-Logs pro Session</li>
+                                <li>💾 Session-basierte Datenspeicherung</li>
+                                <li>🔄 Session-Wiederherstellung</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Hide controls that require a session
+        const controls = document.querySelector('.controls');
+        if (controls) {
+            const sessionBtn = controls.querySelector('#sessionBtn');
+            controls.querySelectorAll('.btn').forEach(btn => {
+                if (btn !== sessionBtn) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                }
+            });
+        }
+    }
+
+    // Override session methods to reload page after session changes
+    async createNewSession() {
+        const session = await super.createNewSession?.() || await this.createNewSessionInternal();
+        if (session) {
+            window.location.reload();
+        }
+        return session;
+    }
+
+    async createNewSessionInternal() {
+        try {
+            const response = await fetch(`${this.serverUrl}/api/token`);
+            if (response.ok) {
+                const data = await response.json();
+                this.currentSession = {
+                    name: data.sessionName,
+                    token: data.token,
+                    created: new Date().toISOString()
+                };
+                localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+                this.updateSessionDisplay();
+                return this.currentSession;
+            }
+        } catch (error) {
+            console.error('Failed to create session:', error);
+        }
+        return null;
+    }
+
+    restoreSession(sessionData) {
+        this.currentSession = sessionData;
+        localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+        this.updateSessionDisplay();
+        window.location.reload(); // Reload to reinitialize with session
+    }
+
+    clearSession() {
+        this.currentSession = null;
+        localStorage.removeItem('currentSession');
+        this.updateSessionDisplay();
+        window.location.reload(); // Reload to show session required message
+    }
 }
 
 // Initialize when DOM is loaded
@@ -1309,5 +1403,12 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden && window.errorDisplay) {
         window.errorDisplay.connectSSE();
+    }
+});
+
+// Listen for session manager messages
+window.addEventListener('message', (event) => {
+    if (event.data.type === 'sessionRestored') {
+        window.errorDisplay.restoreSession(event.data.session);
     }
 });

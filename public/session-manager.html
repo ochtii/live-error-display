@@ -272,14 +272,29 @@
                 
                 if (data.success) {
                     // Save session to localStorage
-                    saveSessionToStorage(token, data.session.name);
+                    const sessionData = {
+                        name: data.session.name,
+                        token: token,
+                        created: data.session.created || new Date().toISOString()
+                    };
+                    localStorage.setItem('currentSession', JSON.stringify(sessionData));
                     
                     showStatus(`Session "${data.session.name}" erfolgreich geladen`, 'success');
                     
-                    // Redirect to main app
-                    setTimeout(() => {
-                        window.location.href = `/?session=${token}`;
-                    }, 1000);
+                    // Check if opened from parent window
+                    if (window.opener) {
+                        // Notify parent window and close
+                        window.opener.postMessage({
+                            type: 'sessionRestored',
+                            session: sessionData
+                        }, '*');
+                        setTimeout(() => window.close(), 1000);
+                    } else {
+                        // Redirect to main app
+                        setTimeout(() => {
+                            window.location.href = 'index.html';
+                        }, 1000);
+                    }
                 } else {
                     showStatus('Session nicht gefunden oder ungültig', 'error');
                 }
