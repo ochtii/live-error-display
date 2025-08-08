@@ -38,15 +38,18 @@
         .last-change {
             font-size: 0.85rem;
             color: #94a3b8;
+            margin-top: 0.25rem;
         }
         
         .last-change-label {
             font-weight: 600;
+            margin-right: 0.5rem;
         }
         
         .last-change-info {
             color: #fbbf24;
             font-family: 'Courier New', monospace;
+            font-weight: 600;
         }
         
         .controls {
@@ -164,6 +167,8 @@
             font-size: 1.2rem;
             color: #60a5fa;
             transition: transform 0.3s ease;
+            margin-left: 1rem;
+            margin-right: 0.5rem;
         }
         
         .toggle-icon.open { transform: rotate(90deg); }
@@ -328,7 +333,15 @@
                 // Initial status test
                 this.setStatus('offline', 'Initialisiere...');
                 
-                // Load file info
+                // Ensure last change element is visible
+                if (this.elements.lastChangeInfo) {
+                    this.elements.lastChangeInfo.style.display = 'inline';
+                    console.log('📄 Last change element found and made visible');
+                } else {
+                    console.error('❌ Last change element not found!');
+                }
+                
+                // Load file info immediately
                 this.loadFileInfo();
                 
                 // Update file info every 30 seconds
@@ -357,9 +370,34 @@
                 this.updateStats();
                 this.showWaiting(true);
                 
-                // Initial status
+                // Test server availability first
                 this.setStatus('offline', 'Verbinde...');
-                console.log('🔄 Attempting SSE connection to /events');
+                console.log('🔄 Testing server connection...');
+                
+                // Quick server test before SSE
+                fetch('/fileinfo')
+                    .then(response => {
+                        if (response.ok) {
+                            console.log('✅ Server reachable, establishing SSE...');
+                            this.establishSSE();
+                        } else {
+                            throw new Error(`Server returned ${response.status}`);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('❌ Server not reachable:', error);
+                        this.setStatus('offline', 'Server nicht erreichbar');
+                        // Retry after 5 seconds
+                        setTimeout(() => {
+                            if (this.elements.btnLive.classList.contains('active')) {
+                                this.connectSSE();
+                            }
+                        }, 5000);
+                    });
+            }
+            
+            establishSSE() {
+                console.log('🔄 Establishing SSE connection to /events');
                 
                 this.eventSource = new EventSource('/events');
                 
@@ -547,18 +585,25 @@
                     const response = await fetch('/fileinfo');
                     if (response.ok) {
                         const fileInfo = await response.json();
+                        console.log('📄 File info received:', fileInfo);
                         if (fileInfo.file && fileInfo.formatted) {
-                            this.elements.lastChangeInfo.textContent = `${fileInfo.formatted} - ${fileInfo.file}`;
-                            console.log(`📄 Last change: ${fileInfo.file} at ${fileInfo.formatted}`);
+                            const displayText = `${fileInfo.formatted} - ${fileInfo.file}`;
+                            this.elements.lastChangeInfo.textContent = displayText;
+                            this.elements.lastChangeInfo.style.display = 'inline';
+                            console.log(`📄 Last change displayed: ${displayText}`);
                         } else {
                             this.elements.lastChangeInfo.textContent = 'Keine Daten verfügbar';
+                            this.elements.lastChangeInfo.style.display = 'inline';
                         }
                     } else {
-                        this.elements.lastChangeInfo.textContent = 'Fehler beim Laden';
+                        console.error('📄 File info request failed:', response.status);
+                        this.elements.lastChangeInfo.textContent = `Fehler ${response.status}`;
+                        this.elements.lastChangeInfo.style.display = 'inline';
                     }
                 } catch (error) {
                     console.error('❌ Failed to load file info:', error);
                     this.elements.lastChangeInfo.textContent = 'Fehler beim Laden';
+                    this.elements.lastChangeInfo.style.display = 'inline';
                 }
             }
             
