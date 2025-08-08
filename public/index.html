@@ -34,6 +34,7 @@
             <button class="btn btn-primary active" id="liveBtn">📡 Live</button>
             <button class="btn btn-primary" id="archiveBtn">📂 Archiv</button>
             <button class="btn btn-primary" id="settingsBtn">⚙️ Einstellungen</button>
+            <button class="btn btn-primary" id="apiBtn">📋 API</button>
         </div>
         
         <div class="content-area">
@@ -271,6 +272,20 @@
                                                 <button type="button" class="btn btn-test" onclick="window.errorDisplay.testSound('bufferedErrors')">🔊</button>
                                             </td>
                                         </tr>
+                                        <tr>
+                                            <td>Fehler gelöscht</td>
+                                            <td>-</td>
+                                            <td>-</td>
+                                            <td>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="soundErrorDeleted" name="soundErrorDeleted" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-test" onclick="window.errorDisplay.testSound('errorDeleted')">🔊</button>
+                                            </td>
+                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -280,6 +295,489 @@
                             <button type="button" class="btn btn-primary" id="saveSettings">💾 Einstellungen speichern</button>
                         </div>
                     </form>
+                </div>
+            </div>
+            
+            <!-- API Documentation Panel -->
+            <div class="panel" id="apiPanel" style="display: none;">
+                <div class="panel-header">
+                    <h2>📋 API Dokumentation</h2>
+                    <p>Vollständige API-Referenz für die Integration in Ihre Anwendungen</p>
+                </div>
+                
+                <div class="api-content">
+                    <!-- Server Information -->
+                    <div class="api-section">
+                        <h3>🌐 Server Information</h3>
+                        <div class="server-info">
+                            <div class="info-item">
+                                <label>Server URL:</label>
+                                <div class="url-display">
+                                    <input type="text" id="serverUrl" readonly class="server-url-input">
+                                    <button class="copy-url-btn" onclick="errorDisplay.copyServerUrl()">📋</button>
+                                </div>
+                            </div>
+                            <div class="info-item">
+                                <label>Status:</label>
+                                <span class="server-status" id="serverStatus">🟢 Online</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- API Endpoints -->
+                    <div class="api-section">
+                        <h3>🔗 API Endpoints</h3>
+                        <div class="endpoints-grid">
+                            <div class="endpoint-card">
+                                <div class="endpoint-header">
+                                    <span class="method post">POST</span>
+                                    <span class="path">/error</span>
+                                </div>
+                                <p>Neuen Fehler an den Server senden</p>
+                                <div class="endpoint-details">
+                                    <strong>Body:</strong> <code>{ "message": "Fehlermeldung" }</code><br>
+                                    <strong>Response:</strong> <code>{ "success": true, "error": {...} }</code>
+                                </div>
+                            </div>
+                            
+                            <div class="endpoint-card">
+                                <div class="endpoint-header">
+                                    <span class="method get">GET</span>
+                                    <span class="path">/errors</span>
+                                </div>
+                                <p>Alle gespeicherten Fehler abrufen</p>
+                                <div class="endpoint-details">
+                                    <strong>Response:</strong> <code>{ "errors": [...], "totalErrors": 5 }</code>
+                                </div>
+                            </div>
+                            
+                            <div class="endpoint-card">
+                                <div class="endpoint-header">
+                                    <span class="method get">GET</span>
+                                    <span class="path">/live</span>
+                                </div>
+                                <p>Live SSE-Stream für Echtzeit-Updates</p>
+                                <div class="endpoint-details">
+                                    <strong>Type:</strong> Server-Sent Events<br>
+                                    <strong>Events:</strong> <code>error</code>, <code>clients</code>, <code>ping</code>
+                                </div>
+                            </div>
+                            
+                            <div class="endpoint-card">
+                                <div class="endpoint-header">
+                                    <span class="method get">GET</span>
+                                    <span class="path">/status</span>
+                                </div>
+                                <p>Server-Status und Statistiken</p>
+                                <div class="endpoint-details">
+                                    <strong>Response:</strong> <code>{ "connectedClients": 2, "totalErrors": 10 }</code>
+                                </div>
+                            </div>
+                            
+                            <div class="endpoint-card">
+                                <div class="endpoint-header">
+                                    <span class="method delete">DELETE</span>
+                                    <span class="path">/errors</span>
+                                </div>
+                                <p>Alle Fehler vom Server löschen</p>
+                                <div class="endpoint-details">
+                                    <strong>Response:</strong> <code>{ "success": true, "message": "All errors cleared" }</code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Code Examples -->
+                    <div class="api-section">
+                        <h3>💻 Verwendungsbeispiele</h3>
+                        <div class="code-examples">
+                            <!-- JavaScript Example -->
+                            <div class="code-example">
+                                <div class="code-header">
+                                    <span class="language-badge js">JavaScript</span>
+                                    <button class="copy-code-btn" onclick="errorDisplay.copyCode('js-example')">📋 Kopieren</button>
+                                </div>
+                                <pre class="code-block" id="js-example">// Fehler senden
+async function sendError(message) {
+    try {
+        const response = await fetch('SERVER_URL/error', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: message })
+        });
+        const result = await response.json();
+        console.log('Fehler gesendet:', result);
+    } catch (error) {
+        console.error('Fehler beim Senden:', error);
+    }
+}
+
+// Live Events empfangen
+const eventSource = new EventSource('SERVER_URL/live');
+eventSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === 'error') {
+        console.log('Neuer Fehler:', data.error);
+    }
+};</pre>
+                            </div>
+                            
+                            <!-- Python Example -->
+                            <div class="code-example">
+                                <div class="code-header">
+                                    <span class="language-badge python">Python</span>
+                                    <button class="copy-code-btn" onclick="errorDisplay.copyCode('python-example')">📋 Kopieren</button>
+                                </div>
+                                <pre class="code-block" id="python-example">import requests
+import json
+
+# Fehler senden
+def send_error(message):
+    url = "SERVER_URL/error"
+    payload = {"message": message}
+    
+    try:
+        response = requests.post(url, json=payload)
+        result = response.json()
+        print(f"Fehler gesendet: {result}")
+    except Exception as e:
+        print(f"Fehler beim Senden: {e}")
+
+# Alle Fehler abrufen
+def get_errors():
+    response = requests.get("SERVER_URL/errors")
+    return response.json()
+
+# Beispiel-Verwendung
+send_error("Python-Anwendung: Datenbankverbindung fehlgeschlagen")
+errors = get_errors()
+print(f"Gesamt: {errors['totalErrors']} Fehler")</pre>
+                            </div>
+                            
+                            <!-- PHP Example -->
+                            <div class="code-example">
+                                <div class="code-header">
+                                    <span class="language-badge php">PHP</span>
+                                    <button class="copy-code-btn" onclick="errorDisplay.copyCode('php-example')">📋 Kopieren</button>
+                                </div>
+                                <pre class="code-block" id="php-example">&lt;?php
+// Fehler senden
+function sendError($message) {
+    $url = "SERVER_URL/error";
+    $data = json_encode(["message" => $message]);
+    
+    $context = stream_context_create([
+        "http" => [
+            "method" => "POST",
+            "header" => "Content-Type: application/json",
+            "content" => $data
+        ]
+    ]);
+    
+    $result = file_get_contents($url, false, $context);
+    return json_decode($result, true);
+}
+
+// Alle Fehler abrufen
+function getErrors() {
+    $response = file_get_contents("SERVER_URL/errors");
+    return json_decode($response, true);
+}
+
+// Beispiel-Verwendung
+try {
+    $result = sendError("PHP-Anwendung: Session-Fehler aufgetreten");
+    echo "Fehler gesendet: " . json_encode($result);
+} catch (Exception $e) {
+    echo "Fehler: " . $e->getMessage();
+}
+?&gt;</pre>
+                            </div>
+                            
+                            <!-- Java Example -->
+                            <div class="code-example">
+                                <div class="code-header">
+                                    <span class="language-badge java">Java</span>
+                                    <button class="copy-code-btn" onclick="errorDisplay.copyCode('java-example')">📋 Kopieren</button>
+                                </div>
+                                <pre class="code-block" id="java-example">import java.net.http.*;
+import java.net.URI;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+public class ErrorReporter {
+    private static final String SERVER_URL = "SERVER_URL";
+    private final HttpClient client = HttpClient.newHttpClient();
+    private final ObjectMapper mapper = new ObjectMapper();
+    
+    // Fehler senden
+    public void sendError(String message) {
+        try {
+            String json = mapper.writeValueAsString(
+                Map.of("message", message)
+            );
+            
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(SERVER_URL + "/error"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+            
+            HttpResponse&lt;String&gt; response = client.send(request, 
+                HttpResponse.BodyHandlers.ofString());
+            
+            System.out.println("Response: " + response.body());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    // Beispiel-Verwendung
+    public static void main(String[] args) {
+        ErrorReporter reporter = new ErrorReporter();
+        reporter.sendError("Java-Anwendung: NullPointerException in UserService");
+    }
+}</pre>
+                            </div>
+                            
+                            <!-- C# Example -->
+                            <div class="code-example">
+                                <div class="code-header">
+                                    <span class="language-badge csharp">C#</span>
+                                    <button class="copy-code-btn" onclick="errorDisplay.copyCode('csharp-example')">📋 Kopieren</button>
+                                </div>
+                                <pre class="code-block" id="csharp-example">using System;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+
+public class ErrorReporter
+{
+    private static readonly HttpClient client = new HttpClient();
+    private const string SERVER_URL = "SERVER_URL";
+    
+    // Fehler senden
+    public static async Task SendErrorAsync(string message)
+    {
+        try
+        {
+            var errorData = new { message = message };
+            var json = JsonSerializer.Serialize(errorData);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            
+            var response = await client.PostAsync($"{SERVER_URL}/error", content);
+            var responseContent = await response.Content.ReadAsStringAsync();
+            
+            Console.WriteLine($"Response: {responseContent}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Fehler beim Senden: {ex.Message}");
+        }
+    }
+    
+    // Beispiel-Verwendung
+    public static async Task Main(string[] args)
+    {
+        await SendErrorAsync("C#-Anwendung: Datenbankverbindung timeout");
+    }
+}</pre>
+                            </div>
+                            
+                            <!-- Kotlin Example -->
+                            <div class="code-example">
+                                <div class="code-header">
+                                    <span class="language-badge kotlin">Kotlin</span>
+                                    <button class="copy-code-btn" onclick="errorDisplay.copyCode('kotlin-example')">📋 Kopieren</button>
+                                </div>
+                                <pre class="code-block" id="kotlin-example">import kotlinx.coroutines.*
+import kotlinx.serialization.*
+import kotlinx.serialization.json.*
+import java.net.http.*
+import java.net.URI
+
+@Serializable
+data class ErrorRequest(val message: String)
+
+class ErrorReporter {
+    private val client = HttpClient.newHttpClient()
+    private val serverUrl = "SERVER_URL"
+    
+    // Fehler senden
+    suspend fun sendError(message: String) {
+        try {
+            val errorRequest = ErrorRequest(message)
+            val json = Json.encodeToString(errorRequest)
+            
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create("$serverUrl/error"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build()
+            
+            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+            println("Response: ${response.body()}")
+        } catch (e: Exception) {
+            println("Fehler beim Senden: ${e.message}")
+        }
+    }
+}
+
+// Beispiel-Verwendung
+fun main() = runBlocking {
+    val reporter = ErrorReporter()
+    reporter.sendError("Kotlin-App: Authentifizierung fehlgeschlagen")
+}</pre>
+                            </div>
+                            
+                            <!-- cURL Example -->
+                            <div class="code-example">
+                                <div class="code-header">
+                                    <span class="language-badge curl">cURL (Linux/macOS)</span>
+                                    <button class="copy-code-btn" onclick="errorDisplay.copyCode('curl-example')">📋 Kopieren</button>
+                                </div>
+                                <pre class="code-block" id="curl-example"># Fehler senden
+curl -X POST SERVER_URL/error \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Shell-Script: Backup-Prozess fehlgeschlagen"}'
+
+# Alle Fehler abrufen
+curl SERVER_URL/errors
+
+# Server-Status prüfen
+curl SERVER_URL/status
+
+# Alle Fehler löschen
+curl -X DELETE SERVER_URL/errors</pre>
+                            </div>
+                            
+                            <!-- Windows PowerShell Example -->
+                            <div class="code-example">
+                                <div class="code-header">
+                                    <span class="language-badge powershell">PowerShell (Windows)</span>
+                                    <button class="copy-code-btn" onclick="errorDisplay.copyCode('powershell-example')">📋 Kopieren</button>
+                                </div>
+                                <pre class="code-block" id="powershell-example"># Fehler senden
+$body = @{
+    message = "PowerShell-Script: Dienst konnte nicht gestartet werden"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "SERVER_URL/error" `
+    -Method POST `
+    -Body $body `
+    -ContentType "application/json"
+
+# Alle Fehler abrufen
+$errors = Invoke-RestMethod -Uri "SERVER_URL/errors" -Method GET
+Write-Host "Gefunden: $($errors.totalErrors) Fehler"
+
+# Server-Status prüfen
+$status = Invoke-RestMethod -Uri "SERVER_URL/status" -Method GET
+Write-Host "Verbundene Clients: $($status.connectedClients)"
+
+# Alle Fehler löschen
+Invoke-RestMethod -Uri "SERVER_URL/errors" -Method DELETE</pre>
+                            </div>
+                            
+                            <!-- Windows CMD Example -->
+                            <div class="code-example">
+                                <div class="code-header">
+                                    <span class="language-badge cmd">Windows CMD</span>
+                                    <button class="copy-code-btn" onclick="errorDisplay.copyCode('cmd-example')">📋 Kopieren</button>
+                                </div>
+                                <pre class="code-block" id="cmd-example">REM Fehler senden (mit curl für Windows)
+curl -X POST SERVER_URL/error ^
+  -H "Content-Type: application/json" ^
+  -d "{\"message\": \"Batch-Script: Datei nicht gefunden\"}"
+
+REM Alle Fehler abrufen
+curl SERVER_URL/errors
+
+REM Server-Status prüfen
+curl SERVER_URL/status
+
+REM Alle Fehler löschen
+curl -X DELETE SERVER_URL/errors
+
+REM Alternative mit PowerShell aus CMD
+powershell -Command "Invoke-RestMethod -Uri 'SERVER_URL/error' -Method POST -Body (ConvertTo-Json @{message='CMD-Script: Prozess fehlgeschlagen'}) -ContentType 'application/json'"</pre>
+                            </div>
+                            
+                            <!-- macOS Terminal Example -->
+                            <div class="code-example">
+                                <div class="code-header">
+                                    <span class="language-badge macos">macOS Terminal</span>
+                                    <button class="copy-code-btn" onclick="errorDisplay.copyCode('macos-example')">📋 Kopieren</button>
+                                </div>
+                                <pre class="code-block" id="macos-example">#!/bin/bash
+# macOS Terminal mit curl
+
+# Fehler senden
+curl -X POST SERVER_URL/error \
+  -H "Content-Type: application/json" \
+  -d '{"message": "macOS-Script: Bluetooth-Verbindung verloren"}'
+
+# Alle Fehler mit formatierter Ausgabe
+curl -s SERVER_URL/errors | python3 -m json.tool
+
+# Server-Status mit jq (falls installiert)
+curl -s SERVER_URL/status | jq '.'
+
+# Automatisches Monitoring-Script
+while true; do
+    STATUS=$(curl -s SERVER_URL/status)
+    ERRORS=$(echo $STATUS | python3 -c "import sys, json; print(json.load(sys.stdin)['totalErrors'])")
+    echo "$(date): $ERRORS Fehler im System"
+    sleep 30
+done</pre>
+                            </div>
+                            
+                            <!-- Linux Bash Example -->
+                            <div class="code-example">
+                                <div class="code-header">
+                                    <span class="language-badge linux">Linux Bash</span>
+                                    <button class="copy-code-btn" onclick="errorDisplay.copyCode('linux-example')">📋 Kopieren</button>
+                                </div>
+                                <pre class="code-block" id="linux-example">#!/bin/bash
+# Linux Bash Script für Error Reporting
+
+SERVER_URL="SERVER_URL"
+
+# Fehler senden Funktion
+send_error() {
+    local message="$1"
+    curl -X POST "$SERVER_URL/error" \
+        -H "Content-Type: application/json" \
+        -d "{\"message\": \"$message\"}" \
+        -w "HTTP Status: %{http_code}\n"
+}
+
+# Service-Monitor
+monitor_service() {
+    local service_name="$1"
+    if ! systemctl is-active --quiet "$service_name"; then
+        send_error "Linux-System: Service $service_name ist nicht aktiv"
+    fi
+}
+
+# Log-Monitor für Fehler
+monitor_logs() {
+    tail -f /var/log/syslog | while read line; do
+        if echo "$line" | grep -i "error\|fail\|critical"; then
+            send_error "Linux-Log: $line"
+        fi
+    done
+}
+
+# Beispiel-Verwendung
+send_error "Linux-Script: Disk-Space kritisch auf /var"
+monitor_service "nginx"
+
+# Alle Fehler abrufen und anzeigen
+curl -s "$SERVER_URL/errors" | jq '.errors[] | .timestamp + ": " + .message'</pre>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

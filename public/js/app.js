@@ -29,6 +29,7 @@ class ErrorDisplay {
         document.getElementById('liveBtn').addEventListener('click', () => this.switchMode('live'));
         document.getElementById('archiveBtn').addEventListener('click', () => this.switchMode('archive'));
         document.getElementById('settingsBtn').addEventListener('click', () => this.switchMode('settings'));
+        document.getElementById('apiBtn').addEventListener('click', () => this.switchMode('api'));
         
         // Settings
         document.getElementById('saveSettings').addEventListener('click', () => this.saveSettings());
@@ -68,6 +69,7 @@ class ErrorDisplay {
             notifyBufferedErrors: true,
             soundBufferedErrors: true,
             pushBufferedErrors: true,
+            soundErrorDeleted: true, // Neuer Sound für gelöschte Fehler
             showDeleteConfirmation: true // Neue Einstellung für Lösch-Bestätigung
         };
         
@@ -96,6 +98,7 @@ class ErrorDisplay {
             notifyBufferedErrors: formData.get('notifyBufferedErrors') === 'on',
             soundBufferedErrors: formData.get('soundBufferedErrors') === 'on',
             pushBufferedErrors: formData.get('pushBufferedErrors') === 'on',
+            soundErrorDeleted: formData.get('soundErrorDeleted') === 'on',
             showDeleteConfirmation: formData.get('showDeleteConfirmation') === 'on'
         };
         
@@ -200,6 +203,7 @@ class ErrorDisplay {
         document.getElementById('liveBtn').classList.toggle('active', mode === 'live');
         document.getElementById('archiveBtn').classList.toggle('active', mode === 'archive');
         document.getElementById('settingsBtn').classList.toggle('active', mode === 'settings');
+        document.getElementById('apiBtn').classList.toggle('active', mode === 'api');
         
         this.displayMode(mode);
     }
@@ -208,6 +212,7 @@ class ErrorDisplay {
         // Hide all containers
         document.getElementById('errorsContainer').style.display = 'none';
         document.getElementById('settingsContainer').style.display = 'none';
+        document.getElementById('apiPanel').style.display = 'none';
         
         if (mode === 'live') {
             document.getElementById('errorsContainer').style.display = 'flex';
@@ -231,6 +236,11 @@ class ErrorDisplay {
             this.disconnectSSE();
             this.updateStatus('settings');
             this.displaySettings();
+        } else if (mode === 'api') {
+            document.getElementById('apiPanel').style.display = 'block';
+            this.disconnectSSE();
+            this.updateStatus('📋 API');
+            this.displayAPI();
         }
     }
 
@@ -254,6 +264,59 @@ class ErrorDisplay {
     displayArchive() {
         this.displayErrors(this.archiveData, true);
         this.updateStats();
+    }
+
+    displayAPI() {
+        // Update server URL with current location
+        const serverUrl = `${window.location.protocol}//${window.location.host}`;
+        document.getElementById('serverUrl').value = serverUrl;
+        
+        // Update all code examples with the actual server URL
+        this.updateCodeExamples(serverUrl);
+    }
+
+    updateCodeExamples(serverUrl) {
+        const codeBlocks = [
+            'js-example', 'python-example', 'php-example', 
+            'java-example', 'csharp-example', 'kotlin-example', 'curl-example',
+            'powershell-example', 'cmd-example', 'macos-example', 'linux-example'
+        ];
+        
+        codeBlocks.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = element.textContent.replace(/SERVER_URL/g, serverUrl);
+            }
+        });
+    }
+
+    copyServerUrl() {
+        const serverUrlInput = document.getElementById('serverUrl');
+        this.copyTextToClipboard(serverUrlInput.value, 'Server-URL kopiert!');
+    }
+
+    copyCode(codeId) {
+        const codeElement = document.getElementById(codeId);
+        this.copyTextToClipboard(codeElement.textContent, 'Code kopiert!');
+    }
+
+    async copyTextToClipboard(text, successMessage) {
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                this.fallbackCopyToClipboard(text);
+            }
+            this.showNotification(successMessage, 'success');
+        } catch (err) {
+            console.error('Copy failed:', err);
+            try {
+                this.fallbackCopyToClipboard(text);
+                this.showNotification(successMessage, 'success');
+            } catch (fallbackErr) {
+                this.showNotification('Kopieren nicht verfügbar - Text manuell markieren und Strg+C drücken', 'warning');
+            }
+        }
     }
 
     // === SSE CONNECTION ===
@@ -606,7 +669,7 @@ class ErrorDisplay {
         this.updateStats();
         
         // Sound für erfolgreiche Löschung
-        this.playNotificationSound('connectionSuccess'); // Wir verwenden den Success-Sound
+        this.playNotificationSound('errorDeleted');
     }
 
     showBufferedNotification(count, oldestErrorTime) {
@@ -898,6 +961,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         document.getElementById('notifyBufferedErrors').checked = this.settings.notifyBufferedErrors;
         document.getElementById('soundBufferedErrors').checked = this.settings.soundBufferedErrors;
         document.getElementById('pushBufferedErrors').checked = this.settings.pushBufferedErrors;
+        document.getElementById('soundErrorDeleted').checked = this.settings.soundErrorDeleted;
         
         // Sound-Manager konfigurieren
         if (window.soundManager) {
@@ -991,7 +1055,8 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             newError: 'notification',
             connectionSuccess: 'success',
             connectionClosed: 'disconnect',
-            bufferedErrors: 'chime'
+            bufferedErrors: 'chime',
+            errorDeleted: 'delete'
         };
         
         const soundType = soundTypes[eventType];
@@ -1008,7 +1073,8 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             newError: { enabled: this.settings.soundNewError },
             connectionSuccess: { enabled: this.settings.soundConnectionSuccess },
             connectionClosed: { enabled: this.settings.soundConnectionClosed },
-            bufferedErrors: { enabled: this.settings.soundBufferedErrors }
+            bufferedErrors: { enabled: this.settings.soundBufferedErrors },
+            errorDeleted: { enabled: this.settings.soundErrorDeleted }
         };
         
         const setting = eventSettings[eventType];
@@ -1017,7 +1083,8 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 newError: 'notification',
                 connectionSuccess: 'success',
                 connectionClosed: 'disconnect',
-                bufferedErrors: 'chime'
+                bufferedErrors: 'chime',
+                errorDeleted: 'delete'
             };
             
             window.soundManager.playSound(soundTypes[eventType]);

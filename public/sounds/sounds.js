@@ -56,7 +56,10 @@ class SoundManager {
             // Verbindung getrennt Sounds
             disconnect: () => this.createTone([800, 400], [0.3, 0.5], 0.3),
             error: () => this.createTone([200, 150], [0.4, 0.6], 0.4),
-            warning: () => this.createTone([600, 500, 400], [0.2, 0.2, 0.3], 0.3)
+            warning: () => this.createTone([600, 500, 400], [0.2, 0.2, 0.3], 0.3),
+            
+            // Fehler löschen Sound
+            delete: () => this.createTone([1000, 800, 600], [0.1, 0.1, 0.2], 0.25)
         };
     }
 
