@@ -314,10 +314,14 @@ class ErrorDisplay {
                 // Initialize session manager content
                 this.updateCurrentSessionCard();
                 this.loadSavedSessionsInline();
+                this.updateSessionManagerState();
             }
             this.disconnectSSE();
             this.updateStatus('🔑 Session Manager');
         }
+        
+        // Always show session manager at the bottom of every page
+        this.showSessionManagerAtBottom();
     }
 
     displaySettings() {
@@ -362,6 +366,133 @@ class ErrorDisplay {
             }
         } catch (error) {
             console.error('❌ Failed to load session errors:', error);
+        }
+    }
+    
+    updateSessionManagerState() {
+        // Update session manager based on current session state
+        const hasActiveSession = !!this.currentSession;
+        
+        // Get session creation and restoration cards
+        const createCard = document.querySelector('.session-card:has(#createNewSessionBtn)');
+        const restoreCard = document.querySelector('.session-card:has(#restoreSessionBtn)');
+        
+        if (hasActiveSession) {
+            // Disable session creation and restoration when session is active
+            this.disableSessionCard(createCard, 'Neue Session erstellen', 'aktuelle Session beenden');
+            this.disableSessionCard(restoreCard, 'Session wiederherstellen', 'aktuelle Session beenden');
+        } else {
+            // Enable session creation and restoration when no session is active
+            this.enableSessionCard(createCard);
+            this.enableSessionCard(restoreCard);
+        }
+    }
+    
+    disableSessionCard(card, action, requirement) {
+        if (!card) return;
+        
+        // Add disabled class
+        card.classList.add('session-card-disabled');
+        
+        // Disable all inputs and buttons
+        const inputs = card.querySelectorAll('input, button');
+        inputs.forEach(input => {
+            input.disabled = true;
+        });
+        
+        // Add warning message if not already present
+        let warningDiv = card.querySelector('.session-warning');
+        if (!warningDiv) {
+            warningDiv = document.createElement('div');
+            warningDiv.className = 'session-warning';
+            warningDiv.innerHTML = `
+                <div class="warning-content">
+                    <span class="warning-icon">⚠️</span>
+                    <span class="warning-text">Um ${action} zu können, müssen Sie zuerst die ${requirement}.</span>
+                    <button class="btn btn-small btn-danger" onclick="window.errorDisplay.clearSession()">
+                        🔚 Session beenden
+                    </button>
+                </div>
+            `;
+            card.appendChild(warningDiv);
+        }
+    }
+    
+    enableSessionCard(card) {
+        if (!card) return;
+        
+        // Remove disabled class
+        card.classList.remove('session-card-disabled');
+        
+        // Enable all inputs and buttons
+        const inputs = card.querySelectorAll('input, button');
+        inputs.forEach(input => {
+            input.disabled = false;
+        });
+        
+        // Remove warning message
+        const warningDiv = card.querySelector('.session-warning');
+        if (warningDiv) {
+            warningDiv.remove();
+        }
+    }
+    
+    showSessionManagerAtBottom() {
+        // Ensure session manager is visible at the bottom of all pages
+        const sessionManagerContainer = document.getElementById('sessionManagerContainer');
+        if (sessionManagerContainer && this.currentMode !== 'session-manager') {
+            // Create a compact session manager footer if it doesn't exist
+            let footerManager = document.getElementById('sessionManagerFooter');
+            if (!footerManager) {
+                footerManager = document.createElement('div');
+                footerManager.id = 'sessionManagerFooter';
+                footerManager.className = 'session-manager-footer';
+                footerManager.innerHTML = `
+                    <div class="session-footer-content">
+                        <div class="session-footer-info">
+                            <span class="session-footer-title">🔑 Session Manager</span>
+                            <button class="btn btn-small btn-primary" onclick="window.errorDisplay.openSessionManager()">
+                                Verwalten
+                            </button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(footerManager);
+            }
+            
+            // Update footer based on session state
+            this.updateSessionFooter(footerManager);
+        }
+    }
+    
+    updateSessionFooter(footer) {
+        if (!footer) return;
+        
+        const infoDiv = footer.querySelector('.session-footer-info');
+        if (!infoDiv) return;
+        
+        if (this.currentSession) {
+            infoDiv.innerHTML = `
+                <span class="session-footer-title">🔑 ${this.currentSession.name}</span>
+                <div class="session-footer-actions">
+                    <button class="btn btn-small btn-secondary" onclick="window.errorDisplay.saveCurrentSession()">
+                        💾 Speichern
+                    </button>
+                    <button class="btn btn-small btn-danger" onclick="window.errorDisplay.clearSession()">
+                        🔚 Beenden
+                    </button>
+                    <button class="btn btn-small btn-primary" onclick="window.errorDisplay.openSessionManager()">
+                        ⚙️ Verwalten
+                    </button>
+                </div>
+            `;
+        } else {
+            infoDiv.innerHTML = `
+                <span class="session-footer-title">🔑 Keine Session aktiv</span>
+                <button class="btn btn-small btn-primary" onclick="window.errorDisplay.openSessionManager()">
+                    Session erstellen
+                </button>
+            `;
         }
     }
 
