@@ -13,6 +13,7 @@
                 <h1>🚨 Live Error Display v2.0</h1>
                 <div class="status" id="connectionStatus">
                     <div class="status-indicator"></div>
+                    <span class="status-icon" id="status-icon">📡</span>
                     <span id="status-text">Verbinde...</span>
                 </div>
             </div>
@@ -31,72 +32,77 @@
         <div class="controls">
             <button class="btn btn-primary active" id="liveBtn">📡 Live</button>
             <button class="btn btn-primary" id="archiveBtn">📂 Archiv</button>
-            <button class="btn btn-outline" id="settingsBtn">⚙️ Einstellungen</button>
+            <button class="btn btn-primary" id="settingsBtn">⚙️ Einstellungen</button>
         </div>
         
-        <div class="errors-container" id="errorsContainer">
-            <div class="error-card">
-                <div class="error-header">
-                    <div class="error-info">
-                        <div class="error-preview">🔄 Verbinde mit Server...</div>
-                        <div class="error-meta">
-                            <span>Warte auf Verbindung</span>
+        <div class="content-area">
+            <!-- Live/Archive Errors Container -->
+            <div class="errors-container" id="errorsContainer">
+                <div class="error-card">
+                    <div class="error-header">
+                        <div class="error-info">
+                            <div class="error-preview">🔄 Verbinde mit Server...</div>
+                            <div class="error-meta">
+                                <span>Warte auf Verbindung</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Settings Modal -->
-    <div class="modal-overlay" id="settingsModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>⚙️ Einstellungen</h2>
-                <button class="close-btn" id="closeModal">&times;</button>
-            </div>
-            <form id="settingsForm" class="modal-body">
-                <div class="form-group">
-                    <label for="archiveRetentionDays">Archiv-Aufbewahrung (Tage)</label>
-                    <input type="number" id="archiveRetentionDays" name="archiveRetentionDays" min="1" max="365" value="7">
-                    <small>Wie lange sollen Fehler im Archiv gespeichert werden?</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="maxArchiveItems">Maximale Archiv-Einträge</label>
-                    <input type="number" id="maxArchiveItems" name="maxArchiveItems" min="100" max="10000" value="1000">
-                    <small>Maximale Anzahl von Fehlern im Archiv</small>
-                </div>
-                
-                <div class="form-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="autoArchive" name="autoArchive" checked>
-                        <span class="checkmark"></span>
-                        Automatische Archivierung
-                    </label>
-                    <small>Fehler automatisch ins Archiv verschieben</small>
-                </div>
-                
-                <div class="storage-info">
-                    <h3>📊 Speicher-Information</h3>
-                    <div class="storage-stats">
-                        <div class="storage-stat">
-                            <span class="storage-label">Archivierte Fehler:</span>
-                            <span class="storage-value" id="archiveCount">0</span>
-                        </div>
-                        <div class="storage-stat">
-                            <span class="storage-label">Speicher verwendet:</span>
-                            <span class="storage-value" id="storageSize">0 KB</span>
+            
+            <!-- Settings Container -->
+            <div class="settings-container" id="settingsContainer" style="display: none;">
+                <div class="settings-card">
+                    <div class="settings-header">
+                        <h2>⚙️ Einstellungen</h2>
+                        <div class="settings-info">
+                            <small>💾 Das Archiv wird im Browser Local Storage gespeichert</small>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-outline btn-danger" id="clearStorage">
-                        🗑️ Archiv leeren
-                    </button>
+                    <form id="settingsForm" class="settings-body">
+                        <div class="form-group">
+                            <label for="archiveRetentionDays">Archiv-Aufbewahrung (Tage)</label>
+                            <input type="number" id="archiveRetentionDays" name="archiveRetentionDays" min="1" max="365" value="7">
+                            <small>Wie lange sollen Fehler im Archiv gespeichert werden?</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="maxArchiveItems">Maximale Archiv-Einträge</label>
+                            <input type="number" id="maxArchiveItems" name="maxArchiveItems" min="100" max="10000" value="1000">
+                            <small>Maximale Anzahl von Fehlern im Archiv</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="autoArchive" name="autoArchive" checked>
+                                <span class="checkmark"></span>
+                                Automatische Archivierung
+                            </label>
+                            <small>Fehler automatisch ins Archiv verschieben</small>
+                        </div>
+                        
+                        <div class="storage-info">
+                            <h3>📊 Speicher-Information</h3>
+                            <div class="storage-stats">
+                                <div class="storage-stat">
+                                    <span class="storage-label">Archivierte Fehler:</span>
+                                    <span class="storage-value" id="archiveCount">0</span>
+                                </div>
+                                <div class="storage-stat">
+                                    <span class="storage-label">Speicher verwendet:</span>
+                                    <span class="storage-value" id="storageSize">0 KB</span>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-outline btn-danger" id="clearStorage">
+                                🗑️ Archiv leeren
+                            </button>
+                        </div>
+                        
+                        <div class="settings-actions">
+                            <button type="button" class="btn btn-primary" id="saveSettings">💾 Einstellungen speichern</button>
+                        </div>
+                    </form>
                 </div>
-            </form>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline" id="closeModal">Abbrechen</button>
-                <button type="button" class="btn btn-primary" id="saveSettings">💾 Speichern</button>
             </div>
         </div>
     </div>

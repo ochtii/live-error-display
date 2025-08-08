@@ -6,7 +6,65 @@
     --primary-hover: #2563eb;
     --success-color: #10b981;
     --warning-color: #f59e0b;
-    --error-color: #ef4444;
+    --error-color: #e/* === ERRORS CONTAINER === */
+.content-area {
+    position: relative;
+}
+
+.errors-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* === SETTINGS CONTAINER === */
+.settings-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.settings-card {
+    background: var(--background-card);
+    border-radius: 1rem;
+    border: 1px solid var(--border-color);
+    backdrop-filter: blur(20px);
+    overflow: hidden;
+}
+
+.settings-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.settings-header h2 {
+    margin: 0;
+    color: var(--primary);
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.settings-info {
+    margin-top: 0.5rem;
+}
+
+.settings-info small {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.settings-body {
+    padding: 2rem;
+}
+
+.settings-actions {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+}
     --background-dark: #0f172a;
     --background-card: rgba(255, 255, 255, 0.05);
     --background-hover: rgba(255, 255, 255, 0.1);
@@ -149,13 +207,34 @@ body {
     animation: pulse 2s infinite;
 }
 
-.status.online .status-dot { background: var(--success-color); }
-.status.offline .status-dot { background: var(--error-color); }
-.status.archive .status-dot { background: var(--warning-color); animation: none; }
+.status.online .status-indicator { background: var(--success); }
+.status.offline .status-indicator { background: var(--danger); }
+.status.archive .status-indicator { background: var(--warning); animation: none; }
+.status.settings .status-indicator { background: var(--primary); animation: none; }
 
-.status.online #status-text { color: var(--success-color); }
-.status.offline #status-text { color: var(--error-color); }
-.status.archive #status-text { color: var(--warning-color); }
+.status-icon {
+    font-size: 1.2rem;
+}
+
+.status.online .status-icon {
+    animation: liveAnimation 2s ease-in-out infinite;
+}
+
+@keyframes liveAnimation {
+    0%, 100% { 
+        transform: scale(1);
+        filter: brightness(1);
+    }
+    50% { 
+        transform: scale(1.1);
+        filter: brightness(1.3);
+    }
+}
+
+.status.online #status-text { color: var(--success); }
+.status.offline #status-text { color: var(--danger); }
+.status.archive #status-text { color: var(--warning); }
+.status.settings #status-text { color: var(--primary); }
 
 @keyframes pulse {
     0%, 100% { opacity: 1; }

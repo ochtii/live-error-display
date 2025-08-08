@@ -25,17 +25,11 @@ class ErrorDisplay {
         // Mode switching
         document.getElementById('liveBtn').addEventListener('click', () => this.switchMode('live'));
         document.getElementById('archiveBtn').addEventListener('click', () => this.switchMode('archive'));
+        document.getElementById('settingsBtn').addEventListener('click', () => this.switchMode('settings'));
         
         // Settings
-        document.getElementById('settingsBtn').addEventListener('click', () => this.openSettings());
-        document.getElementById('closeModal').addEventListener('click', () => this.closeSettings());
         document.getElementById('saveSettings').addEventListener('click', () => this.saveSettings());
         document.getElementById('clearStorage').addEventListener('click', () => this.clearArchive());
-        
-        // Close modal on outside click
-        document.getElementById('settingsModal').addEventListener('click', (e) => {
-            if (e.target.id === 'settingsModal') this.closeSettings();
-        });
     }
 
     // === SETTINGS MANAGEMENT ===
@@ -60,23 +54,8 @@ class ErrorDisplay {
         };
         
         localStorage.setItem('errorDisplaySettings', JSON.stringify(this.settings));
-        this.closeSettings();
         this.cleanupArchive();
         this.showNotification('Einstellungen gespeichert', 'success');
-    }
-
-    openSettings() {
-        // Populate form with current settings
-        document.getElementById('archiveRetentionDays').value = this.settings.archiveRetentionDays;
-        document.getElementById('maxArchiveItems').value = this.settings.maxArchiveItems;
-        document.getElementById('autoArchive').checked = this.settings.autoArchive;
-        
-        this.updateStorageInfo();
-        document.getElementById('settingsModal').classList.add('show');
-    }
-
-    closeSettings() {
-        document.getElementById('settingsModal').classList.remove('show');
     }
 
     updateStorageInfo() {
@@ -166,20 +145,41 @@ class ErrorDisplay {
         // Update button states
         document.getElementById('liveBtn').classList.toggle('active', mode === 'live');
         document.getElementById('archiveBtn').classList.toggle('active', mode === 'archive');
+        document.getElementById('settingsBtn').classList.toggle('active', mode === 'settings');
         
         this.displayMode(mode);
     }
 
     displayMode(mode) {
+        // Hide all containers
+        document.getElementById('errorsContainer').style.display = 'none';
+        document.getElementById('settingsContainer').style.display = 'none';
+        
         if (mode === 'live') {
+            document.getElementById('errorsContainer').style.display = 'flex';
             this.connectSSE();
             this.updateStatus('online');
             this.displayErrors(this.errors);
-        } else {
+        } else if (mode === 'archive') {
+            document.getElementById('errorsContainer').style.display = 'flex';
             this.disconnectSSE();
             this.updateStatus('archive');
             this.displayArchive();
+        } else if (mode === 'settings') {
+            document.getElementById('settingsContainer').style.display = 'block';
+            this.disconnectSSE();
+            this.updateStatus('settings');
+            this.displaySettings();
         }
+    }
+
+    displaySettings() {
+        // Populate form with current settings
+        document.getElementById('archiveRetentionDays').value = this.settings.archiveRetentionDays;
+        document.getElementById('maxArchiveItems').value = this.settings.maxArchiveItems;
+        document.getElementById('autoArchive').checked = this.settings.autoArchive;
+        
+        this.updateStorageInfo();
     }
 
     displayArchive() {
@@ -309,16 +309,20 @@ class ErrorDisplay {
     updateStatus(status) {
         const statusElement = document.getElementById('connectionStatus');
         const statusText = document.getElementById('status-text');
+        const statusIcon = document.getElementById('status-icon');
         
         statusElement.className = `status ${status}`;
         
-        const statusTexts = {
-            online: 'Live',
-            offline: 'Offline', 
-            archive: 'Archiv'
+        const statusConfig = {
+            online: { text: 'Live', icon: '📡' },
+            offline: { text: 'Offline', icon: '🔴' },
+            archive: { text: 'Archiv', icon: '📂' },
+            settings: { text: 'Einstellungen', icon: '⚙️' }
         };
         
-        statusText.textContent = statusTexts[status] || status;
+        const config = statusConfig[status] || { text: status, icon: '❓' };
+        statusText.textContent = config.text;
+        statusIcon.textContent = config.icon;
     }
 
     updateStats() {

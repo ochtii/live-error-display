@@ -28,13 +28,29 @@ function addError(error) {
     // Send to all SSE clients
     clients.forEach(client => {
         try {
-            client.write(`data: ${JSON.stringify(errorData)}\n\n`);
+            client.write(`data: ${JSON.stringify({type: 'error', error: errorData})}\n\n`);
         } catch (e) {
             console.log('Client disconnected');
         }
     });
     
     return errorData;
+}
+
+// Broadcast client count to all connected clients
+function broadcastClientCount() {
+    const message = {
+        type: 'clients',
+        count: clients.length
+    };
+    
+    clients.forEach(client => {
+        try {
+            client.write(`data: ${JSON.stringify(message)}\n\n`);
+        } catch (e) {
+            console.log('Client disconnected during broadcast');
+        }
+    });
 }
 
 // Routes
@@ -59,15 +75,20 @@ app.get('/events', (req, res) => {
 
     clients.push(res);
     console.log(`✅ SSE Client connected. Total: ${clients.length}`);
+    
+    // Send client count to all clients
+    broadcastClientCount();
 
     req.on('close', () => {
         clients = clients.filter(client => client !== res);
         console.log(`❌ SSE Client disconnected. Total: ${clients.length}`);
+        broadcastClientCount();
     });
     
     req.on('error', (err) => {
         console.error('SSE connection error:', err);
         clients = clients.filter(client => client !== res);
+        broadcastClientCount();
     });
 });
 
