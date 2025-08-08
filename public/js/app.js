@@ -717,16 +717,32 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     
     // Direkt zu Chrome-Benachrichtigungseinstellungen
     openChromeNotificationSettings() {
-        if (navigator.userAgent.includes('Chrome') || navigator.userAgent.includes('Chromium')) {
-            try {
-                // Öffnet Chrome-Benachrichtigungseinstellungen in neuem Tab
-                window.open('chrome://settings/content/notifications', '_blank');
-            } catch (error) {
-                // Fallback falls chrome:// URLs blockiert sind
-                this.showNotification('Öffnen Sie chrome://settings/content/notifications manuell', 'info');
-            }
-        } else {
-            this.showNotification('Diese Funktion ist nur für Chrome/Chromium verfügbar', 'warning');
+        // Zeige Anleitung anstatt zu versuchen chrome:// URLs zu öffnen
+        const chromeInstructions = `
+Chrome-Benachrichtigungseinstellungen öffnen:
+
+1. Kopieren Sie diese URL: chrome://settings/content/notifications
+2. Öffnen Sie einen neuen Tab (Strg+T)
+3. Fügen Sie die URL in die Adressleiste ein
+4. Drücken Sie Enter
+5. Scrollen Sie zu "Zulassen"
+6. Klicken Sie "Hinzufügen" und geben Sie Ihre Website-URL ein
+7. Laden Sie diese Seite neu (F5)
+
+Alternativ:
+• Klicken Sie auf das Schloss-Symbol (🔒) in der Adressleiste
+• Setzen Sie "Benachrichtigungen" auf "Zulassen"
+        `;
+        
+        this.showInstructionModal('Chrome-Benachrichtigungseinstellungen', chromeInstructions);
+        
+        // Versuche trotzdem die URL zu kopieren
+        try {
+            navigator.clipboard.writeText('chrome://settings/content/notifications').then(() => {
+                this.showNotification('Chrome-URL in Zwischenablage kopiert', 'success');
+            });
+        } catch (error) {
+            console.log('Clipboard API nicht verfügbar');
         }
     }
     
