@@ -23,9 +23,22 @@ sudo -u www-data pm2 delete live-error-display 2>/dev/null || true
 echo "Changing to /home/ubuntu/live-error-display..."
 cd /home/ubuntu/live-error-display
 
+# Check if server.js exists and is readable
+if [[ -f "server.js" ]]; then
+    echo "✅ server.js found"
+    ls -la server.js
+else
+    echo "❌ server.js not found!"
+    exit 1
+fi
+
+# Set correct ownership for www-data
+echo "Setting correct ownership..."
+sudo chown -R www-data:www-data /home/ubuntu/live-error-display
+
 # Start directly with server.js and explicit NODE_ENV
 echo "Starting server.js with NODE_ENV=production..."
-sudo -u www-data NODE_ENV=production pm2 start server.js --name live-error-display
+sudo -u www-data NODE_ENV=production pm2 start /home/ubuntu/live-error-display/server.js --name live-error-display
 
 # Save PM2 configuration
 echo "Saving PM2 configuration..."
