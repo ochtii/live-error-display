@@ -973,6 +973,68 @@ curl -s "$SERVER_URL/errors" | jq '.errors[] | .timestamp + ": " + .message'</pr
                 </div>
             </div>
         </div>
+        
+        <!-- Session Manager Container (initially hidden) -->
+        <div class="content-container" id="sessionManagerContainer" style="display: none;">
+            <div class="session-manager-content">
+                <h1>🔑 Session Manager</h1>
+                <p class="session-description">Verwalten Sie Ihre API-Sessions für sichere Authentifizierung</p>
+                
+                <!-- Create New Session -->
+                <div class="session-card">
+                    <h2>✨ Neue Session erstellen</h2>
+                    <p>Erstellt eine neue Session mit individuellem API-Token</p>
+                    
+                    <div class="session-actions">
+                        <button class="btn btn-primary" id="createNewSessionBtn">
+                            ✨ Session erstellen
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Restore Session -->
+                <div class="session-card">
+                    <h2>🔑 Session wiederherstellen</h2>
+                    <p>Laden Sie eine bestehende Session mit ihrem Token</p>
+                    
+                    <div class="input-group">
+                        <input type="text" id="sessionTokenInput" placeholder="Session Token eingeben..." class="session-input">
+                        <button class="btn btn-primary" id="restoreSessionBtn">
+                            🔑 Session laden
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Current Session (will be populated by JavaScript) -->
+                <div id="currentSessionCard" style="display: none;">
+                </div>
+                
+                <!-- Saved Sessions -->
+                <div class="session-card">
+                    <h2>💾 Gespeicherte Sessions</h2>
+                    <div id="inlineSavedSessions" class="saved-sessions-list">
+                        <p class="no-sessions">Keine Sessions gespeichert</p>
+                    </div>
+                    <div class="session-actions">
+                        <button class="btn btn-secondary" id="refreshSavedSessionsBtn">
+                            🔄 Aktualisieren
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Session Info -->
+                <div class="session-card session-info-card">
+                    <h2>ℹ️ Was sind Sessions?</h2>
+                    <ul class="session-features">
+                        <li>🔐 Sichere API-Authentifizierung mit individuellem Token</li>
+                        <li>📊 Separate Error-Logs pro Session</li>
+                        <li>💾 Session-basierte Datenspeicherung</li>
+                        <li>🔄 Session-Wiederherstellung</li>
+                        <li>🌐 Cross-Platform API-Zugriff</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="js/app.js?v=debug4"></script>

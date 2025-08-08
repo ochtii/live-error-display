@@ -269,6 +269,172 @@ body {
     color: var(--text-secondary);
 }
 
+/* === SESSION MANAGER === */
+.session-manager-content {
+    padding: 1rem;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.session-manager-content h1 {
+    text-align: center;
+    margin-bottom: 0.5rem;
+    color: var(--primary);
+}
+
+.session-description {
+    text-align: center;
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+}
+
+.session-card {
+    background: var(--background-card);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--border-color);
+    backdrop-filter: blur(20px);
+}
+
+.session-card h2 {
+    margin-bottom: 0.5rem;
+    color: var(--primary);
+}
+
+.session-card p {
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+
+.input-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.session-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: var(--background-alt);
+    color: var(--text-primary);
+    font-family: monospace;
+}
+
+.session-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.1);
+}
+
+.current-session {
+    border-color: var(--success);
+    background: linear-gradient(135deg, var(--background-card), rgba(34, 197, 94, 0.05));
+}
+
+.session-details {
+    margin-bottom: 1rem;
+}
+
+.session-detail {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.session-detail label {
+    font-weight: 600;
+    min-width: 80px;
+    color: var(--text-primary);
+}
+
+.token-display {
+    background: var(--background-alt);
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    font-family: monospace;
+    font-size: 0.9rem;
+    border: 1px solid var(--border-color);
+    flex: 1;
+    min-width: 200px;
+    word-break: break-all;
+}
+
+.saved-sessions-list {
+    margin-bottom: 1rem;
+}
+
+.saved-session-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: var(--background-alt);
+    border-radius: 0.5rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid var(--border-color);
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.saved-session-info {
+    flex: 1;
+    min-width: 200px;
+}
+
+.saved-session-info .session-name {
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 0.25rem;
+}
+
+.saved-session-info .session-meta {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+}
+
+.saved-session-info .session-meta span {
+    margin-right: 1rem;
+}
+
+.session-token-preview {
+    font-family: monospace;
+    font-size: 0.8rem;
+    background: var(--background-card);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    border: 1px solid var(--border-color);
+}
+
+.saved-session-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.session-features {
+    list-style: none;
+    padding: 0;
+}
+
+.session-features li {
+    padding: 0.5rem 0;
+    color: var(--text-secondary);
+}
+
+.no-sessions {
+    text-align: center;
+    color: var(--text-secondary);
+    font-style: italic;
+    padding: 2rem;
+}
+
 /* === BUTTONS === */
 .btn {
     padding: 0.75rem 1.5rem;
