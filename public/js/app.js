@@ -259,7 +259,7 @@ class ErrorDisplay {
         if (this.eventSource) return;
         
         console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔌 Attempting SSE connection...`);
-        this.eventSource = new EventSource('/events');
+        this.eventSource = new EventSource('/live');
         
         this.eventSource.onopen = () => {
             console.log(`[${new Date().toLocaleTimeString('de-DE')}] ✅ SSE connected successfully`);
