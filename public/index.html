@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Error Display</title>
     <link rel="stylesheet" href="css/styles.css">
+    <!-- Prism.js for syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <script src="sounds/sounds.js?v=debug3"></script>
 </head>
 <body>
@@ -374,11 +376,26 @@
                             <div class="endpoint-card">
                                 <div class="endpoint-header">
                                     <span class="method post">POST</span>
-                                    <span class="path">/error</span>
+                                    <span class="path">/api/token</span>
+                                    <span class="endpoint-title">Session erstellen</span>
                                 </div>
-                                <p>Neuen Fehler an den Server senden</p>
+                                <p>Erstellt eine neue Session mit individuellem Token</p>
                                 <div class="endpoint-details">
-                                    <strong>Body:</strong> <code>{ "message": "Fehlermeldung" }</code><br>
+                                    <strong>Body:</strong> <code>{ "name": "Session Name" }</code><br>
+                                    <strong>Response:</strong> <code>{ "token": "abc123...", "name": "Session Name" }</code>
+                                </div>
+                            </div>
+
+                            <div class="endpoint-card">
+                                <div class="endpoint-header">
+                                    <span class="method post">POST</span>
+                                    <span class="path">/error</span>
+                                    <span class="endpoint-title">Fehler senden</span>
+                                </div>
+                                <p>Neuen Fehler mit Session-Token senden</p>
+                                <div class="endpoint-details">
+                                    <strong>Headers:</strong> <code>sessionToken: your-session-token</code><br>
+                                    <strong>Body:</strong> <code>{ "message": "Fehlermeldung", "sessionToken": "your-token" }</code><br>
                                     <strong>Response:</strong> <code>{ "success": true, "error": {...} }</code>
                                 </div>
                             </div>
@@ -387,9 +404,11 @@
                                 <div class="endpoint-header">
                                     <span class="method get">GET</span>
                                     <span class="path">/errors</span>
+                                    <span class="endpoint-title">Fehler abrufen</span>
                                 </div>
-                                <p>Alle gespeicherten Fehler abrufen</p>
+                                <p>Alle gespeicherten Fehler einer Session abrufen</p>
                                 <div class="endpoint-details">
+                                    <strong>Headers:</strong> <code>sessionToken: your-session-token</code><br>
                                     <strong>Response:</strong> <code>{ "errors": [...], "totalErrors": 5 }</code>
                                 </div>
                             </div>
@@ -398,9 +417,11 @@
                                 <div class="endpoint-header">
                                     <span class="method get">GET</span>
                                     <span class="path">/live</span>
+                                    <span class="endpoint-title">Live Stream</span>
                                 </div>
-                                <p>Live SSE-Stream für Echtzeit-Updates</p>
+                                <p>Live SSE-Stream für Session-Updates</p>
                                 <div class="endpoint-details">
+                                    <strong>Headers:</strong> <code>sessionToken: your-session-token</code><br>
                                     <strong>Type:</strong> Server-Sent Events<br>
                                     <strong>Events:</strong> <code>error</code>, <code>clients</code>, <code>ping</code>
                                 </div>
@@ -410,9 +431,11 @@
                                 <div class="endpoint-header">
                                     <span class="method get">GET</span>
                                     <span class="path">/status</span>
+                                    <span class="endpoint-title">Server Status</span>
                                 </div>
-                                <p>Server-Status und Statistiken</p>
+                                <p>Server-Status und Session-Statistiken</p>
                                 <div class="endpoint-details">
+                                    <strong>Headers:</strong> <code>sessionToken: your-session-token</code><br>
                                     <strong>Response:</strong> <code>{ "connectedClients": 2, "totalErrors": 10 }</code>
                                 </div>
                             </div>
@@ -421,9 +444,11 @@
                                 <div class="endpoint-header">
                                     <span class="method delete">DELETE</span>
                                     <span class="path">/errors</span>
+                                    <span class="endpoint-title">Fehler löschen</span>
                                 </div>
-                                <p>Alle Fehler vom Server löschen</p>
+                                <p>Alle Fehler einer Session löschen</p>
                                 <div class="endpoint-details">
+                                    <strong>Headers:</strong> <code>sessionToken: your-session-token</code><br>
                                     <strong>Response:</strong> <code>{ "success": true, "message": "All errors cleared" }</code>
                                 </div>
                             </div>
@@ -441,24 +466,52 @@
                                     JavaScript / Node.js Integration
                                 </h4>
                                 
+                                <!-- JS: Create Session -->
+                                <div class="code-example">
+                                    <div class="code-header">
+                                        <span class="function-name">Session erstellen</span>
+                                        <button class="copy-code-btn" onclick="errorDisplay.copyCode('js-session')">📋 Kopieren</button>
+                                    </div>
+                                    <pre class="code-block language-javascript" id="js-session">// Session erstellen und Token erhalten
+async function createSession(sessionName) {
+    try {
+        const response = await fetch('SERVER_URL/api/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: sessionName })
+        });
+        const result = await response.json();
+        return result.token; // Speichern für weitere API-Calls
+    } catch (error) {
+        console.error('Fehler beim Session-Erstellen:', error);
+    }
+}</pre>
+                                </div>
+                                
                                 <!-- JS: Send Error -->
                                 <div class="code-example">
                                     <div class="code-header">
                                         <span class="function-name">Fehler senden</span>
                                         <button class="copy-code-btn" onclick="errorDisplay.copyCode('js-send')">📋 Kopieren</button>
                                     </div>
-                                    <pre class="code-block js-code" id="js-send"><span class="js-comment">// Fehler an Server senden</span>
-<span class="js-keyword">async function</span> <span class="js-function">sendError</span>(<span class="js-param">message</span>) {
-    <span class="js-keyword">try</span> {
-        <span class="js-keyword">const</span> <span class="js-variable">response</span> = <span class="js-keyword">await</span> <span class="js-function">fetch</span>(<span class="js-string">'SERVER_URL/error'</span>, {
-            <span class="js-property">method</span>: <span class="js-string">'POST'</span>,
-            <span class="js-property">headers</span>: { <span class="js-string">'Content-Type'</span>: <span class="js-string">'application/json'</span> },
-            <span class="js-property">body</span>: <span class="js-object">JSON</span>.<span class="js-function">stringify</span>({ <span class="js-property">message</span>: <span class="js-param">message</span> })
+                                    <pre class="code-block language-javascript" id="js-send">// Fehler mit Session-Token senden
+async function sendError(message, sessionToken) {
+    try {
+        const response = await fetch('SERVER_URL/error', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'sessionToken': sessionToken
+            },
+            body: JSON.stringify({ 
+                message: message,
+                sessionToken: sessionToken 
+            })
         });
-        <span class="js-keyword">const</span> <span class="js-variable">result</span> = <span class="js-keyword">await</span> <span class="js-variable">response</span>.<span class="js-function">json</span>();
-        <span class="js-object">console</span>.<span class="js-function">log</span>(<span class="js-string">'Fehler gesendet:'</span>, <span class="js-variable">result</span>);
-    } <span class="js-keyword">catch</span> (<span class="js-param">error</span>) {
-        <span class="js-object">console</span>.<span class="js-function">error</span>(<span class="js-string">'Fehler beim Senden:'</span>, <span class="js-param">error</span>);
+        const result = await response.json();
+        console.log('Fehler gesendet:', result);
+    } catch (error) {
+        console.error('Fehler beim Senden:', error);
     }
 }</pre>
                                 </div>
@@ -469,16 +522,18 @@
                                         <span class="function-name">Alle Fehler abrufen</span>
                                         <button class="copy-code-btn" onclick="errorDisplay.copyCode('js-get')">📋 Kopieren</button>
                                     </div>
-                                    <pre class="code-block js-code" id="js-get"><span class="js-comment">// Alle gespeicherten Fehler abrufen</span>
-<span class="js-keyword">async function</span> <span class="js-function">getAllErrors</span>() {
-    <span class="js-keyword">try</span> {
-        <span class="js-keyword">const</span> <span class="js-variable">response</span> = <span class="js-keyword">await</span> <span class="js-function">fetch</span>(<span class="js-string">'SERVER_URL/errors'</span>);
-        <span class="js-keyword">const</span> <span class="js-variable">data</span> = <span class="js-keyword">await</span> <span class="js-variable">response</span>.<span class="js-function">json</span>();
+                                    <pre class="code-block language-javascript" id="js-get">// Alle gespeicherten Fehler der Session abrufen
+async function getAllErrors(sessionToken) {
+    try {
+        const response = await fetch('SERVER_URL/errors', {
+            headers: { 'sessionToken': sessionToken }
+        });
+        const data = await response.json();
         
-        <span class="js-object">console</span>.<span class="js-function">log</span>(<span class="js-template">`Gefunden: ${<span class="js-variable">data</span>.<span class="js-property">totalErrors</span>} Fehler`</span>);
-        <span class="js-keyword">return</span> <span class="js-variable">data</span>.<span class="js-property">errors</span>;
-    } <span class="js-keyword">catch</span> (<span class="js-param">error</span>) {
-        <span class="js-object">console</span>.<span class="js-function">error</span>(<span class="js-string">'Fehler beim Abrufen:'</span>, <span class="js-param">error</span>);
+        console.log(`Gefunden: ${data.totalErrors} Fehler`);
+        return data.errors;
+    } catch (error) {
+        console.error('Fehler beim Abrufen:', error);
     }
 }</pre>
                                 </div>
@@ -489,19 +544,19 @@
                                         <span class="function-name">Live Events empfangen</span>
                                         <button class="copy-code-btn" onclick="errorDisplay.copyCode('js-live')">📋 Kopieren</button>
                                     </div>
-                                    <pre class="code-block js-code" id="js-live"><span class="js-comment">// Live Error-Stream via Server-Sent Events</span>
-<span class="js-keyword">function</span> <span class="js-function">connectToLiveStream</span>() {
-    <span class="js-keyword">const</span> <span class="js-variable">eventSource</span> = <span class="js-keyword">new</span> <span class="js-function">EventSource</span>(<span class="js-string">'SERVER_URL/live'</span>);
+                                    <pre class="code-block language-javascript" id="js-live">// Live Error-Stream via Server-Sent Events
+function connectToLiveStream(sessionToken) {
+    const eventSource = new EventSource(`SERVER_URL/live?sessionToken=${sessionToken}`);
     
-    <span class="js-variable">eventSource</span>.<span class="js-property">onmessage</span> = (<span class="js-param">event</span>) => {
-        <span class="js-keyword">const</span> <span class="js-variable">data</span> = <span class="js-object">JSON</span>.<span class="js-function">parse</span>(<span class="js-param">event</span>.<span class="js-property">data</span>);
+    eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
         
-        <span class="js-keyword">if</span> (<span class="js-variable">data</span>.<span class="js-property">type</span> === <span class="js-string">'error'</span>) {
-            <span class="js-object">console</span>.<span class="js-function">log</span>(<span class="js-string">'Neuer Fehler:'</span>, <span class="js-variable">data</span>.<span class="js-property">error</span>);
+        if (data.type === 'error') {
+            console.log('Neuer Fehler:', data.error);
         }
     };
     
-    <span class="js-keyword">return</span> <span class="js-variable">eventSource</span>;
+    return eventSource;
 }</pre>
                                 </div>
                                 
@@ -852,50 +907,86 @@ fun main() = runBlocking {
                             <!-- cURL Example -->
                             <div class="code-example">
                                 <div class="code-header">
+                                    <span class="function-name">Session erstellen und verwenden</span>
                                     <span class="language-badge curl">cURL (Linux/macOS)</span>
                                     <button class="copy-code-btn" onclick="errorDisplay.copyCode('curl-example')">📋 Kopieren</button>
                                 </div>
-                                <pre class="code-block" id="curl-example"># Fehler senden
+                                <pre class="code-block language-bash" id="curl-example"># Session erstellen
+SESSION_RESPONSE=$(curl -s -X POST SERVER_URL/api/token \
+  -H "Content-Type: application/json" \
+  -d '{"name": "cURL-Session"}')
+
+SESSION_TOKEN=$(echo $SESSION_RESPONSE | jq -r '.token')
+echo "Session Token: $SESSION_TOKEN"
+
+# Fehler mit Session-Token senden
 curl -X POST SERVER_URL/error \
   -H "Content-Type: application/json" \
-  -d '{"message": "Shell-Script: Backup-Prozess fehlgeschlagen"}'
+  -H "sessionToken: $SESSION_TOKEN" \
+  -d "{\"message\": \"Shell-Script: Backup-Prozess fehlgeschlagen\", \"sessionToken\": \"$SESSION_TOKEN\"}"
 
-# Alle Fehler abrufen
-curl SERVER_URL/errors
+# Alle Fehler der Session abrufen
+curl -H "sessionToken: $SESSION_TOKEN" SERVER_URL/errors
 
-# Server-Status prüfen
-curl SERVER_URL/status
+# Session-Status prüfen
+curl -H "sessionToken: $SESSION_TOKEN" SERVER_URL/status
 
-# Alle Fehler löschen
-curl -X DELETE SERVER_URL/errors</pre>
+# Alle Fehler der Session löschen
+curl -X DELETE -H "sessionToken: $SESSION_TOKEN" SERVER_URL/errors</pre>
                             </div>
                             
                             <!-- Windows PowerShell Example -->
                             <div class="code-example">
                                 <div class="code-header">
+                                    <span class="function-name">Session erstellen und Fehler senden</span>
                                     <span class="language-badge powershell">PowerShell (Windows)</span>
                                     <button class="copy-code-btn" onclick="errorDisplay.copyCode('powershell-example')">📋 Kopieren</button>
                                 </div>
-                                <pre class="code-block" id="powershell-example"># Fehler senden
-$body = @{
-    message = "PowerShell-Script: Dienst konnte nicht gestartet werden"
+                                <pre class="code-block language-powershell" id="powershell-example"># Session erstellen
+$sessionBody = @{
+    name = "PowerShell-Session"
 } | ConvertTo-Json
+
+$session = Invoke-RestMethod -Uri "SERVER_URL/api/token" `
+    -Method POST `
+    -Body $sessionBody `
+    -ContentType "application/json"
+
+$sessionToken = $session.token
+Write-Host "Session Token: $sessionToken"
+
+# Fehler mit Session-Token senden
+$errorBody = @{
+    message = "PowerShell-Script: Dienst konnte nicht gestartet werden"
+    sessionToken = $sessionToken
+} | ConvertTo-Json
+
+$headers = @{
+    "Content-Type" = "application/json"
+    "sessionToken" = $sessionToken
+}
 
 Invoke-RestMethod -Uri "SERVER_URL/error" `
     -Method POST `
-    -Body $body `
-    -ContentType "application/json"
+    -Body $errorBody `
+    -Headers $headers
 
-# Alle Fehler abrufen
-$errors = Invoke-RestMethod -Uri "SERVER_URL/errors" -Method GET
+# Alle Fehler der Session abrufen
+$errors = Invoke-RestMethod -Uri "SERVER_URL/errors" `
+    -Method GET `
+    -Headers @{ "sessionToken" = $sessionToken }
 Write-Host "Gefunden: $($errors.totalErrors) Fehler"
 
-# Server-Status prüfen
-$status = Invoke-RestMethod -Uri "SERVER_URL/status" -Method GET
+# Session-Status prüfen
+$status = Invoke-RestMethod -Uri "SERVER_URL/status" `
+    -Method GET `
+    -Headers @{ "sessionToken" = $sessionToken }
 Write-Host "Verbundene Clients: $($status.connectedClients)"
 
-# Alle Fehler löschen
-Invoke-RestMethod -Uri "SERVER_URL/errors" -Method DELETE</pre>
+# Alle Fehler der Session löschen
+Invoke-RestMethod -Uri "SERVER_URL/errors" `
+    -Method DELETE `
+    -Headers @{ "sessionToken" = $sessionToken }</pre>
                             </div>
                             
                             <!-- Windows CMD Example -->
@@ -1076,6 +1167,14 @@ curl -s "$SERVER_URL/errors" | jq '.errors[] | .timestamp + ": " + .message'</pr
         </div>
     </div>
 
+    <!-- Prism.js for syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-powershell.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-csharp.min.js"></script>
     <script src="js/app.js?v=debug4"></script>
 </body>
 </html>

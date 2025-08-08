@@ -337,9 +337,6 @@ class ErrorDisplay {
             this.disconnectSSE();
             this.updateStatus('🔑 Session Manager');
         }
-        
-        // Always show session manager at the bottom of every page
-        this.showSessionManagerAtBottom();
     }
 
     displaySettings() {
@@ -469,112 +466,6 @@ class ErrorDisplay {
             warningDiv.remove();
         }
     }
-    
-    showSessionManagerAtBottom() {
-        // Don't show session manager footer if session is saved
-        if (this.currentSession && this.isSessionSaved()) {
-            // Remove any existing footer
-            const existingFooter = document.getElementById('sessionManagerFooter');
-            if (existingFooter) {
-                existingFooter.remove();
-            }
-            return;
-        }
-        
-        // Ensure session manager is visible at the bottom of all pages
-        const sessionManagerContainer = document.getElementById('sessionManagerContainer');
-        if (sessionManagerContainer && this.currentMode !== 'session-manager') {
-            // Remove existing footer to recreate it with current session state
-            const existingFooter = document.getElementById('sessionManagerFooter');
-            if (existingFooter) {
-                existingFooter.remove();
-            }
-            
-            // Create a compact session manager footer
-            const footerManager = document.createElement('div');
-            footerManager.id = 'sessionManagerFooter';
-            footerManager.className = 'session-manager-footer';
-            
-            // Update content based on current session state
-            if (this.currentSession) {
-                footerManager.innerHTML = `
-                    <div class="session-footer-content">
-                        <div class="session-footer-info">
-                            <span class="session-footer-title">🔑 ${this.currentSession.name}</span>
-                            <div class="session-footer-actions">
-                                <button class="btn btn-small btn-secondary" onclick="window.errorDisplay.saveCurrentSession()">
-                                    💾 Speichern
-                                </button>
-                                <button class="btn btn-small btn-danger" onclick="window.errorDisplay.clearSession()">
-                                    🔚 Beenden
-                                </button>
-                                <button class="btn btn-small btn-primary" onclick="window.errorDisplay.openSessionManager()">
-                                    ⚙️ Verwalten
-                                </button>
-                            </div>
-                        </div>
-                        <button class="btn btn-small btn-outline" onclick="window.errorDisplay.hideSessionManagerFooter()" title="Footer ausblenden">
-                            ✖
-                        </button>
-                    </div>
-                `;
-            } else {
-                footerManager.innerHTML = `
-                    <div class="session-footer-content">
-                        <div class="session-footer-info">
-                            <span class="session-footer-title">🔑 Keine Session aktiv</span>
-                            <button class="btn btn-small btn-primary" onclick="window.errorDisplay.openSessionManager()">
-                                Session erstellen
-                            </button>
-                        </div>
-                        <button class="btn btn-small btn-outline" onclick="window.errorDisplay.hideSessionManagerFooter()" title="Footer ausblenden">
-                            ✖
-                        </button>
-                    </div>
-                `;
-            }
-            
-            document.body.appendChild(footerManager);
-        }
-    }
-    
-    updateSessionFooter(footer) {
-        if (!footer) return;
-        
-        const infoDiv = footer.querySelector('.session-footer-info');
-        if (!infoDiv) return;
-        
-        if (this.currentSession) {
-            infoDiv.innerHTML = `
-                <span class="session-footer-title">🔑 ${this.currentSession.name}</span>
-                <div class="session-footer-actions">
-                    <button class="btn btn-small btn-secondary" onclick="window.errorDisplay.saveCurrentSession()">
-                        💾 Speichern
-                    </button>
-                    <button class="btn btn-small btn-danger" onclick="window.errorDisplay.clearSession()">
-                        🔚 Beenden
-                    </button>
-                    <button class="btn btn-small btn-primary" onclick="window.errorDisplay.openSessionManager()">
-                        ⚙️ Verwalten
-                    </button>
-                </div>
-            `;
-        } else {
-            infoDiv.innerHTML = `
-                <span class="session-footer-title">🔑 Keine Session aktiv</span>
-                <button class="btn btn-small btn-primary" onclick="window.errorDisplay.openSessionManager()">
-                    Session erstellen
-                </button>
-            `;
-        }
-    }
-
-    hideSessionManagerFooter() {
-        const footerManager = document.getElementById('sessionManagerFooter');
-        if (footerManager) {
-            footerManager.remove();
-        }
-    }
 
     displayAPI() {
         // Update server URL with current location
@@ -594,6 +485,13 @@ class ErrorDisplay {
         
         // Update all code examples with the actual server URL
         this.updateCodeExamples(serverUrl);
+        
+        // Initialize syntax highlighting after a brief delay to ensure DOM is ready
+        setTimeout(() => {
+            if (typeof Prism !== 'undefined') {
+                Prism.highlightAll();
+            }
+        }, 100);
     }
 
     updateCodeExamples(serverUrl) {
@@ -1598,9 +1496,6 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 this.disconnectSSE();
                 this.connectSSE();
                 
-                // Update footer to show new session
-                this.showSessionManagerAtBottom();
-                
                 console.log('✅ New session created:', {
                     name: this.currentSession.name,
                     token: this.currentSession.token.substring(0, 16) + '...'
@@ -1728,12 +1623,40 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
 
     copySessionToken() {
         if (this.currentSession && this.currentSession.token) {
-            navigator.clipboard.writeText(this.currentSession.token).then(() => {
-                this.showNotification('Session-Token kopiert!', 'success');
-            }).catch(err => {
-                console.error('Failed to copy token:', err);
-            });
+            // Check if clipboard API is available
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(this.currentSession.token).then(() => {
+                    this.showNotification('Session-Token kopiert!', 'success');
+                }).catch(err => {
+                    console.error('Failed to copy token:', err);
+                    this.fallbackCopyToClipboard(this.currentSession.token);
+                });
+            } else {
+                this.fallbackCopyToClipboard(this.currentSession.token);
+            }
         }
+    }
+
+    fallbackCopyToClipboard(text) {
+        // Fallback method for older browsers or insecure contexts
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            document.execCommand('copy');
+            this.showNotification('Session-Token kopiert!', 'success');
+        } catch (err) {
+            console.error('Fallback copy failed:', err);
+            this.showNotification('Kopieren fehlgeschlagen. Token: ' + text, 'error');
+        }
+        
+        document.body.removeChild(textArea);
     }
 
     // Override error reporting to include session token
@@ -1942,9 +1865,6 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 }
             });
         }
-        
-        // Show session manager footer when no session is active
-        this.showSessionManagerAtBottom();
     }
 
     // Override session methods to reload page after session changes

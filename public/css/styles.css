@@ -1683,6 +1683,14 @@ input:checked + .toggle-slider:before {
     align-items: center;
     gap: 0.5rem;
     margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.endpoint-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    margin-left: auto;
 }
 
 .method {
@@ -2122,44 +2130,6 @@ input:checked + .toggle-slider:before {
     text-decoration: underline;
 }
 
-/* Session manager footer */
-.session-manager-footer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: var(--background-card);
-    border-top: 1px solid var(--border-color);
-    backdrop-filter: blur(20px);
-    padding: 0.75rem 1rem;
-    z-index: 100;
-}
-
-.session-footer-content {
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
-.session-footer-info {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-
-.session-footer-title {
-    font-weight: 600;
-    color: var(--primary);
-}
-
-.session-footer-actions {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
 /* Mobile responsiveness for new features */
 @media (max-width: 768px) {
     .modal-content {
@@ -2173,16 +2143,6 @@ input:checked + .toggle-slider:before {
     
     .modal-footer .btn {
         width: 100%;
-    }
-    
-    .session-footer-info {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-    
-    .session-footer-actions {
-        width: 100%;
-        justify-content: center;
     }
     
     .warning-content {

@@ -648,8 +648,8 @@ app.get('/errors', (req, res) => {
 
 // Connection tracking for rate limiting
 const connectionAttempts = new Map(); // IP -> { count, lastAttempt, blocked }
-const CONNECTION_LIMIT = 5; // Max connections per minute
-const BLOCK_DURATION = 60000; // 1 minute block
+const CONNECTION_LIMIT = 20; // Max connections per minute (increased from 5)
+const BLOCK_DURATION = 30000; // 30 seconds block (reduced from 1 minute)
 const CLEANUP_INTERVAL = 300000; // 5 minutes
 
 // Cleanup old connection attempts
