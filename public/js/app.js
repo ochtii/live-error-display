@@ -20,6 +20,7 @@ class ErrorDisplay {
         this.connectSSE();
         this.setupModal();
         this.displayMode(this.currentMode);
+        this.loadAndApplySettings();
     }
 
     setupEventListeners() {
@@ -31,6 +32,8 @@ class ErrorDisplay {
         // Settings
         document.getElementById('saveSettings').addEventListener('click', () => this.saveSettings());
         document.getElementById('clearStorage').addEventListener('click', () => this.clearArchive());
+        document.getElementById('showAllData').addEventListener('click', () => this.showAllLocalStorageData());
+        document.getElementById('deleteAllData').addEventListener('click', () => this.deleteAllData());
         
         // Range slider updates
         document.getElementById('archiveRetentionDays').addEventListener('input', (e) => {
@@ -48,7 +51,15 @@ class ErrorDisplay {
             archiveRetentionDays: 7,
             maxArchiveItems: 1000,
             autoArchive: true,
-            bufferOfflineErrors: true
+            bufferOfflineErrors: true,
+            enableSounds: true,
+            soundLibrary: 'default',
+            soundNewError: true,
+            soundNewErrorType: 'notification',
+            soundConnectionSuccess: true,
+            soundConnectionSuccessType: 'success',
+            soundConnectionClosed: true,
+            soundConnectionClosedType: 'disconnect'
         };
         
         const saved = localStorage.getItem('errorDisplaySettings');
@@ -62,11 +73,25 @@ class ErrorDisplay {
             archiveRetentionDays: parseInt(formData.get('archiveRetentionDays')),
             maxArchiveItems: parseInt(formData.get('maxArchiveItems')),
             autoArchive: formData.get('autoArchive') === 'on',
-            bufferOfflineErrors: formData.get('bufferOfflineErrors') === 'on'
+            bufferOfflineErrors: formData.get('bufferOfflineErrors') === 'on',
+            enableSounds: formData.get('enableSounds') === 'on',
+            soundLibrary: formData.get('soundLibrary'),
+            soundNewError: formData.get('soundNewError') === 'on',
+            soundNewErrorType: formData.get('soundNewErrorType'),
+            soundConnectionSuccess: formData.get('soundConnectionSuccess') === 'on',
+            soundConnectionSuccessType: formData.get('soundConnectionSuccessType'),
+            soundConnectionClosed: formData.get('soundConnectionClosed') === 'on',
+            soundConnectionClosedType: formData.get('soundConnectionClosedType')
         };
         
         localStorage.setItem('errorDisplaySettings', JSON.stringify(this.settings));
         this.cleanupArchive();
+        
+        // Sound-Manager konfigurieren
+        if (window.soundManager) {
+            window.soundManager.setEnabled(this.settings.enableSounds);
+        }
+        
         this.showNotification('Einstellungen gespeichert', 'success');
     }
 
@@ -226,6 +251,8 @@ class ErrorDisplay {
         this.eventSource.onopen = () => {
             console.log(`[${new Date().toLocaleTimeString('de-DE')}] ✅ SSE connected successfully`);
             this.updateStatus('online');
+            // Sound-Benachrichtigung für erfolgreiche Verbindung
+            this.playNotificationSound('connectionSuccess');
         };
         
         this.eventSource.onmessage = (event) => {
@@ -234,11 +261,15 @@ class ErrorDisplay {
             if (data.type === 'error') {
                 if (this.currentMode === 'live') {
                     this.addError(data.error, true, data.error.isBuffered); // Mark as live received
+                    // Sound-Benachrichtigung für neue Fehler
+                    this.playNotificationSound('newError');
                 } else if (this.settings.bufferOfflineErrors) {
                     // Buffer the error for later display
                     this.bufferedErrors.unshift({...data.error, isLive: true, buffered: true});
                 }
-                this.saveToArchive(data.error, true);
+                // Korrekte Übertragung der Server-Buffer-Information
+                const archiveError = {...data.error, isServerBuffered: data.error.isBuffered};
+                this.saveToArchive(archiveError, true);
             } else if (data.type === 'clients') {
                 this.clients = data.count;
                 this.updateStats();
@@ -250,6 +281,8 @@ class ErrorDisplay {
         this.eventSource.onerror = () => {
             this.updateStatus('offline');
             this.eventSource = null;
+            // Sound-Benachrichtigung für getrennte Verbindung
+            this.playNotificationSound('connectionClosed');
             
             // Reconnect after 5 seconds
             setTimeout(() => this.connectSSE(), 5000);
@@ -522,6 +555,140 @@ class ErrorDisplay {
             }
         `;
         document.head.appendChild(style);
+    }
+
+    // === NEUE FUNKTIONEN ===
+    
+    // Einstellungen laden und anwenden
+    loadAndApplySettings() {
+        // Form-Felder mit aktuellen Einstellungen befüllen
+        document.getElementById('archiveRetentionDays').value = this.settings.archiveRetentionDays;
+        document.getElementById('retentionValue').textContent = this.settings.archiveRetentionDays;
+        document.getElementById('maxArchiveItems').value = this.settings.maxArchiveItems;
+        document.getElementById('itemsValue').textContent = this.settings.maxArchiveItems;
+        document.getElementById('autoArchive').checked = this.settings.autoArchive;
+        document.getElementById('bufferOfflineErrors').checked = this.settings.bufferOfflineErrors;
+        
+        // Sound-Einstellungen
+        document.getElementById('enableSounds').checked = this.settings.enableSounds;
+        document.getElementById('soundLibrary').value = this.settings.soundLibrary;
+        document.getElementById('soundNewError').checked = this.settings.soundNewError;
+        document.getElementById('soundNewErrorType').value = this.settings.soundNewErrorType;
+        document.getElementById('soundConnectionSuccess').checked = this.settings.soundConnectionSuccess;
+        document.getElementById('soundConnectionSuccessType').value = this.settings.soundConnectionSuccessType;
+        document.getElementById('soundConnectionClosed').checked = this.settings.soundConnectionClosed;
+        document.getElementById('soundConnectionClosedType').value = this.settings.soundConnectionClosedType;
+        
+        // Sound-Manager konfigurieren
+        if (window.soundManager) {
+            window.soundManager.setEnabled(this.settings.enableSounds);
+        }
+    }
+    
+    // Alle LocalStorage Daten anzeigen
+    showAllLocalStorageData() {
+        const allData = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith('errorDisplay')) {
+                try {
+                    allData[key] = JSON.parse(localStorage.getItem(key));
+                } catch (e) {
+                    allData[key] = localStorage.getItem(key);
+                }
+            }
+        }
+        
+        this.showDataModal('Alle gespeicherten Daten', JSON.stringify(allData, null, 2));
+    }
+    
+    // Alle Daten löschen mit Sicherheitsabfrage
+    deleteAllData() {
+        const confirmText = 'ALLE DATEN LÖSCHEN';
+        const userInput = prompt(`Warnung: Diese Aktion löscht ALLE gespeicherten Daten unwiderruflich!\n\nGeben Sie "${confirmText}" ein, um fortzufahren:`);
+        
+        if (userInput === confirmText) {
+            // Alle errorDisplay-bezogenen Daten löschen
+            const keysToDelete = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('errorDisplay')) {
+                    keysToDelete.push(key);
+                }
+            }
+            
+            keysToDelete.forEach(key => localStorage.removeItem(key));
+            
+            // UI zurücksetzen
+            this.archiveData = [];
+            this.errors = [];
+            this.settings = this.loadSettings();
+            this.updateStorageStats();
+            this.displayErrors([]);
+            
+            this.showNotification('Alle Daten wurden gelöscht', 'success');
+        } else if (userInput !== null) {
+            this.showNotification('Löschvorgang abgebrochen', 'warning');
+        }
+    }
+    
+    // Modal für Datenanzeige
+    showDataModal(title, content) {
+        const modal = document.createElement('div');
+        modal.className = 'data-modal';
+        modal.innerHTML = `
+            <div class="data-modal-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3>${title}</h3>
+                    <button class="btn btn-outline" onclick="this.closest('.data-modal').remove()">✕ Schließen</button>
+                </div>
+                <div class="data-display">${content}</div>
+                <div style="margin-top: 1rem;">
+                    <button class="btn btn-outline" onclick="navigator.clipboard.writeText(\`${content.replace(/`/g, '\\`')}\`).then(() => errorDisplay.showNotification('In Zwischenablage kopiert', 'success'))">📋 Kopieren</button>
+                </div>
+            </div>
+        `;
+        
+        // Schließen bei Klick außerhalb
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+        
+        document.body.appendChild(modal);
+    }
+    
+    // Sound-Test-Funktion
+    testSound(eventType) {
+        if (!window.soundManager) return;
+        
+        const soundTypeMap = {
+            newError: this.settings.soundNewErrorType,
+            connectionSuccess: this.settings.soundConnectionSuccessType,
+            connectionClosed: this.settings.soundConnectionClosedType
+        };
+        
+        const soundType = soundTypeMap[eventType];
+        if (soundType) {
+            window.soundManager.testSound(eventType, soundType);
+        }
+    }
+    
+    // Sound-Events
+    playNotificationSound(eventType) {
+        if (!this.settings.enableSounds || !window.soundManager) return;
+        
+        const eventSettings = {
+            newError: { enabled: this.settings.soundNewError, type: this.settings.soundNewErrorType },
+            connectionSuccess: { enabled: this.settings.soundConnectionSuccess, type: this.settings.soundConnectionSuccessType },
+            connectionClosed: { enabled: this.settings.soundConnectionClosed, type: this.settings.soundConnectionClosedType }
+        };
+        
+        const setting = eventSettings[eventType];
+        if (setting && setting.enabled) {
+            window.soundManager.testSound(eventType, setting.type);
+        }
     }
 }
 
