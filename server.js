@@ -8,13 +8,32 @@ const PORT = process.env.PORT || 8080;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.static('public'));
 
 // In-Memory Error Storage
 let errors = [];
-let clients = [];
+let clients = new Map(); // Use Map for better client management with unique IDs
 let offlineBuffer = []; // Buffer for errors when no clients connected
+let clientIdCounter = 0;
+
+// Clean up stale connections
+function cleanupStaleConnections() {
+    const activeClients = new Map();
+    
+    clients.forEach((client, id) => {
+        try {
+            // Test if connection is still alive
+            client.write(`data: ${JSON.stringify({type: 'ping'})}\n\n`);
+            activeClients.set(id, client);
+        } catch (e) {
+            console.log(`🧹 Removed stale connection ${id}`);
+        }
+    });
+    
+    clients = activeClients;
+    console.log(`🔍 Cleanup complete. Active clients: ${clients.size}`);
+}
 
 // Add error to storage (keep last 100)
 function addError(error) {
@@ -27,7 +46,7 @@ function addError(error) {
     if (errors.length > 100) errors.pop();
     
     // If no clients connected, buffer the error
-    if (clients.length === 0) {
+    if (clients.size === 0) {
         offlineBuffer.unshift({...errorData, bufferedAt: new Date().toISOString()});
         if (offlineBuffer.length > 50) offlineBuffer.pop(); // Limit buffer size
         console.log(`📦 No clients connected - buffered error from ${errorData.ip}. Buffer size: ${offlineBuffer.length}`);
@@ -37,19 +56,24 @@ function addError(error) {
     // Send to all SSE clients
     let successCount = 0;
     let failCount = 0;
+    const activeClients = new Map();
     
-    clients.forEach(client => {
+    clients.forEach((client, id) => {
         try {
             client.write(`data: ${JSON.stringify({type: 'error', error: errorData})}\n\n`);
             successCount++;
+            activeClients.set(id, client);
         } catch (e) {
-            console.log('Client disconnected during error broadcast');
+            console.log(`Client ${id} disconnected during error broadcast`);
             failCount++;
         }
     });
     
+    // Update clients with only active connections
+    clients = activeClients;
+    
     // Log the request result
-    console.log(`📨 Received request from ${errorData.ip}: sent to ${clients.length} browser(s) (✅ ${successCount} erfolg, ❌ ${failCount} fehlgeschlagen)`);
+    console.log(`📨 Received request from ${errorData.ip}: sent to ${clients.size} browser(s) (✅ ${successCount} erfolg, ❌ ${failCount} fehlgeschlagen)`);
     
     return errorData;
 }
@@ -58,16 +82,22 @@ function addError(error) {
 function broadcastClientCount() {
     const message = {
         type: 'clients',
-        count: clients.length
+        count: clients.size
     };
     
-    clients.forEach(client => {
+    const activeClients = new Map();
+    
+    clients.forEach((client, id) => {
         try {
             client.write(`data: ${JSON.stringify(message)}\n\n`);
+            activeClients.set(id, client);
         } catch (e) {
-            console.log('Client disconnected during broadcast');
+            console.log(`❌ Failed to send client count to client ${id}`);
         }
     });
+    
+    // Update clients with only active connections
+    clients = activeClients;
 }
 
 // Routes
@@ -75,10 +105,30 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// SSE endpoint for live updates
-app.get('/events', (req, res) => {
-    console.log(`New SSE connection from ${req.ip}`);
+// Return all errors as JSON
+app.get('/errors', (req, res) => {
+    const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+    console.log(`🔍 Request for all errors from ${ip}`);
     
+    const response = {
+        errors: errors,
+        offlineBuffer: offlineBuffer,
+        totalErrors: errors.length,
+        bufferedErrors: offlineBuffer.length,
+        clientCount: clients.size
+    };
+    
+    res.json(response);
+});
+
+// SSE endpoint for live error streaming
+app.get('/live', (req, res) => {
+    const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+    const clientId = ++clientIdCounter;
+    
+    console.log(`📡 New SSE connection from ${ip} with ID ${clientId}`);
+    
+    // Set SSE headers
     res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -87,144 +137,128 @@ app.get('/events', (req, res) => {
         'Access-Control-Allow-Headers': 'Cache-Control'
     });
 
-    // Send initial heartbeat
-    res.write('data: {"type":"heartbeat","message":"Connected"}\n\n');
+    // Add client to Map
+    clients.set(clientId, res);
+    console.log(`👥 Total connected clients: ${clients.size}`);
 
-    clients.push(res);
-    console.log(`✅ SSE Client connected. Total: ${clients.length}`);
-    
     // Send buffered errors if any exist
     if (offlineBuffer.length > 0) {
-        console.log(`📦 Sending ${offlineBuffer.length} buffered errors to new client`);
-        
-        // Send buffered errors notification first
-        res.write(`data: ${JSON.stringify({
-            type: 'buffered_notification',
-            count: offlineBuffer.length,
-            oldestError: offlineBuffer[offlineBuffer.length - 1]?.bufferedAt
-        })}\n\n`);
-        
-        // Send all buffered errors
-        offlineBuffer.reverse().forEach(bufferedError => {
-            res.write(`data: ${JSON.stringify({
-                type: 'error', 
-                error: {...bufferedError, isBuffered: true}
-            })}\n\n`);
+        console.log(`📤 Sending ${offlineBuffer.length} buffered errors to new client ${clientId}`);
+        offlineBuffer.forEach(bufferedError => {
+            try {
+                res.write(`data: ${JSON.stringify({type: 'error', error: bufferedError})}\n\n`);
+            } catch (e) {
+                console.log(`❌ Failed to send buffered error to client ${clientId}`);
+            }
         });
-        
-        // Clear buffer after sending
+        // Clear offline buffer after sending
         offlineBuffer = [];
+        console.log(`🧹 Cleared offline buffer`);
     }
-    
-    // Send client count to all clients
+
+    // Send initial client count
     broadcastClientCount();
 
-    req.on('close', () => {
-        clients = clients.filter(client => client !== res);
-        console.log(`❌ SSE Client disconnected. Total: ${clients.length}`);
-        broadcastClientCount();
-    });
-    
-    req.on('error', (err) => {
-        console.error('SSE connection error:', err);
-        clients = clients.filter(client => client !== res);
-        broadcastClientCount();
-    });
-});
-
-// Get archived errors
-app.get('/archive', (req, res) => {
-    res.json(errors);
-});
-
-// Get buffer status
-app.get('/buffer-status', (req, res) => {
-    res.json({
-        bufferSize: offlineBuffer.length,
-        hasBuffer: offlineBuffer.length > 0,
-        oldestBuffered: offlineBuffer.length > 0 ? offlineBuffer[offlineBuffer.length - 1].bufferedAt : null
-    });
-});
-
-// Get file modification info
-app.get('/fileinfo', (req, res) => {
-    const filesToCheck = ['server.js', 'public/index.html', 'package.json', 'deploy.sh', 'setup.sh'];
-    let lastModified = { file: '', time: 0, formatted: '' };
-    
-    filesToCheck.forEach(file => {
-        const filePath = path.join(__dirname, file);
+    // Keep connection alive with periodic pings
+    const pingInterval = setInterval(() => {
         try {
-            const stats = fs.statSync(filePath);
-            if (stats.mtime.getTime() > lastModified.time) {
-                lastModified = {
-                    file: file,
-                    time: stats.mtime.getTime(),
-                    formatted: stats.mtime.toLocaleString('de-DE', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit'
-                    })
-                };
-            }
+            res.write(`data: ${JSON.stringify({type: 'ping'})}\n\n`);
         } catch (e) {
-            // File doesn't exist, skip
+            console.log(`🏓 Ping failed for client ${clientId}, removing`);
+            clearInterval(pingInterval);
+            clients.delete(clientId);
+            broadcastClientCount();
+        }
+    }, 30000); // Ping every 30 seconds
+
+    // Handle client disconnect
+    req.on('close', () => {
+        clearInterval(pingInterval);
+        if (clients.has(clientId)) {
+            clients.delete(clientId);
+            console.log(`👋 Client ${clientId} (${ip}) disconnected. Remaining clients: ${clients.size}`);
+            broadcastClientCount();
+        }
+    });
+
+    req.on('error', (err) => {
+        console.log(`❌ SSE connection error for client ${clientId}:`, err.message);
+        clearInterval(pingInterval);
+        clients.delete(clientId);
+        broadcastClientCount();
+    });
+});
+
+// Receive new errors
+app.post('/error', (req, res) => {
+    const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+    
+    const errorData = addError({
+        message: req.body.message || req.body.error || 'Unknown error',
+        ip: ip
+    });
+    
+    res.json({ 
+        success: true, 
+        message: 'Error logged successfully', 
+        error: errorData,
+        clientCount: clients.size
+    });
+});
+
+// Debug endpoint for server status
+app.get('/status', (req, res) => {
+    cleanupStaleConnections(); // Clean up before reporting
+    
+    res.json({
+        connectedClients: clients.size,
+        totalErrors: errors.length,
+        bufferedErrors: offlineBuffer.length,
+        serverUptime: process.uptime(),
+        memoryUsage: process.memoryUsage()
+    });
+});
+
+// Clear all errors
+app.delete('/errors', (req, res) => {
+    const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+    console.log(`🗑️ Clearing all errors requested by ${ip}`);
+    
+    errors = [];
+    offlineBuffer = [];
+    
+    // Notify all clients that errors were cleared
+    const clearMessage = {
+        type: 'clear',
+        message: 'All errors cleared',
+        timestamp: new Date().toLocaleString('de-DE')
+    };
+    
+    const activeClients = new Map();
+    clients.forEach((client, id) => {
+        try {
+            client.write(`data: ${JSON.stringify(clearMessage)}\n\n`);
+            activeClients.set(id, client);
+        } catch (e) {
+            console.log(`Failed to notify client ${id} about clear`);
         }
     });
     
-    res.json(lastModified);
-});
-
-// Add new error (for testing)
-app.post('/error', (req, res) => {
-    const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
-    console.log(`🔥 Error request received from ${clientIp}`);
+    clients = activeClients;
     
-    const errorData = addError({
-        message: req.body.message || 'Test Error',
-        ip: clientIp
+    res.json({ 
+        success: true, 
+        message: 'All errors cleared',
+        clientCount: clients.size
     });
-    res.json(errorData);
 });
 
-// Demo: Add random errors every 10 seconds
-if (process.env.NODE_ENV !== 'production') {
-    const demoErrors = [
-        'Database connection timeout after 30 seconds',
-        'Memory usage exceeded 90% threshold',
-        'API rate limit exceeded for user 12345',
-        'Failed to parse JSON in request body',
-        'Authentication token expired',
-        'File upload failed: insufficient disk space',
-        'Redis connection lost, reconnecting...',
-        'Invalid email format in user registration'
-    ];
+// Clean up stale connections every 5 minutes
+setInterval(cleanupStaleConnections, 5 * 60 * 1000);
 
-    setInterval(() => {
-        const randomError = demoErrors[Math.floor(Math.random() * demoErrors.length)];
-        addError({
-            message: randomError,
-            ip: `192.168.1.${Math.floor(Math.random() * 255)}`
-        });
-        console.log('Demo error added:', randomError);
-    }, 10000);
-}
-
-// Start server
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Live Error Display running on http://0.0.0.0:${PORT}`);
-    console.log(`📊 Demo mode: ${process.env.NODE_ENV !== 'production' ? 'ON' : 'OFF'}`);
-});
-
-// Graceful shutdown
-process.on('SIGINT', () => {
-    console.log('\n👋 Shutting down gracefully...');
-    clients.forEach(client => {
-        try {
-            client.end();
-        } catch (e) {}
-    });
-    process.exit(0);
+app.listen(PORT, () => {
+    console.log(`🚀 Live Error Display Server running on port ${PORT}`);
+    console.log(`📱 Access the display at: http://localhost:${PORT}`);
+    console.log(`🔗 API endpoint: http://localhost:${PORT}/error`);
+    console.log(`📊 Status endpoint: http://localhost:${PORT}/status`);
 });
