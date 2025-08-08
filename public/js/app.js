@@ -54,12 +54,18 @@ class ErrorDisplay {
         const sessionManager = document.getElementById('sessionManager');
         const saveSession = document.getElementById('saveSession');
         const endSession = document.getElementById('endSession');
+        const copyTokenHeader = document.getElementById('copyTokenHeader');
+        const sessionEndLink = document.getElementById('sessionEndLink');
+        const hideSessionInfo = document.getElementById('hideSessionInfo');
         
         if (sessionBtn) sessionBtn.addEventListener('click', () => this.openSessionManager());
         if (copyToken) copyToken.addEventListener('click', () => this.copySessionToken());
         if (sessionManager) sessionManager.addEventListener('click', () => this.openSessionManager());
         if (saveSession) saveSession.addEventListener('click', () => this.saveCurrentSession());
         if (endSession) endSession.addEventListener('click', () => this.clearSession());
+        if (copyTokenHeader) copyTokenHeader.addEventListener('click', () => this.copySessionToken());
+        if (sessionEndLink) sessionEndLink.addEventListener('click', () => this.endCurrentSession());
+        if (hideSessionInfo) hideSessionInfo.addEventListener('click', () => this.toggleSessionInfoVisibility());
         
         // Session Manager inline controls
         const createNewSessionBtn = document.getElementById('createNewSessionBtn');
@@ -409,9 +415,9 @@ class ErrorDisplay {
                 <div class="warning-content">
                     <span class="warning-icon">⚠️</span>
                     <span class="warning-text">Um ${action} zu können, müssen Sie zuerst die ${requirement}.</span>
-                    <button class="btn btn-small btn-danger" onclick="window.errorDisplay.clearSession()">
-                        🔚 Session beenden
-                    </button>
+                    <span class="session-end-text" onclick="window.errorDisplay.clearSession()">
+                        Session beenden ✖
+                    </span>
                 </div>
             `;
             card.appendChild(warningDiv);
@@ -1478,23 +1484,102 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         const sessionName = document.getElementById('sessionName');
         const sessionToken = document.getElementById('sessionToken');
         
+        // Header session info elements
+        const headerSession = document.getElementById('headerSession');
+        const sessionNameHeader = document.getElementById('sessionNameHeader');
+        const sessionTokenHeader = document.getElementById('sessionTokenHeader');
+        
         console.log('🔄 Updating session display:', {
             hasSession: !!this.currentSession,
             sessionName: this.currentSession?.name,
-            tokenPreview: this.currentSession?.token?.substring(0, 16) + '...'
+            tokenPreview: this.currentSession?.token?.substring(0, 16) + '...',
+            isSessionSaved: this.isSessionSaved()
         });
         
         if (this.currentSession) {
-            sessionBar.style.display = 'flex';
-            sessionName.textContent = this.currentSession.name || 'Unbenannte Session';
-            sessionToken.textContent = this.currentSession.token.substring(0, 16) + '...';
+            const sessionName = this.currentSession.name || 'Unbenannte Session';
+            const tokenPreview = this.currentSession.token.substring(0, 16) + '...';
+            
+            // Check if session is saved to determine display location
+            if (this.isSessionSaved()) {
+                // Show in header permanently for saved sessions
+                sessionBar.style.display = 'none';
+                headerSession.style.display = 'flex';
+                sessionNameHeader.textContent = sessionName;
+                sessionTokenHeader.textContent = tokenPreview;
+            } else {
+                // Show session bar with hide option for unsaved sessions
+                sessionBar.style.display = 'flex';
+                headerSession.style.display = 'none';
+                sessionName.textContent = sessionName;
+                sessionToken.textContent = tokenPreview;
+                
+                // Add floating hide info
+                this.addFloatingHideInfo();
+            }
             
             // Also update the header controls to show session status
             this.updateHeaderSessionStatus(true);
         } else {
             sessionBar.style.display = 'none';
+            headerSession.style.display = 'none';
             this.updateHeaderSessionStatus(false);
         }
+    }
+    
+    isSessionSaved() {
+        if (!this.currentSession) return false;
+        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
+        return savedSessions.some(session => session.token === this.currentSession.token);
+    }
+    
+    addFloatingHideInfo() {
+        // Remove existing floating info
+        const existing = document.querySelector('.floating-hide-info');
+        if (existing) existing.remove();
+        
+        // Add floating info icon
+        const floatingInfo = document.createElement('div');
+        floatingInfo.className = 'floating-hide-info';
+        floatingInfo.innerHTML = `
+            <div class="floating-icon" title="Session ausblenden möglich - speichere die Session für permanente Header-Anzeige">
+                👁️ℹ️
+            </div>
+        `;
+        document.body.appendChild(floatingInfo);
+        
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            if (floatingInfo && floatingInfo.parentNode) {
+                floatingInfo.remove();
+            }
+        }, 5000);
+    }
+    
+    toggleSessionInfoVisibility() {
+        const sessionBar = document.getElementById('sessionBar');
+        const headerSession = document.getElementById('headerSession');
+        
+        if (this.currentSession && !this.isSessionSaved()) {
+            if (sessionBar.style.display === 'none') {
+                sessionBar.style.display = 'flex';
+                headerSession.style.display = 'none';
+            } else {
+                sessionBar.style.display = 'none';
+                headerSession.style.display = 'flex';
+                
+                // Update header with current session info
+                const sessionNameHeader = document.getElementById('sessionNameHeader');
+                const sessionTokenHeader = document.getElementById('sessionTokenHeader');
+                sessionNameHeader.textContent = this.currentSession.name || 'Unbenannte Session';
+                sessionTokenHeader.textContent = this.currentSession.token.substring(0, 16) + '...';
+            }
+        }
+    }
+    
+    endCurrentSession() {
+        this.clearSession();
+        this.showNotification('Session beendet', 'info');
     }
     
     updateHeaderSessionStatus(hasSession) {
@@ -1953,7 +2038,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                     <div class="saved-session-info">
                         <div class="session-name">
                             ${session.name}
-                            ${session.hasPassword ? '<span class="password-icon" title="Passwortgeschützt">🔒</span>' : ''}
+                            <span class="password-icon" title="Passwortgeschützt">🔒</span>
                         </div>
                         <div class="session-meta">
                             <div class="session-dates">
@@ -1965,11 +2050,8 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                         <code class="session-token-preview">${session.token.substring(0, 16)}...</code>
                     </div>
                     <div class="saved-session-actions">
-                        <button class="btn btn-small btn-primary" onclick="window.errorDisplay.restoreSessionFromSaved('${session.token}', ${session.hasPassword})">
+                        <button class="btn btn-small btn-primary" onclick="window.errorDisplay.restoreSessionFromSaved('${session.token}', true)">
                             🔄 Laden
-                        </button>
-                        <button class="btn btn-small btn-danger" onclick="window.errorDisplay.deleteSavedSession('${session.token}')">
-                            🗑️
                         </button>
                     </div>
                 </div>
@@ -1977,14 +2059,14 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         }).join('');
     }
 
-    async restoreSessionFromSaved(token, hasPassword = false) {
-        if (hasPassword) {
-            // Show password prompt modal for protected sessions
+    async restoreSessionFromSaved(token, requirePassword = true) {
+        if (requirePassword) {
+            // Show password prompt modal for all saved sessions
             this.showPasswordPromptModal(token);
             return;
         }
         
-        // For non-protected sessions, restore directly
+        // This should not be reached anymore since all saved sessions require password
         await this.restoreSessionWithPassword(token, null);
     }
     

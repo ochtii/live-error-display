@@ -18,6 +18,20 @@
                     <span id="status-text">Verbinde...</span>
                 </div>
             </div>
+            <!-- Session Info in Header -->
+            <div class="header-session" id="headerSession" style="display: none;">
+                <div class="session-info-header">
+                    <div class="session-name-header" id="sessionNameHeader">Session</div>
+                    <div class="session-token-header">
+                        <code class="session-token-code" id="sessionTokenHeader">No Session</code>
+                        <button class="btn btn-icon" id="copyTokenHeader" title="Token kopieren">📋</button>
+                    </div>
+                </div>
+                <div class="session-actions-header">
+                    <span class="session-end-link" id="sessionEndLink">Session beenden ✖</span>
+                    <button class="btn btn-icon session-hide" id="hideSessionInfo" title="Session Info ausblenden">👁</button>
+                </div>
+            </div>
             <div class="stats">
                 <div class="stat-card">
                     <div class="stat-value" id="totalErrors">0</div>
