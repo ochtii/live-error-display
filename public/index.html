@@ -4,8 +4,106 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Error Display</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>🚨 Live Error Display v2.0</h1>
+                <div class="status" id="connectionStatus">
+                    <div class="status-indicator"></div>
+                    <span id="status-text">Verbinde...</span>
+                </div>
+            </div>
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalErrors">0</div>
+                    <div class="stat-label">Fehler</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="connectedClients">0</div>
+                    <div class="stat-label">Verbundene Clients</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button class="btn btn-primary active" id="liveBtn">📡 Live</button>
+            <button class="btn btn-primary" id="archiveBtn">📂 Archiv</button>
+            <button class="btn btn-outline" id="settingsBtn">⚙️ Einstellungen</button>
+        </div>
+        
+        <div class="errors-container" id="errorsContainer">
+            <div class="error-card">
+                <div class="error-header">
+                    <div class="error-info">
+                        <div class="error-preview">🔄 Verbinde mit Server...</div>
+                        <div class="error-meta">
+                            <span>Warte auf Verbindung</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ Einstellungen</h2>
+                <button class="close-btn" id="closeModal">&times;</button>
+            </div>
+            <form id="settingsForm" class="modal-body">
+                <div class="form-group">
+                    <label for="archiveRetentionDays">Archiv-Aufbewahrung (Tage)</label>
+                    <input type="number" id="archiveRetentionDays" name="archiveRetentionDays" min="1" max="365" value="7">
+                    <small>Wie lange sollen Fehler im Archiv gespeichert werden?</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="maxArchiveItems">Maximale Archiv-Einträge</label>
+                    <input type="number" id="maxArchiveItems" name="maxArchiveItems" min="100" max="10000" value="1000">
+                    <small>Maximale Anzahl von Fehlern im Archiv</small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="autoArchive" name="autoArchive" checked>
+                        <span class="checkmark"></span>
+                        Automatische Archivierung
+                    </label>
+                    <small>Fehler automatisch ins Archiv verschieben</small>
+                </div>
+                
+                <div class="storage-info">
+                    <h3>📊 Speicher-Information</h3>
+                    <div class="storage-stats">
+                        <div class="storage-stat">
+                            <span class="storage-label">Archivierte Fehler:</span>
+                            <span class="storage-value" id="archiveCount">0</span>
+                        </div>
+                        <div class="storage-stat">
+                            <span class="storage-label">Speicher verwendet:</span>
+                            <span class="storage-value" id="storageSize">0 KB</span>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-danger" id="clearStorage">
+                        🗑️ Archiv leeren
+                    </button>
+                </div>
+            </form>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" id="closeModal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="saveSettings">💾 Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>
         
         body {
             font-family: 'Segoe UI', system-ui, sans-serif;
@@ -270,7 +368,6 @@
             font-size: 1.2rem;
             color: #60a5fa;
         }
-    </style>
 </head>
 <body>
     <div class="container">
