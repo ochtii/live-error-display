@@ -83,8 +83,17 @@ setup_repository() {
     fi
     
     cd "$REPO_DIR"
+    
+    # Ensure proper ownership
+    chown -R www-data:www-data "$REPO_DIR"
+    
+    # Git configuration
     sudo -u www-data git config --global --add safe.directory "$REPO_DIR"
     sudo -u www-data git config pull.rebase false
+    sudo -u www-data git config user.email "deploy@live-error-display"
+    sudo -u www-data git config user.name "Auto Deploy"
+    
+    log "Repository Setup abgeschlossen - Owner: $(stat -c '%U:%G' "$REPO_DIR")"
 }
 
 install_dependencies() {
@@ -121,6 +130,16 @@ restart_service() {
 deploy() {
     cd "$REPO_DIR"
     
+    # Ensure clean working directory
+    sudo -u www-data git status --porcelain | while read -r line; do
+        if [[ -n "$line" ]]; then
+            log "Bereinige Working Directory: $line"
+            sudo -u www-data git checkout -- . 2>/dev/null || true
+            sudo -u www-data git clean -fd 2>/dev/null || true
+            break
+        fi
+    done
+    
     local current_commit=$(sudo -u www-data git rev-parse HEAD 2>/dev/null || echo "unknown")
     
     # Fetch remote changes (silent)
@@ -135,22 +154,54 @@ deploy() {
         echo -e "${YELLOW}🔄 Update erkannt: ${current_commit:0:7} → ${remote_commit:0:7}${NC}"
         log "Update erkannt: ${current_commit:0:7} → ${remote_commit:0:7}"
         
+        # Log current status before update
+        log "Vor Update - Aktueller Branch: $(sudo -u www-data git branch --show-current)"
+        log "Vor Update - Working Directory Status: $(sudo -u www-data git status --porcelain)"
+        
         # Backup
         local backup_dir="/tmp/live-error-display-backup-$(date +%s)"
         cp -r "$REPO_DIR" "$backup_dir"
+        log "Backup erstellt: $backup_dir"
         
-        # Update
-        sudo -u www-data git reset --hard origin/main || {
+        # Update mit detailliertem Logging
+        log "Führe git reset --hard origin/main aus..."
+        if sudo -u www-data git reset --hard origin/main 2>&1 | tee -a "$LOG_FILE"; then
+            log "Git reset erfolgreich"
+            # Verify update
+            local new_commit=$(sudo -u www-data git rev-parse HEAD)
+            log "Nach Update - Neuer Commit: ${new_commit:0:7}"
+            if [[ "$new_commit" == "$remote_commit" ]]; then
+                log "✓ Commit-Verifikation erfolgreich"
+            else
+                log "⚠ WARNUNG: Commit-Verifikation fehlgeschlagen - erwartet: ${remote_commit:0:7}, erhalten: ${new_commit:0:7}"
+            fi
+        else
             log "Git reset fehlgeschlagen, restore backup"
             rm -rf "$REPO_DIR"
             mv "$backup_dir" "$REPO_DIR"
             return 1
-        }
+        fi
         
         # Check for package.json changes
         if sudo -u www-data git diff --name-only "$current_commit" "$remote_commit" 2>/dev/null | grep -q "package.json"; then
             log "package.json geändert, aktualisiere Dependencies..."
             update_dependencies
+        fi
+        
+        # Verify file changes
+        log "Prüfe Datei-Änderungen..."
+        local changed_files=$(sudo -u www-data git diff --name-only "$current_commit" "$remote_commit" 2>/dev/null | wc -l)
+        log "Anzahl geänderter Dateien: $changed_files"
+        if (( changed_files > 0 )); then
+            log "Geänderte Dateien:"
+            sudo -u www-data git diff --name-only "$current_commit" "$remote_commit" 2>/dev/null | while read -r file; do
+                log "  - $file"
+                if [[ -f "$REPO_DIR/$file" ]]; then
+                    log "    ✓ Datei existiert lokal"
+                else
+                    log "    ✗ Datei fehlt lokal!"
+                fi
+            done
         fi
         
         # Restart service
