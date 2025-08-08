@@ -30,13 +30,16 @@ class SoundManager {
     async initAudioContext() {
         try {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            console.log(`🎵 AudioContext created, state: ${this.audioContext.state}`);
+            
             // Warten bis AudioContext läuft oder nach User-Geste resumed werden kann
             if (this.audioContext.state === 'suspended') {
-                // Nicht automatisch resume - warten auf User-Geste
-                return;
+                console.log(`🎵 AudioContext suspended, attempting to resume...`);
+                await this.audioContext.resume();
+                console.log(`🎵 AudioContext resumed, state: ${this.audioContext.state}`);
             }
         } catch (error) {
-            // Stille Behandlung - AudioContext nicht verfügbar
+            console.log(`🎵 AudioContext creation failed:`, error);
             this.audioContext = null;
         }
     }

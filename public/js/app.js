@@ -370,6 +370,19 @@ class ErrorDisplay {
         };
         
         this.eventSource.onerror = () => {
+            console.log(`[${new Date().toLocaleTimeString('de-DE')}] ❌ SSE connection error`);
+            this.updateStatus('offline');
+            this.eventSource = null;
+            // Sound und Benachrichtigung für getrennte Verbindung
+            this.playNotificationSound('connectionClosed');
+            this.showEventNotification('connectionClosed', 'Verbindung zum Server getrennt');
+            
+            // Reconnect after 5 seconds
+            setTimeout(() => this.connectSSE(), 5000);
+        };
+
+        this.eventSource.onclose = () => {
+            console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔌 SSE connection closed`);
             this.updateStatus('offline');
             this.eventSource = null;
             // Sound und Benachrichtigung für getrennte Verbindung
@@ -1122,7 +1135,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             newError: { enabled: this.settings.notifyNewError, pushEnabled: this.settings.pushNewError },
             connectionSuccess: { enabled: this.settings.notifyConnectionSuccess, pushEnabled: this.settings.pushConnectionSuccess },
             connectionClosed: { enabled: this.settings.notifyConnectionClosed, pushEnabled: this.settings.pushConnectionClosed },
-            bufferedErrors: { enabled: this.settings.notifyBufferedErrors, pushEnabled: this.settings.pushBufferedErrors }
+            bufferedErrors: { enabled: this.settings.notifyBufferedErrors, pushEnabled: false } // Keine Push-Benachrichtigung für gepufferte Fehler
         };
         
         const setting = eventSettings[eventType];
@@ -1132,8 +1145,8 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 this.showNotification(message, eventType === 'connectionClosed' ? 'warning' : 'success');
             }
             
-            // Push-Benachrichtigung
-            if (setting.pushEnabled) {
+            // Push-Benachrichtigung nur wenn Browser nicht aktiv ist (außer bei gepufferten Fehlern)
+            if (setting.pushEnabled && (eventType === 'newError' || document.hidden)) {
                 const titles = {
                     newError: 'Neuer Fehler',
                     connectionSuccess: 'Verbindung hergestellt',
