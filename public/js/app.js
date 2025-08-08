@@ -1406,11 +1406,38 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         if (sessionData) {
             try {
                 this.currentSession = JSON.parse(sessionData);
+                console.log('📂 Loaded session from localStorage:', {
+                    name: this.currentSession.name,
+                    tokenPreview: this.currentSession.token?.substring(0, 16) + '...'
+                });
                 this.updateSessionDisplay();
+                
+                // Validate session token with server
+                this.validateSessionToken();
             } catch (error) {
                 console.error('Failed to load session data:', error);
                 localStorage.removeItem('currentSession');
             }
+        } else {
+            console.log('📂 No session found in localStorage');
+        }
+    }
+    
+    async validateSessionToken() {
+        if (!this.currentSession?.token) return;
+        
+        try {
+            const response = await fetch(`${this.serverUrl}/api/session/${this.currentSession.token}`);
+            if (!response.ok) {
+                console.warn('❌ Session token validation failed, clearing session');
+                this.showNotification('Session ungültig - neue Session erforderlich', 'warning');
+                this.clearSession();
+            } else {
+                console.log('✅ Session token validated successfully');
+            }
+        } catch (error) {
+            console.warn('⚠️ Could not validate session token:', error);
+            // Don't clear session if server is unreachable
         }
     }
 
@@ -1451,12 +1478,35 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         const sessionName = document.getElementById('sessionName');
         const sessionToken = document.getElementById('sessionToken');
         
+        console.log('🔄 Updating session display:', {
+            hasSession: !!this.currentSession,
+            sessionName: this.currentSession?.name,
+            tokenPreview: this.currentSession?.token?.substring(0, 16) + '...'
+        });
+        
         if (this.currentSession) {
             sessionBar.style.display = 'flex';
-            sessionName.textContent = this.currentSession.name;
+            sessionName.textContent = this.currentSession.name || 'Unbenannte Session';
             sessionToken.textContent = this.currentSession.token.substring(0, 16) + '...';
+            
+            // Also update the header controls to show session status
+            this.updateHeaderSessionStatus(true);
         } else {
             sessionBar.style.display = 'none';
+            this.updateHeaderSessionStatus(false);
+        }
+    }
+    
+    updateHeaderSessionStatus(hasSession) {
+        const sessionBtn = document.getElementById('sessionBtn');
+        if (sessionBtn) {
+            if (hasSession) {
+                sessionBtn.innerHTML = '🔑 Session ✅';
+                sessionBtn.classList.add('session-active');
+            } else {
+                sessionBtn.innerHTML = '🔑 Session';
+                sessionBtn.classList.remove('session-active');
+            }
         }
     }
 
