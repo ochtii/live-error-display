@@ -43,12 +43,13 @@
             <div class="session-info">
                 <span class="session-icon">🔑</span>
                 <span class="session-name" id="sessionName">Session</span>
-                <span class="session-token" id="sessionTokenDisplay">No Session</span>
+                <span class="session-token" id="sessionToken">No Session</span>
             </div>
             <div class="session-actions">
-                <button class="btn btn-small" onclick="copySessionToken()" title="Token kopieren">📋</button>
-                <button class="btn btn-small" onclick="saveCurrentSession()" title="Session speichern">💾</button>
-                <button class="btn btn-small btn-danger" onclick="endSession()" title="Session beenden">❌</button>
+                <button class="btn btn-small" id="copyToken" title="Token kopieren">📋</button>
+                <button class="btn btn-small" id="saveSession" title="Session speichern">💾</button>
+                <button class="btn btn-small" id="sessionManager" title="Session Manager">⚙️</button>
+                <button class="btn btn-small btn-danger" id="endSession" title="Session beenden">❌</button>
             </div>
         </div>
         

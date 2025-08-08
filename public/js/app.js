@@ -41,10 +41,18 @@ class ErrorDisplay {
         document.getElementById('settingsBtn').addEventListener('click', () => this.switchMode('settings'));
         document.getElementById('apiBtn').addEventListener('click', () => this.switchMode('api'));
         
-        // Session Management
-        document.getElementById('sessionBtn').addEventListener('click', () => this.openSessionManager());
-        document.getElementById('copyToken').addEventListener('click', () => this.copySessionToken());
-        document.getElementById('sessionManager').addEventListener('click', () => this.openSessionManager());
+        // Session Management (with null checks)
+        const sessionBtn = document.getElementById('sessionBtn');
+        const copyToken = document.getElementById('copyToken');
+        const sessionManager = document.getElementById('sessionManager');
+        const saveSession = document.getElementById('saveSession');
+        const endSession = document.getElementById('endSession');
+        
+        if (sessionBtn) sessionBtn.addEventListener('click', () => this.openSessionManager());
+        if (copyToken) copyToken.addEventListener('click', () => this.copySessionToken());
+        if (sessionManager) sessionManager.addEventListener('click', () => this.openSessionManager());
+        if (saveSession) saveSession.addEventListener('click', () => this.saveCurrentSession());
+        if (endSession) endSession.addEventListener('click', () => this.clearSession());
         
         // Settings
         document.getElementById('saveSettings').addEventListener('click', () => this.saveSettings());
@@ -1271,6 +1279,23 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         } catch (err) {
             console.error('❌ Error sending to server:', err);
             return false;
+        }
+    }
+
+    saveCurrentSession() {
+        if (this.currentSession) {
+            const sessionData = {
+                ...this.currentSession,
+                savedAt: new Date().toISOString()
+            };
+            
+            const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
+            savedSessions.push(sessionData);
+            localStorage.setItem('savedSessions', JSON.stringify(savedSessions));
+            
+            this.showNotification('Session gespeichert!', 'success');
+        } else {
+            this.showNotification('Keine aktive Session zum Speichern', 'warning');
         }
     }
 }
