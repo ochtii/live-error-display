@@ -423,7 +423,26 @@ app.get('/live', (req, res) => {
     const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
     const clientId = ++clientIdCounter;
     
-    console.log(`📡 New SSE connection from ${ip} with ID ${clientId}`);
+    // Check for existing connections from same IP and close them
+    let existingConnections = 0;
+    for (const [id, client] of clients.entries()) {
+        if (client._clientIp === ip) {
+            console.log(`� Closing existing SSE connection ${id} from ${ip}`);
+            try {
+                client.end();
+            } catch (e) {
+                // Connection already closed
+            }
+            clients.delete(id);
+            existingConnections++;
+        }
+    }
+    
+    if (existingConnections > 0) {
+        console.log(`🧹 Cleaned up ${existingConnections} existing connections from ${ip}`);
+    }
+    
+    console.log(`�📡 New SSE connection from ${ip} with ID ${clientId}`);
     
     // Set SSE headers
     res.writeHead(200, {
@@ -433,6 +452,10 @@ app.get('/live', (req, res) => {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Cache-Control'
     });
+
+    // Store client IP for duplicate detection
+    res._clientIp = ip;
+    res._clientId = clientId;
 
     // Add client to Map
     clients.set(clientId, res);
@@ -481,8 +504,20 @@ app.get('/live', (req, res) => {
     req.on('error', (err) => {
         console.log(`❌ SSE connection error for client ${clientId}:`, err.message);
         clearInterval(pingInterval);
-        clients.delete(clientId);
-        broadcastClientCount();
+        if (clients.has(clientId)) {
+            clients.delete(clientId);
+            broadcastClientCount();
+        }
+    });
+
+    // Handle response errors
+    res.on('error', (err) => {
+        console.log(`❌ SSE response error for client ${clientId}:`, err.message);
+        clearInterval(pingInterval);
+        if (clients.has(clientId)) {
+            clients.delete(clientId);
+            broadcastClientCount();
+        }
     });
 });
 
