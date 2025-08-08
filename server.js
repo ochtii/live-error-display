@@ -14,6 +14,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // In-Memory Error Storage
 let errors = [];
 let clients = [];
+let offlineBuffer = []; // Buffer for errors when no clients connected
 
 // Add error to storage (keep last 100)
 function addError(error) {
@@ -24,6 +25,14 @@ function addError(error) {
     };
     errors.unshift(errorData);
     if (errors.length > 100) errors.pop();
+    
+    // If no clients connected, buffer the error
+    if (clients.length === 0) {
+        offlineBuffer.unshift({...errorData, bufferedAt: new Date().toISOString()});
+        if (offlineBuffer.length > 50) offlineBuffer.pop(); // Limit buffer size
+        console.log(`📦 No clients connected - buffered error from ${errorData.ip}. Buffer size: ${offlineBuffer.length}`);
+        return errorData;
+    }
     
     // Send to all SSE clients
     let successCount = 0;
@@ -84,6 +93,29 @@ app.get('/events', (req, res) => {
     clients.push(res);
     console.log(`✅ SSE Client connected. Total: ${clients.length}`);
     
+    // Send buffered errors if any exist
+    if (offlineBuffer.length > 0) {
+        console.log(`📦 Sending ${offlineBuffer.length} buffered errors to new client`);
+        
+        // Send buffered errors notification first
+        res.write(`data: ${JSON.stringify({
+            type: 'buffered_notification',
+            count: offlineBuffer.length,
+            oldestError: offlineBuffer[offlineBuffer.length - 1]?.bufferedAt
+        })}\n\n`);
+        
+        // Send all buffered errors
+        offlineBuffer.reverse().forEach(bufferedError => {
+            res.write(`data: ${JSON.stringify({
+                type: 'error', 
+                error: {...bufferedError, isBuffered: true}
+            })}\n\n`);
+        });
+        
+        // Clear buffer after sending
+        offlineBuffer = [];
+    }
+    
     // Send client count to all clients
     broadcastClientCount();
 
@@ -103,6 +135,15 @@ app.get('/events', (req, res) => {
 // Get archived errors
 app.get('/archive', (req, res) => {
     res.json(errors);
+});
+
+// Get buffer status
+app.get('/buffer-status', (req, res) => {
+    res.json({
+        bufferSize: offlineBuffer.length,
+        hasBuffer: offlineBuffer.length > 0,
+        oldestBuffered: offlineBuffer.length > 0 ? offlineBuffer[offlineBuffer.length - 1].bufferedAt : null
+    });
 });
 
 // Get file modification info

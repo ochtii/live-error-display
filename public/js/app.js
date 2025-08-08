@@ -232,7 +232,7 @@ class ErrorDisplay {
             
             if (data.type === 'error') {
                 if (this.currentMode === 'live') {
-                    this.addError(data.error, true); // Mark as live received
+                    this.addError(data.error, true, data.error.isBuffered); // Mark as live received
                 } else if (this.settings.bufferOfflineErrors) {
                     // Buffer the error for later display
                     this.bufferedErrors.unshift({...data.error, isLive: true, buffered: true});
@@ -241,6 +241,8 @@ class ErrorDisplay {
             } else if (data.type === 'clients') {
                 this.clients = data.count;
                 this.updateStats();
+            } else if (data.type === 'buffered_notification') {
+                this.showBufferedNotification(data.count, data.oldestError);
             }
         };
         
@@ -262,10 +264,14 @@ class ErrorDisplay {
     }
 
     // === ERROR HANDLING ===
-    addError(error, isLive = false) {
+    addError(error, isLive = false, isServerBuffered = false) {
         if (this.currentMode !== 'live') return;
         
-        const errorWithMeta = {...error, isLive: isLive};
+        const errorWithMeta = {
+            ...error, 
+            isLive: isLive,
+            isServerBuffered: isServerBuffered
+        };
         this.errors.unshift(errorWithMeta);
         if (this.errors.length > 100) this.errors.pop();
         
@@ -311,9 +317,17 @@ class ErrorDisplay {
             `🕒 ${new Date(error.archivedAt).toLocaleString('de-DE')} (archiviert)` :
             `🕒 ${error.timestamp}`;
         
-        // Live indicator
-        const liveIndicator = error.isLive ? '🔴 Live' : '📝 Manual';
-        const bufferedIndicator = error.buffered ? ' (📦 Gepuffert)' : '';
+        // Live indicator with server buffering info
+        let liveIndicator = '📝 Manual';
+        if (error.isLive) {
+            if (error.isServerBuffered) {
+                liveIndicator = '📦 Gepuffert (Server)';
+            } else if (error.buffered) {
+                liveIndicator = '📦 Gepuffert (Client)';
+            } else {
+                liveIndicator = '🔴 Live';
+            }
+        }
         
         card.innerHTML = `
             <div class="error-header" onclick="this.parentElement.querySelector('.error-content').classList.toggle('open'); this.querySelector('.toggle-icon').classList.toggle('open')">
@@ -322,7 +336,7 @@ class ErrorDisplay {
                     <div class="error-meta">
                         <span>${timestamp}</span>
                         <span>🌐 ${this.cleanIP(error.ip)}</span>
-                        <span class="live-indicator ${error.isLive ? 'live' : 'manual'}">${liveIndicator}${bufferedIndicator}</span>
+                        <span class="live-indicator ${error.isLive ? (error.isServerBuffered ? 'buffered' : 'live') : 'manual'}">${liveIndicator}</span>
                         ${isArchive ? '<span>📂 Archiviert</span>' : ''}
                     </div>
                 </div>
@@ -419,6 +433,50 @@ class ErrorDisplay {
             console.error('Copy failed:', err);
             this.showNotification('Kopieren fehlgeschlagen', 'error');
         }
+    }
+
+    showBufferedNotification(count, oldestErrorTime) {
+        const oldestTime = oldestErrorTime ? 
+            new Date(oldestErrorTime).toLocaleString('de-DE') : 
+            'unbekannt';
+            
+        const notification = document.createElement('div');
+        notification.className = 'buffered-notification';
+        notification.innerHTML = `
+            <div class="notification-header">
+                <span class="notification-icon">📦</span>
+                <strong>Fehler in Abwesenheit empfangen!</strong>
+                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">&times;</button>
+            </div>
+            <div class="notification-body">
+                <p>${count} Fehler wurden empfangen während kein Client verbunden war.</p>
+                <small>Ältester Fehler: ${oldestTime}</small>
+            </div>
+        `;
+        
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            max-width: 400px;
+            background: var(--background-card);
+            border: 2px solid var(--warning);
+            border-radius: 1rem;
+            padding: 1rem;
+            color: var(--text-primary);
+            z-index: 1001;
+            animation: slideInRight 0.3s ease;
+            backdrop-filter: blur(20px);
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Auto-remove after 10 seconds
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+            }
+        }, 10000);
     }
 
     showNotification(message, type = 'info') {
