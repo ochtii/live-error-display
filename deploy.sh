@@ -88,8 +88,16 @@ setup_repository() {
 }
 
 install_dependencies() {
+    if [[ -f "$REPO_DIR/package.json" && ! -d "$REPO_DIR/node_modules" ]]; then
+        log "Installiere Dependencies (erste Installation)..."
+        cd "$REPO_DIR"
+        sudo -u www-data npm install --production --silent || error_exit "npm install fehlgeschlagen"
+    fi
+}
+
+update_dependencies() {
     if [[ -f "$REPO_DIR/package.json" ]]; then
-        log "Installiere Dependencies..."
+        log "Aktualisiere Dependencies..."
         cd "$REPO_DIR"
         sudo -u www-data npm install --production --silent || error_exit "npm install fehlgeschlagen"
     fi
@@ -115,9 +123,9 @@ deploy() {
     
     local current_commit=$(sudo -u www-data git rev-parse HEAD 2>/dev/null || echo "unknown")
     
-    # Fetch remote changes
+    # Fetch remote changes (silent)
     sudo -u www-data git fetch origin main >/dev/null 2>&1 || {
-        log "WARNUNG: Git fetch fehlgeschlagen"
+        # Nur loggen wenn es häufiger fehlschlägt
         return 1
     }
     
@@ -142,7 +150,7 @@ deploy() {
         # Check for package.json changes
         if sudo -u www-data git diff --name-only "$current_commit" "$remote_commit" 2>/dev/null | grep -q "package.json"; then
             log "package.json geändert, aktualisiere Dependencies..."
-            install_dependencies
+            update_dependencies
         fi
         
         # Restart service
@@ -195,14 +203,18 @@ main() {
     log "Überwachung gestartet"
     
     local check_count=0
+    local last_status_time=0
     
     while true; do
         if deploy; then
             check_count=0
         else
             ((check_count++))
-            if (( check_count % 60 == 0 )); then
-                echo -e "${BLUE}📊 Status: Aktiv (${check_count} Checks)${NC}"
+            # Status nur alle 5 Minuten ausgeben (300 Sekunden)
+            local current_time=$(date +%s)
+            if (( current_time - last_status_time >= 300 )); then
+                echo -e "${BLUE}📊 Status: Aktiv (${check_count} Checks seit letztem Update)${NC}"
+                last_status_time=$current_time
             fi
         fi
         
