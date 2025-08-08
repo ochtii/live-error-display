@@ -277,6 +277,9 @@ class ErrorDisplay {
     switchMode(mode) {
         this.currentMode = mode;
         
+        // Update session activity
+        this.updateSessionActivity();
+        
         // Update button states
         document.getElementById('liveBtn').classList.toggle('active', mode === 'live');
         document.getElementById('archiveBtn').classList.toggle('active', mode === 'archive');
@@ -731,6 +734,9 @@ class ErrorDisplay {
         
         this.displayErrors(this.errors);
         this.updateStats();
+        
+        // Update session activity
+        this.updateSessionActivity();
         
         // Auto-save if enabled and session is saved
         if (this.autoSaveEnabled && this.isSessionSaved()) {
@@ -1489,26 +1495,33 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             try {
                 const session = JSON.parse(sessionData);
                 
-                // Check if session is older than 24 hours
-                const sessionDate = new Date(session.createdAt || session.lastAccessed || Date.now());
-                const sessionAge = Date.now() - sessionDate.getTime();
+                // Update lastAccessed for session persistence
+                const now = Date.now();
+                const lastAccessed = new Date(session.lastAccessed || session.createdAt || now);
+                const timeSinceLastAccess = now - lastAccessed.getTime();
                 const maxAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
                 
-                // Only check age if we have a valid date and it's not a brand new session
-                if (sessionAge > maxAge && session.createdAt) {
-                    console.log('🕐 Session older than 24 hours, removing from localStorage');
+                // Only check age if session hasn't been accessed recently
+                if (timeSinceLastAccess > maxAge && session.createdAt) {
+                    console.log('🕐 Session older than 24 hours since last access, removing from localStorage');
                     localStorage.removeItem('currentSession');
-                    this.showNotification('Session abgelaufen (24h) - neue Session erforderlich', 'warning');
+                    this.showNotification('Session abgelaufen (24h inaktiv) - neue Session erforderlich', 'warning');
                     return;
                 }
                 
                 // Only load unsaved sessions from localStorage
                 if (!session.isSaved) {
+                    // Update lastAccessed timestamp
+                    session.lastAccessed = new Date().toISOString();
                     this.currentSession = session;
+                    
+                    // Save updated session back to localStorage
+                    localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+                    
                     console.log('📂 Loaded unsaved session from localStorage:', {
                         name: this.currentSession.name,
                         tokenPreview: this.currentSession.token?.substring(0, 16) + '...',
-                        age: Math.round(sessionAge / (60 * 1000)) + ' minutes'
+                        lastAccessed: this.currentSession.lastAccessed
                     });
                     this.updateSessionDisplay();
                     
@@ -2338,6 +2351,10 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                     this.archiveData = data.session.archive;
                 }
                 
+                // Automatically switch to live view and refresh
+                this.switchMode('live');
+                this.showNotification(`Session "${data.session.name}" geladen - zur Live-Ansicht gewechselt`, 'success');
+                
                 // Global session load - unlock tabs and connect
                 this.onSessionLoaded();
             } else if (response.status === 401) {
@@ -2357,6 +2374,14 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         localStorage.setItem('savedSessions', JSON.stringify(filteredSessions));
         this.loadSavedSessionsInline();
         this.showNotification('Session aus Speicher entfernt', 'success');
+    }
+
+    // Update session activity timestamp
+    updateSessionActivity() {
+        if (this.currentSession && !this.currentSession.isSaved) {
+            this.currentSession.lastAccessed = new Date().toISOString();
+            localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+        }
     }
 
     async toggleAutoSave(checked) {

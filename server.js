@@ -862,12 +862,20 @@ app.post('/error', (req, res) => {
         });
     }
     
-    // Verify session exists
+    // Verify session exists and is active
     const session = SessionManager.getSession(sessionToken);
     if (!session) {
         return res.status(401).json({
             success: false,
             error: 'Invalid or expired session token'
+        });
+    }
+    
+    // Check if session has active clients (only allow errors for active sessions)
+    if (!session.clients || session.clients.size === 0) {
+        return res.status(423).json({
+            success: false,
+            error: 'Session is not active. Errors can only be sent to sessions with active connections.'
         });
     }
     
