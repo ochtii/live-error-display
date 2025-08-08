@@ -3,7 +3,7 @@
     {
       "name": "live-error-display",
       "script": "server.js",
-      "cwd": "/opt/live-error-display",
+      "cwd": "/home/ubuntu/live-error-display",
       "instances": 1,
       "exec_mode": "fork",
       "watch": false,

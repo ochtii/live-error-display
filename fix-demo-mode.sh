@@ -20,7 +20,19 @@ sudo -u www-data pm2 delete live-error-display 2>/dev/null || true
 
 # Start with explicit NODE_ENV=production
 echo "Starting with NODE_ENV=production..."
-cd /opt/live-error-display
+
+# Try to find the correct directory
+if [[ -d "/home/ubuntu/live-error-display" ]]; then
+    APP_DIR="/home/ubuntu/live-error-display"
+elif [[ -d "/opt/live-error-display" ]]; then
+    APP_DIR="/opt/live-error-display"
+else
+    echo "ERROR: Could not find live-error-display directory!"
+    exit 1
+fi
+
+echo "Using directory: $APP_DIR"
+cd "$APP_DIR"
 
 # Check if ecosystem.config.json exists, otherwise start server.js directly
 if [[ -f "ecosystem.config.json" ]]; then
