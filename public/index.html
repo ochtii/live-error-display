@@ -142,12 +142,25 @@
                                 </label>
                             </div>
                             
+                            <div class="push-permission-section">
+                                <div class="form-group">
+                                    <label>Push-Benachrichtigungen:</label>
+                                    <div class="push-status">
+                                        <span id="pushStatus">Berechtigung prüfen...</span>
+                                        <button type="button" class="btn btn-outline" id="requestPushPermission" style="display: none;">
+                                            🔔 Berechtigung anfordern
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div class="notification-table">
                                 <table class="settings-table">
                                     <thead>
                                         <tr>
                                             <th>Aktion</th>
-                                            <th>Benachrichtigung</th>
+                                            <th>Benachrichtigung (Website)</th>
+                                            <th>Push-Benachrichtigung</th>
                                             <th>Sound</th>
                                             <th>Test</th>
                                         </tr>
@@ -158,6 +171,12 @@
                                             <td>
                                                 <label class="toggle-switch">
                                                     <input type="checkbox" id="notifyNewError" name="notifyNewError" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="pushNewError" name="pushNewError" checked>
                                                     <span class="toggle-slider"></span>
                                                 </label>
                                             </td>
@@ -181,6 +200,12 @@
                                             </td>
                                             <td>
                                                 <label class="toggle-switch">
+                                                    <input type="checkbox" id="pushConnectionSuccess" name="pushConnectionSuccess" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <label class="toggle-switch">
                                                     <input type="checkbox" id="soundConnectionSuccess" name="soundConnectionSuccess" checked>
                                                     <span class="toggle-slider"></span>
                                                 </label>
@@ -199,12 +224,42 @@
                                             </td>
                                             <td>
                                                 <label class="toggle-switch">
+                                                    <input type="checkbox" id="pushConnectionClosed" name="pushConnectionClosed" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <label class="toggle-switch">
                                                     <input type="checkbox" id="soundConnectionClosed" name="soundConnectionClosed" checked>
                                                     <span class="toggle-slider"></span>
                                                 </label>
                                             </td>
                                             <td>
                                                 <button type="button" class="btn btn-test" onclick="window.errorDisplay.testSound('connectionClosed')">🔊</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>Gepufferte Fehler erhalten</td>
+                                            <td>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="notifyBufferedErrors" name="notifyBufferedErrors" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="pushBufferedErrors" name="pushBufferedErrors" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <label class="toggle-switch">
+                                                    <input type="checkbox" id="soundBufferedErrors" name="soundBufferedErrors" checked>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-test" onclick="window.errorDisplay.testSound('bufferedErrors')">🔊</button>
                                             </td>
                                         </tr>
                                     </tbody>

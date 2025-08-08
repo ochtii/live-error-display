@@ -21,6 +21,7 @@ class ErrorDisplay {
         this.setupModal();
         this.displayMode(this.currentMode);
         this.loadAndApplySettings();
+        this.initPushNotifications();
     }
 
     setupEventListeners() {
@@ -34,6 +35,7 @@ class ErrorDisplay {
         document.getElementById('clearStorage').addEventListener('click', () => this.clearArchive());
         document.getElementById('showAllData').addEventListener('click', () => this.showAllLocalStorageData());
         document.getElementById('deleteAllData').addEventListener('click', () => this.deleteAllData());
+        document.getElementById('requestPushPermission').addEventListener('click', () => this.requestPushPermission());
         
         // Range slider updates
         document.getElementById('archiveRetentionDays').addEventListener('input', (e) => {
@@ -55,10 +57,16 @@ class ErrorDisplay {
             enableSounds: true,
             notifyNewError: true,
             soundNewError: true,
+            pushNewError: true,
             notifyConnectionSuccess: true,
             soundConnectionSuccess: true,
+            pushConnectionSuccess: true,
             notifyConnectionClosed: true,
-            soundConnectionClosed: true
+            soundConnectionClosed: true,
+            pushConnectionClosed: true,
+            notifyBufferedErrors: true,
+            soundBufferedErrors: true,
+            pushBufferedErrors: true
         };
         
         const saved = localStorage.getItem('errorDisplaySettings');
@@ -76,10 +84,16 @@ class ErrorDisplay {
             enableSounds: formData.get('enableSounds') === 'on',
             notifyNewError: formData.get('notifyNewError') === 'on',
             soundNewError: formData.get('soundNewError') === 'on',
+            pushNewError: formData.get('pushNewError') === 'on',
             notifyConnectionSuccess: formData.get('notifyConnectionSuccess') === 'on',
             soundConnectionSuccess: formData.get('soundConnectionSuccess') === 'on',
+            pushConnectionSuccess: formData.get('pushConnectionSuccess') === 'on',
             notifyConnectionClosed: formData.get('notifyConnectionClosed') === 'on',
-            soundConnectionClosed: formData.get('soundConnectionClosed') === 'on'
+            soundConnectionClosed: formData.get('soundConnectionClosed') === 'on',
+            pushConnectionClosed: formData.get('pushConnectionClosed') === 'on',
+            notifyBufferedErrors: formData.get('notifyBufferedErrors') === 'on',
+            soundBufferedErrors: formData.get('soundBufferedErrors') === 'on',
+            pushBufferedErrors: formData.get('pushBufferedErrors') === 'on'
         };
         
         localStorage.setItem('errorDisplaySettings', JSON.stringify(this.settings));
@@ -249,8 +263,9 @@ class ErrorDisplay {
         this.eventSource.onopen = () => {
             console.log(`[${new Date().toLocaleTimeString('de-DE')}] ✅ SSE connected successfully`);
             this.updateStatus('online');
-            // Sound-Benachrichtigung für erfolgreiche Verbindung
+            // Sound und Benachrichtigung für erfolgreiche Verbindung
             this.playNotificationSound('connectionSuccess');
+            this.showEventNotification('connectionSuccess', 'Verbindung zum Server hergestellt');
         };
         
         this.eventSource.onmessage = (event) => {
@@ -259,7 +274,7 @@ class ErrorDisplay {
             if (data.type === 'error') {
                 if (this.currentMode === 'live') {
                     this.addError(data.error, true, data.error.isBuffered); // Mark as live received
-                    // Sound-Benachrichtigung für neue Fehler
+                    // Sound und Benachrichtigung für neue Fehler
                     this.playNotificationSound('newError');
                 } else if (this.settings.bufferOfflineErrors) {
                     // Buffer the error for later display
@@ -279,8 +294,9 @@ class ErrorDisplay {
         this.eventSource.onerror = () => {
             this.updateStatus('offline');
             this.eventSource = null;
-            // Sound-Benachrichtigung für getrennte Verbindung
+            // Sound und Benachrichtigung für getrennte Verbindung
             this.playNotificationSound('connectionClosed');
+            this.showEventNotification('connectionClosed', 'Verbindung zum Server getrennt');
             
             // Reconnect after 5 seconds
             setTimeout(() => this.connectSSE(), 5000);
@@ -465,6 +481,10 @@ class ErrorDisplay {
     }
 
     showBufferedNotification(count, oldestErrorTime) {
+        // Sound und Benachrichtigung für gepufferte Fehler
+        this.playNotificationSound('bufferedErrors');
+        this.showEventNotification('bufferedErrors', `${count} Fehler in Abwesenheit empfangen`);
+        
         const oldestTime = oldestErrorTime ? 
             new Date(oldestErrorTime).toLocaleString('de-DE') : 
             'unbekannt';
@@ -557,6 +577,90 @@ class ErrorDisplay {
 
     // === NEUE FUNKTIONEN ===
     
+    // Push-Benachrichtigungen initialisieren
+    initPushNotifications() {
+        this.updatePushPermissionStatus();
+    }
+    
+    // Push-Berechtigung prüfen und Status aktualisieren
+    updatePushPermissionStatus() {
+        const statusElement = document.getElementById('pushStatus');
+        const buttonElement = document.getElementById('requestPushPermission');
+        
+        if (!('Notification' in window)) {
+            statusElement.textContent = 'Browser unterstützt keine Push-Benachrichtigungen';
+            statusElement.className = 'push-status denied';
+            return;
+        }
+        
+        const permission = Notification.permission;
+        
+        switch (permission) {
+            case 'granted':
+                statusElement.textContent = '✅ Berechtigung erteilt';
+                statusElement.className = 'push-status granted';
+                buttonElement.style.display = 'none';
+                break;
+            case 'denied':
+                statusElement.textContent = '❌ Berechtigung verweigert';
+                statusElement.className = 'push-status denied';
+                buttonElement.style.display = 'none';
+                break;
+            case 'default':
+                statusElement.textContent = '⚠️ Berechtigung erforderlich';
+                statusElement.className = 'push-status default';
+                buttonElement.style.display = 'inline-block';
+                break;
+        }
+    }
+    
+    // Push-Berechtigung anfordern
+    async requestPushPermission() {
+        try {
+            const permission = await Notification.requestPermission();
+            this.updatePushPermissionStatus();
+            
+            if (permission === 'granted') {
+                this.showNotification('Push-Benachrichtigungen aktiviert!', 'success');
+            } else if (permission === 'denied') {
+                this.showNotification('Push-Benachrichtigungen wurden abgelehnt', 'warning');
+            }
+        } catch (error) {
+            console.error('Fehler beim Anfordern der Push-Berechtigung:', error);
+            this.showNotification('Fehler beim Anfordern der Berechtigung', 'error');
+        }
+    }
+    
+    // Push-Benachrichtigung senden
+    sendPushNotification(title, body, icon = '/favicon.ico') {
+        if (Notification.permission !== 'granted') return;
+        
+        try {
+            const notification = new Notification(title, {
+                body: body,
+                icon: icon,
+                badge: '/favicon.ico',
+                tag: 'error-display',
+                requireInteraction: false,
+                silent: false
+            });
+            
+            // Benachrichtigung nach 5 Sekunden automatisch schließen
+            setTimeout(() => {
+                notification.close();
+            }, 5000);
+            
+            // Klick-Handler für Fokus auf Fenster
+            notification.onclick = () => {
+                window.focus();
+                notification.close();
+            };
+            
+        } catch (error) {
+            console.error('Fehler beim Senden der Push-Benachrichtigung:', error);
+        }
+    }
+    
     // Einstellungen laden und anwenden
     loadAndApplySettings() {
         // Form-Felder mit aktuellen Einstellungen befüllen
@@ -571,15 +675,24 @@ class ErrorDisplay {
         document.getElementById('enableSounds').checked = this.settings.enableSounds;
         document.getElementById('notifyNewError').checked = this.settings.notifyNewError;
         document.getElementById('soundNewError').checked = this.settings.soundNewError;
+        document.getElementById('pushNewError').checked = this.settings.pushNewError;
         document.getElementById('notifyConnectionSuccess').checked = this.settings.notifyConnectionSuccess;
         document.getElementById('soundConnectionSuccess').checked = this.settings.soundConnectionSuccess;
+        document.getElementById('pushConnectionSuccess').checked = this.settings.pushConnectionSuccess;
         document.getElementById('notifyConnectionClosed').checked = this.settings.notifyConnectionClosed;
         document.getElementById('soundConnectionClosed').checked = this.settings.soundConnectionClosed;
+        document.getElementById('pushConnectionClosed').checked = this.settings.pushConnectionClosed;
+        document.getElementById('notifyBufferedErrors').checked = this.settings.notifyBufferedErrors;
+        document.getElementById('soundBufferedErrors').checked = this.settings.soundBufferedErrors;
+        document.getElementById('pushBufferedErrors').checked = this.settings.pushBufferedErrors;
         
         // Sound-Manager konfigurieren
         if (window.soundManager) {
             window.soundManager.setEnabled(this.settings.enableSounds);
         }
+        
+        // Push-Benachrichtigungen initialisieren
+        this.initPushNotifications();
     }
     
     // Alle LocalStorage Daten anzeigen
@@ -664,12 +777,13 @@ class ErrorDisplay {
         const soundTypes = {
             newError: 'notification',
             connectionSuccess: 'success',
-            connectionClosed: 'disconnect'
+            connectionClosed: 'disconnect',
+            bufferedErrors: 'chime'
         };
         
         const soundType = soundTypes[eventType];
         if (soundType) {
-            window.soundManager.testSound(eventType, soundType);
+            window.soundManager.playSound(soundType);
         }
     }
     
@@ -678,14 +792,52 @@ class ErrorDisplay {
         if (!this.settings.enableSounds || !window.soundManager) return;
         
         const eventSettings = {
-            newError: { enabled: this.settings.soundNewError, type: 'notification' },
-            connectionSuccess: { enabled: this.settings.soundConnectionSuccess, type: 'success' },
-            connectionClosed: { enabled: this.settings.soundConnectionClosed, type: 'disconnect' }
+            newError: { enabled: this.settings.soundNewError },
+            connectionSuccess: { enabled: this.settings.soundConnectionSuccess },
+            connectionClosed: { enabled: this.settings.soundConnectionClosed },
+            bufferedErrors: { enabled: this.settings.soundBufferedErrors }
         };
         
         const setting = eventSettings[eventType];
         if (setting && setting.enabled) {
-            window.soundManager.testSound(eventType, setting.type);
+            const soundTypes = {
+                newError: 'notification',
+                connectionSuccess: 'success',
+                connectionClosed: 'disconnect',
+                bufferedErrors: 'chime'
+            };
+            
+            window.soundManager.playSound(soundTypes[eventType]);
+        }
+    }
+    
+    // Benachrichtigungen anzeigen
+    showEventNotification(eventType, message) {
+        const eventSettings = {
+            newError: { enabled: this.settings.notifyNewError, pushEnabled: this.settings.pushNewError },
+            connectionSuccess: { enabled: this.settings.notifyConnectionSuccess, pushEnabled: this.settings.pushConnectionSuccess },
+            connectionClosed: { enabled: this.settings.notifyConnectionClosed, pushEnabled: this.settings.pushConnectionClosed },
+            bufferedErrors: { enabled: this.settings.notifyBufferedErrors, pushEnabled: this.settings.pushBufferedErrors }
+        };
+        
+        const setting = eventSettings[eventType];
+        if (setting) {
+            // Website-Benachrichtigung
+            if (setting.enabled) {
+                this.showNotification(message, eventType === 'connectionClosed' ? 'warning' : 'success');
+            }
+            
+            // Push-Benachrichtigung
+            if (setting.pushEnabled) {
+                const titles = {
+                    newError: 'Neuer Fehler',
+                    connectionSuccess: 'Verbindung hergestellt',
+                    connectionClosed: 'Verbindung getrennt',
+                    bufferedErrors: 'Gepufferte Fehler'
+                };
+                
+                this.sendPushNotification(titles[eventType], message);
+            }
         }
     }
 }

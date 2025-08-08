@@ -226,6 +226,33 @@ body {
     border-top: 1px solid var(--border-color);
 }
 
+.push-permission-section {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: rgba(59, 130, 246, 0.1);
+    border-radius: 0.5rem;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.push-status {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+.push-status.granted {
+    color: var(--success);
+}
+
+.push-status.denied {
+    color: var(--danger);
+}
+
+.push-status.default {
+    color: var(--warning);
+}
+
 .notification-table {
     margin-top: 1.5rem;
 }
