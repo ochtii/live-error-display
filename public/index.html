@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Error Display</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+        
+        h1 {
+            color: #60a5fa;
+            font-weight: 700;
+            font-size: 1.8rem;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.1);
+            color: #e2e8f0;
+        }
+        
+        .btn:hover { background: rgba(255,255,255,0.2); transform: translateY(-1px); }
+        .btn.active { background: #3b82f6; color: white; }
+        
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        .status.online .status-dot { background: #10b981; }
+        .status.offline .status-dot { background: #ef4444; }
+        .status.archive .status-dot { background: #f59e0b; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .waiting {
+            text-align: center;
+            padding: 3rem;
+            color: #94a3b8;
+            font-style: italic;
+        }
+        
+        .error-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            max-height: 70vh;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+        
+        .error-list::-webkit-scrollbar { width: 6px; }
+        .error-list::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .error-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px; }
+        
+        .error-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .error-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(96,165,250,0.3);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        
+        .error-header {
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.02);
+            user-select: none;
+        }
+        
+        .error-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            flex: 1;
+        }
+        
+        .error-preview {
+            font-weight: 600;
+            color: #fbbf24;
+            font-size: 0.95rem;
+        }
+        
+        .error-meta {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+        
+        .toggle-icon {
+            font-size: 1.2rem;
+            color: #60a5fa;
+            transition: transform 0.3s ease;
+        }
+        
+        .toggle-icon.open { transform: rotate(90deg); }
+        
+        .error-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .error-content.open { max-height: 500px; }
+        
+        .error-body {
+            padding: 1.5rem;
+            background: rgba(0,0,0,0.2);
+        }
+        
+        .error-text {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #f1f5f9;
+            background: rgba(0,0,0,0.3);
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #ef4444;
+        }
+        
+        .error-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .action-btn {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #e2e8f0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .action-btn:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-1px);
+        }
+        
+        .copy-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(59,130,246,0.2);
+            border: 1px solid rgba(59,130,246,0.3);
+            color: #60a5fa;
+        }
+        
+        .copy-btn:hover { background: rgba(59,130,246,0.3); }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .stats {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+        
+        .stat {
+            padding: 0.5rem 1rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: #60a5fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚨 Live Error Display</h1>
+            <div class="controls">
+                <button class="btn active" id="btn-live">📡 Live</button>
+                <button class="btn" id="btn-archive">📦 Archiv</button>
+                <div class="status offline" id="status">
+                    <div class="status-dot"></div>
+                    <span id="status-text">Offline</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value" id="total-errors">0</div>
+                <div>Gesamt</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="session-errors">0</div>
+                <div>Session</div>
+            </div>
+        </div>
+        
+        <div class="waiting" id="waiting">
+            <div>⏳ Warten auf Fehler...</div>
+        </div>
+        
+        <div class="error-list" id="error-list"></div>
+    </div>
+
+    <script>
+        class ErrorDisplay {
+            constructor() {
+                this.eventSource = null;
+                this.errors = new Map();
+                this.sessionErrors = 0;
+                this.totalErrors = 0;
+                
+                this.elements = {
+                    btnLive: document.getElementById('btn-live'),
+                    btnArchive: document.getElementById('btn-archive'),
+                    status: document.getElementById('status'),
+                    statusText: document.getElementById('status-text'),
+                    waiting: document.getElementById('waiting'),
+                    errorList: document.getElementById('error-list'),
+                    totalErrors: document.getElementById('total-errors'),
+                    sessionErrors: document.getElementById('session-errors')
+                };
+                
+                this.init();
+            }
+            
+            init() {
+                this.elements.btnLive.addEventListener('click', () => this.switchToLive());
+                this.elements.btnArchive.addEventListener('click', () => this.switchToArchive());
+                this.switchToLive();
+            }
+            
+            switchToLive() {
+                this.elements.btnLive.classList.add('active');
+                this.elements.btnArchive.classList.remove('active');
+                this.connectSSE();
+            }
+            
+            switchToArchive() {
+                this.elements.btnArchive.classList.add('active');
+                this.elements.btnLive.classList.remove('active');
+                this.loadArchive();
+            }
+            
+            connectSSE() {
+                this.cleanup();
+                this.clearErrors();
+                this.sessionErrors = 0;
+                this.updateStats();
+                this.showWaiting(true);
+                
+                this.eventSource = new EventSource('/events');
+                
+                this.eventSource.onopen = () => {
+                    this.setStatus('online', 'Online');
+                };
+                
+                this.eventSource.onerror = () => {
+                    this.setStatus('offline', 'Offline');
+                };
+                
+                this.eventSource.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    this.showWaiting(false);
+                    this.addError(data, true);
+                    this.sessionErrors++;
+                    this.updateStats();
+                };
+            }
+            
+            async loadArchive() {
+                this.cleanup();
+                this.clearErrors();
+                this.showWaiting(false);
+                this.setStatus('archive', 'Archiv');
+                
+                try {
+                    const response = await fetch('/archive');
+                    const errors = await response.json();
+                    errors.forEach(error => this.addError(error, false));
+                    this.totalErrors = errors.length;
+                    this.updateStats();
+                } catch (error) {
+                    this.setStatus('offline', 'Fehler beim Laden');
+                    console.error('Archive load failed:', error);
+                }
+            }
+            
+            addError(errorData, prepend = true) {
+                const id = `${errorData.timestamp}_${errorData.ip}_${Math.random().toString(36).substr(2,9)}`;
+                this.errors.set(id, errorData);
+                
+                const errorElement = this.createErrorElement(id, errorData);
+                
+                if (prepend) {
+                    this.elements.errorList.prepend(errorElement);
+                    this.elements.errorList.scrollTop = 0;
+                } else {
+                    this.elements.errorList.appendChild(errorElement);
+                }
+                
+                errorElement.classList.add('fade-in');
+                this.totalErrors++;
+            }
+            
+            createErrorElement(id, data) {
+                const card = document.createElement('div');
+                card.className = 'error-card';
+                card.style.position = 'relative';
+                
+                const firstLine = data.message.split('\n')[0].substring(0, 100);
+                
+                card.innerHTML = `
+                    <div class="error-header" onclick="this.parentElement.querySelector('.error-content').classList.toggle('open'); this.querySelector('.toggle-icon').classList.toggle('open')">
+                        <div class="error-info">
+                            <div class="error-preview">${this.escapeHtml(firstLine)}${data.message.length > 100 ? '...' : ''}</div>
+                            <div class="error-meta">
+                                <span>🕒 ${data.timestamp}</span>
+                                <span>🌐 ${this.cleanIP(data.ip)}</span>
+                            </div>
+                        </div>
+                        <div class="toggle-icon">▶</div>
+                    </div>
+                    <div class="error-content">
+                        <div class="error-body">
+                            <div class="error-text" id="text-${id}">${this.escapeHtml(data.message)}</div>
+                            <div class="error-actions">
+                                <button class="action-btn" onclick="errorDisplay.formatText('${id}', 'original')">Original</button>
+                                <button class="action-btn" onclick="errorDisplay.formatText('${id}', 'indent')">Einrücken</button>
+                                <button class="action-btn" onclick="errorDisplay.formatText('${id}', 'quote')">Zitat</button>
+                                <button class="action-btn" onclick="errorDisplay.formatText('${id}', 'code')">Code-Block</button>
+                            </div>
+                        </div>
+                        <button class="copy-btn action-btn" onclick="errorDisplay.copyToClipboard('${id}', this)">📋 Kopieren</button>
+                    </div>
+                `;
+                
+                return card;
+            }
+            
+            formatText(id, format) {
+                const original = this.errors.get(id).message;
+                const textElement = document.getElementById(`text-${id}`);
+                
+                let formatted;
+                switch (format) {
+                    case 'indent':
+                        formatted = original.split('\n').map(line => '    ' + line).join('\n');
+                        break;
+                    case 'quote':
+                        formatted = original.split('\n').map(line => '> ' + line).join('\n');
+                        break;
+                    case 'code':
+                        formatted = '```\n' + original + '\n```';
+                        break;
+                    default:
+                        formatted = original;
+                }
+                
+                textElement.textContent = formatted;
+            }
+            
+            async copyToClipboard(id, button) {
+                const text = document.getElementById(`text-${id}`).textContent;
+                const originalText = button.textContent;
+                
+                try {
+                    await navigator.clipboard.writeText(text);
+                    button.textContent = '✅ Kopiert!';
+                    setTimeout(() => button.textContent = originalText, 2000);
+                } catch (error) {
+                    button.textContent = '❌ Fehler';
+                    setTimeout(() => button.textContent = originalText, 2000);
+                }
+            }
+            
+            setStatus(type, text) {
+                this.elements.status.className = `status ${type}`;
+                this.elements.statusText.textContent = text;
+            }
+            
+            showWaiting(show) {
+                this.elements.waiting.style.display = show ? 'block' : 'none';
+            }
+            
+            clearErrors() {
+                this.errors.clear();
+                this.elements.errorList.innerHTML = '';
+                this.totalErrors = 0;
+            }
+            
+            updateStats() {
+                this.elements.totalErrors.textContent = this.totalErrors;
+                this.elements.sessionErrors.textContent = this.sessionErrors;
+            }
+            
+            cleanup() {
+                if (this.eventSource) {
+                    this.eventSource.close();
+                    this.eventSource = null;
+                }
+            }
+            
+            cleanIP(ip) {
+                return ip.startsWith('::ffff:') ? ip.substring(7) : ip;
+            }
+            
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        }
+        
+        // Global instance
+        const errorDisplay = new ErrorDisplay();
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => errorDisplay.cleanup());
+    </script>
+</body>
+</html>
