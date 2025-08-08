@@ -162,6 +162,14 @@ class ErrorDisplay {
 
     // === ARCHIVE MANAGEMENT ===
     loadArchive() {
+        // Load session-specific archive if session exists
+        if (this.currentSession) {
+            const sessionArchiveKey = `archive_${this.currentSession.token}`;
+            const stored = localStorage.getItem(sessionArchiveKey);
+            return stored ? JSON.parse(stored) : [];
+        }
+        
+        // Fallback to global archive for backwards compatibility
         const stored = localStorage.getItem('errorDisplayArchive');
         return stored ? JSON.parse(stored) : [];
     }
@@ -174,7 +182,8 @@ class ErrorDisplay {
             archivedAt: new Date().toISOString(),
             id: Date.now() + Math.random(),
             isLive: isLive,
-            isServerBuffered: error.isServerBuffered || false
+            isServerBuffered: error.isServerBuffered || false,
+            sessionToken: this.currentSession?.token // Track which session the error belongs to
         };
         
         this.archiveData.unshift(archiveError);
@@ -183,7 +192,14 @@ class ErrorDisplay {
     }
 
     saveArchive() {
-        localStorage.setItem('errorDisplayArchive', JSON.stringify(this.archiveData));
+        if (this.currentSession) {
+            // Save to session-specific archive
+            const sessionArchiveKey = `archive_${this.currentSession.token}`;
+            localStorage.setItem(sessionArchiveKey, JSON.stringify(this.archiveData));
+        } else {
+            // Fallback to global archive
+            localStorage.setItem('errorDisplayArchive', JSON.stringify(this.archiveData));
+        }
     }
 
     cleanupArchive() {
@@ -206,7 +222,15 @@ class ErrorDisplay {
     clearArchive() {
         if (confirm('Sind Sie sicher, dass Sie das gesamte Archiv löschen möchten?')) {
             this.archiveData = [];
-            localStorage.removeItem('errorDisplayArchive');
+            
+            // Clear session-specific archive
+            if (this.currentSession) {
+                localStorage.removeItem(`archive_${this.currentSession.token}`);
+            } else {
+                // Fallback to global archive
+                localStorage.removeItem('errorDisplayArchive');
+            }
+            
             this.updateStorageInfo();
             this.showNotification('Archiv geleert', 'success');
             
@@ -257,6 +281,9 @@ class ErrorDisplay {
             document.getElementById('errorsContainer').style.display = 'flex';
             this.connectSSE();
             this.updateStatus('online');
+            
+            // Load session-specific errors from server
+            this.loadSessionErrors();
             
             // Add buffered errors to live view
             if (this.bufferedErrors.length > 0 && this.settings.bufferOfflineErrors) {
@@ -313,6 +340,29 @@ class ErrorDisplay {
     displayArchive() {
         this.displayErrors(this.archiveData, true);
         this.updateStats();
+    }
+    
+    async loadSessionErrors() {
+        if (!this.currentSession) return;
+        
+        try {
+            const headers = {
+                'x-session-token': this.currentSession.token
+            };
+            
+            const response = await fetch(`${this.serverUrl}/errors`, { headers });
+            
+            if (response.ok) {
+                const data = await response.json();
+                this.errors = data.errors || [];
+                console.log(`📊 Loaded ${this.errors.length} session-specific errors`);
+            } else if (response.status === 401) {
+                console.error('❌ Invalid session token for loading errors');
+                this.showNotification('Session ungültig - bitte neue Session erstellen', 'error');
+            }
+        } catch (error) {
+            console.error('❌ Failed to load session errors:', error);
+        }
     }
 
     displayAPI() {
@@ -390,8 +440,14 @@ class ErrorDisplay {
     connectSSE() {
         if (this.eventSource) return;
         
-        console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔌 Attempting SSE connection to /live...`);
-        this.eventSource = new EventSource('/live');
+        // Include session token in SSE connection if available
+        let sseUrl = '/live';
+        if (this.currentSession && this.currentSession.token) {
+            sseUrl += `?session=${encodeURIComponent(this.currentSession.token)}`;
+        }
+        
+        console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔌 Attempting SSE connection to ${sseUrl}...`);
+        this.eventSource = new EventSource(sseUrl);
         
         this.eventSource.onopen = () => {
             console.log(`[${new Date().toLocaleTimeString('de-DE')}] ✅ SSE connected successfully`);
@@ -1289,12 +1345,17 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
 
     // Override error reporting to include session token
     async reportError(message, source = 'manual', level = 'error') {
+        if (!this.currentSession) {
+            this.showNotification('Keine aktive Session - Error kann nicht gesendet werden', 'error');
+            return false;
+        }
+
         const error = {
             message: message,
             timestamp: new Date().toISOString(),
             source: source,
             level: level,
-            sessionToken: this.currentSession ? this.currentSession.token : null
+            sessionToken: this.currentSession.token
         };
 
         try {
@@ -1302,6 +1363,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'x-session-token': this.currentSession.token
                 },
                 body: JSON.stringify(error)
             });
@@ -1309,6 +1371,11 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             if (response.ok) {
                 console.log('✅ Error sent to server');
                 return true;
+            } else if (response.status === 400 || response.status === 401) {
+                const errorData = await response.json();
+                console.error('❌ Session error:', errorData.error);
+                this.showNotification(`Error: ${errorData.error}`, 'error');
+                return false;
             } else {
                 console.error('❌ Failed to send error to server:', response.status);
                 return false;
@@ -1372,7 +1439,9 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             name: name,
             savedAt: new Date().toISOString(),
             savedPassword: password || null,
-            hasPassword: !!password
+            hasPassword: !!password,
+            // Include current archive data
+            archiveData: this.archiveData || []
         };
         
         const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
@@ -1484,6 +1553,9 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             errorsContainer.innerHTML = '';
         }
         
+        // Load session-specific archive if available
+        this.loadSessionArchive();
+        
         // Connect SSE if not already connected
         if (!this.eventSource || this.eventSource.readyState !== EventSource.OPEN) {
             this.connectSSE();
@@ -1494,6 +1566,23 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         
         // Update all UI elements
         this.updateStats();
+    }
+    
+    async loadSessionArchive() {
+        // Check if restored session has archived data
+        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
+        const savedSession = savedSessions.find(s => s.token === this.currentSession.token);
+        
+        if (savedSession && savedSession.archiveData) {
+            console.log('📂 Loading session-specific archive data');
+            this.archiveData = savedSession.archiveData;
+        } else {
+            // Initialize empty archive for new session
+            this.archiveData = [];
+        }
+        
+        // Store in localStorage with session-specific key
+        localStorage.setItem(`archive_${this.currentSession.token}`, JSON.stringify(this.archiveData));
     }
 
     async createNewSessionInline() {
@@ -1801,6 +1890,18 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 this.updateSessionDisplay();
                 this.showNotification(`Session "${data.session.name}" erfolgreich geladen!`, 'success');
                 this.updateCurrentSessionCard();
+                
+                // Delete saved session from list after successful loading
+                this.deleteSavedSession(token);
+                
+                // Restore archived data if available
+                const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
+                const savedSession = savedSessions.find(s => s.token === token);
+                if (savedSession && savedSession.archiveData) {
+                    console.log('📂 Restoring archived data for session');
+                    this.archiveData = savedSession.archiveData;
+                    this.saveArchive(); // Save to session-specific archive key
+                }
                 
                 // Global session load - unlock tabs and connect
                 this.onSessionLoaded();

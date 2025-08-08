@@ -225,6 +225,32 @@ app.get('/api/session/:token/errors', (req, res) => {
     }
 });
 
+// Get session archive
+app.get('/api/session/:token/archive', (req, res) => {
+    try {
+        const { token } = req.params;
+        const session = SessionManager.getSession(token);
+        
+        if (!session) {
+            return res.status(404).json({
+                success: false,
+                error: 'Session not found'
+            });
+        }
+        
+        res.json({
+            success: true,
+            archive: session.archive || [],
+            archiveCount: (session.archive || []).length
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get session archive'
+        });
+    }
+});
+
 // === MAIN ROUTES ===
 
 // Serve index.html for root
@@ -235,7 +261,7 @@ app.get('/', (req, res) => {
 // Return all errors as JSON (session-aware)
 app.get('/errors', (req, res) => {
     const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
-    const sessionToken = req.headers['x-session-token'];
+    const sessionToken = req.headers['x-session-token'] || req.query.session;
     
     console.log(`🔍 Request for all errors from ${ip}${sessionToken ? ` (session: ${sessionToken})` : ''}`);
     
@@ -244,6 +270,10 @@ app.get('/errors', (req, res) => {
         const session = SessionManager.getSession(sessionToken);
         if (session) {
             errors = session.errors;
+            console.log(`📊 Returning ${errors.length} errors for session: ${session.name}`);
+        } else {
+            console.log(`❌ Invalid session token in errors request: ${sessionToken}`);
+            return res.status(401).json({ error: 'Invalid session token' });
         }
     }
     
@@ -315,6 +345,7 @@ class SessionManager {
             lastModified: new Date().toISOString(),
             modifiedBy: 'System',
             errors: [],
+            archive: [], // Session-specific archive
             lastAccessed: new Date().toISOString(),
             hasPassword: !!password,
             passwordHash: password ? crypto.createHash('sha256').update(password).digest('hex') : null
@@ -454,16 +485,29 @@ function addError(error, sessionToken = null) {
         return errorData;
     }
     
-    // Send to all SSE clients
+    // Send to SSE clients (session-aware)
     let successCount = 0;
     let failCount = 0;
     const activeClients = new Map();
     
     clients.forEach((client, id) => {
         try {
-            client.write(`data: ${JSON.stringify({type: 'error', error: errorData})}\n\n`);
-            successCount++;
-            activeClients.set(id, client);
+            // Only send to clients with matching session token
+            if (sessionToken && client._sessionToken === sessionToken) {
+                client.write(`data: ${JSON.stringify({type: 'error', error: errorData})}\n\n`);
+                successCount++;
+                activeClients.set(id, client);
+                console.log(`📨 Sent error to client ${id} (session: ${client._sessionName})`);
+            } else if (!sessionToken && !client._sessionToken) {
+                // Send to sessionless clients only if error is also sessionless
+                client.write(`data: ${JSON.stringify({type: 'error', error: errorData})}\n\n`);
+                successCount++;
+                activeClients.set(id, client);
+                console.log(`📨 Sent error to sessionless client ${id}`);
+            } else {
+                // Keep active but don't send to different session
+                activeClients.set(id, client);
+            }
         } catch (e) {
             console.log(`Client ${id} disconnected during error broadcast`);
             failCount++;
@@ -538,9 +582,10 @@ setInterval(() => {
     }
 }, CLEANUP_INTERVAL);
 
-// SSE endpoint for live error streaming
+// SSE endpoint for live error streaming (session-aware)
 app.get('/live', (req, res) => {
     const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+    const sessionToken = req.query.session; // Get session token from query parameter
     const clientId = ++clientIdCounter;
     const now = Date.now();
     
@@ -600,7 +645,19 @@ app.get('/live', (req, res) => {
         console.log(`ℹ️ Allowing parallel connection from ${ip} (${existingConnections + 1} total)`);
     }
     
-    console.log(`📡 New SSE connection from ${ip} with ID ${clientId}`);
+    console.log(`📡 New SSE connection from ${ip} with ID ${clientId}${sessionToken ? ` (session: ${sessionToken})` : ' (no session)'}`);
+    
+    // Validate session if provided
+    let session = null;
+    if (sessionToken) {
+        session = SessionManager.getSession(sessionToken);
+        if (!session) {
+            console.log(`❌ Invalid session token: ${sessionToken}`);
+            res.status(401).json({ error: 'Invalid session token' });
+            return;
+        }
+        console.log(`✅ Valid session: ${session.name}`);
+    }
     
     // Set SSE headers
     res.writeHead(200, {
@@ -611,9 +668,11 @@ app.get('/live', (req, res) => {
         'Access-Control-Allow-Headers': 'Cache-Control'
     });
 
-    // Store client IP for duplicate detection
+    // Store client IP and session info for duplicate detection
     res._clientIp = ip;
     res._clientId = clientId;
+    res._sessionToken = sessionToken;
+    res._sessionName = session?.name;
 
     // Add client to Map
     clients.set(clientId, res);
@@ -679,10 +738,27 @@ app.get('/live', (req, res) => {
     });
 });
 
-// Receive new errors (session-aware)
+// Receive new errors (session-aware with required token)
 app.post('/error', (req, res) => {
     const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
-    const sessionToken = req.headers['x-session-token'];
+    const sessionToken = req.headers['x-session-token'] || req.body.sessionToken;
+    
+    // Validate session token
+    if (!sessionToken) {
+        return res.status(400).json({
+            success: false,
+            error: 'Missing session token. Please provide a valid session token in x-session-token header or request body.'
+        });
+    }
+    
+    // Verify session exists
+    const session = SessionManager.getSession(sessionToken);
+    if (!session) {
+        return res.status(401).json({
+            success: false,
+            error: 'Invalid or expired session token'
+        });
+    }
     
     const errorData = addError({
         message: req.body.message || req.body.error || 'Unknown error',
@@ -694,7 +770,8 @@ app.post('/error', (req, res) => {
         message: 'Error logged successfully', 
         error: errorData,
         clientCount: clients.size,
-        sessionActive: !!sessionToken
+        sessionToken: sessionToken,
+        sessionName: session.name
     });
 });
 
