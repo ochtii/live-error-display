@@ -483,18 +483,47 @@ class ErrorDisplay {
         // Ensure session manager is visible at the bottom of all pages
         const sessionManagerContainer = document.getElementById('sessionManagerContainer');
         if (sessionManagerContainer && this.currentMode !== 'session-manager') {
-            // Create a compact session manager footer if it doesn't exist
-            let footerManager = document.getElementById('sessionManagerFooter');
-            if (!footerManager) {
-                footerManager = document.createElement('div');
-                footerManager.id = 'sessionManagerFooter';
-                footerManager.className = 'session-manager-footer';
+            // Remove existing footer to recreate it with current session state
+            const existingFooter = document.getElementById('sessionManagerFooter');
+            if (existingFooter) {
+                existingFooter.remove();
+            }
+            
+            // Create a compact session manager footer
+            const footerManager = document.createElement('div');
+            footerManager.id = 'sessionManagerFooter';
+            footerManager.className = 'session-manager-footer';
+            
+            // Update content based on current session state
+            if (this.currentSession) {
                 footerManager.innerHTML = `
                     <div class="session-footer-content">
                         <div class="session-footer-info">
-                            <span class="session-footer-title">🔑 Session Manager</span>
+                            <span class="session-footer-title">🔑 ${this.currentSession.name}</span>
+                            <div class="session-footer-actions">
+                                <button class="btn btn-small btn-secondary" onclick="window.errorDisplay.saveCurrentSession()">
+                                    💾 Speichern
+                                </button>
+                                <button class="btn btn-small btn-danger" onclick="window.errorDisplay.clearSession()">
+                                    🔚 Beenden
+                                </button>
+                                <button class="btn btn-small btn-primary" onclick="window.errorDisplay.openSessionManager()">
+                                    ⚙️ Verwalten
+                                </button>
+                            </div>
+                        </div>
+                        <button class="btn btn-small btn-outline" onclick="window.errorDisplay.hideSessionManagerFooter()" title="Footer ausblenden">
+                            ✖
+                        </button>
+                    </div>
+                `;
+            } else {
+                footerManager.innerHTML = `
+                    <div class="session-footer-content">
+                        <div class="session-footer-info">
+                            <span class="session-footer-title">🔑 Keine Session aktiv</span>
                             <button class="btn btn-small btn-primary" onclick="window.errorDisplay.openSessionManager()">
-                                Verwalten
+                                Session erstellen
                             </button>
                         </div>
                         <button class="btn btn-small btn-outline" onclick="window.errorDisplay.hideSessionManagerFooter()" title="Footer ausblenden">
@@ -502,11 +531,9 @@ class ErrorDisplay {
                         </button>
                     </div>
                 `;
-                document.body.appendChild(footerManager);
             }
             
-            // Update footer based on session state
-            this.updateSessionFooter(footerManager);
+            document.body.appendChild(footerManager);
         }
     }
     
@@ -1465,10 +1492,12 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 const session = JSON.parse(sessionData);
                 
                 // Check if session is older than 24 hours
-                const sessionAge = Date.now() - new Date(session.createdAt || session.lastAccessed || 0).getTime();
+                const sessionDate = new Date(session.createdAt || session.lastAccessed || Date.now());
+                const sessionAge = Date.now() - sessionDate.getTime();
                 const maxAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
                 
-                if (sessionAge > maxAge) {
+                // Only check age if we have a valid date and it's not a brand new session
+                if (sessionAge > maxAge && session.createdAt) {
                     console.log('🕐 Session older than 24 hours, removing from localStorage');
                     localStorage.removeItem('currentSession');
                     this.showNotification('Session abgelaufen (24h) - neue Session erforderlich', 'warning');
@@ -1558,6 +1587,9 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 this.disconnectSSE();
                 this.connectSSE();
                 
+                // Update footer to show new session
+                this.showSessionManagerAtBottom();
+                
                 console.log('✅ New session created:', {
                     name: this.currentSession.name,
                     token: this.currentSession.token.substring(0, 16) + '...'
@@ -1565,9 +1597,11 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 return this.currentSession;
             } else {
                 console.error('Failed to create session:', response.status);
+                this.showNotification('Fehler beim Erstellen der Session', 'error');
             }
         } catch (error) {
             console.error('Failed to create session:', error);
+            this.showNotification('Verbindungsfehler beim Erstellen der Session', 'error');
         }
         return null;
     }
