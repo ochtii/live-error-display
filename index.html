@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Live Fehleranzeige</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #121212;
+    color: #eee;
+    padding: 1rem;
+  }
+  #status {
+    margin-bottom: 1rem;
+    font-weight: bold;
+  }
+  #nav-buttons {
+    margin-bottom: 1rem;
+  }
+  #nav-buttons button {
+    margin-right: 0.5rem;
+    font-weight: 700;
+    background-color: #333;
+    border: none;
+    color: #eee;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  #nav-buttons button.active, #nav-buttons button:hover {
+    background-color: #555;
+  }
+  #error-list {
+    max-height: 75vh;
+    overflow-y: auto;
+    padding-right: 8px;
+  }
+  #error-list::-webkit-scrollbar {
+    width: 8px;
+  }
+  #error-list::-webkit-scrollbar-thumb {
+    background-color: #888;
+    border-radius: 4px;
+  }
+  .error {
+    position: relative;
+    background: #1e1e1e;
+    margin-bottom: 1rem;
+    padding: 1rem 3rem 1rem 1rem;
+    border-radius: 8px;
+    box-shadow: 0 0 8px rgba(0,0,0,0.7);
+    font-family: 'Courier New', Courier, monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+  .error-header {
+    cursor: pointer;
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+  }
+  .toggle-arrow {
+    display: inline-block;
+    transition: transform 0.3s ease;
+  }
+  .toggle-arrow.open {
+    transform: rotate(90deg);
+  }
+  .error-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease;
+    margin-top: 0.5rem;
+  }
+  .error-content.open {
+    max-height: 1000px;
+  }
+  .buttons {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  button {
+    background-color: #333;
+    border: none;
+    color: #eee;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    user-select: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  button:hover {
+    background-color: #555;
+  }
+  button:active {
+    background-color: #777;
+  }
+  .copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+  }
+  #waiting {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #666;
+    font-style: italic;
+    margin-top: 2rem;
+    font-size: 1.1rem;
+  }
+  .pulse-circle {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #4caf50;
+    margin-right: 0.6rem;
+    animation: pulse 1.5s infinite ease-in-out;
+  }
+  @keyframes pulse {
+    0% { transform: scale(0.8); opacity: 0.6; }
+    50% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(0.8); opacity: 0.6; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Live Fehleranzeige</h1>
+<div id="nav-buttons">
+  <button id="btn-live" class="active">Live</button>
+  <button id="btn-archive">Archiv</button>
+</div>
+<div id="status">API Status: <span id="api-status" style="color: red;">Offline</span></div>
+
+<div id="waiting">
+  <div class="pulse-circle"></div>
+  <div>Warten auf Fehler...</div>
+</div>
+
+<div id="error-list"></div>
+
+<script>
+  const btnLive = document.getElementById('btn-live');
+  const btnArchive = document.getElementById('btn-archive');
+  const apiStatusSpan = document.getElementById('api-status');
+  const waitingDiv = document.getElementById('waiting');
+  const errorList = document.getElementById('error-list');
+
+  let eventSource = null;
+  let originalMessages = new Map();
+
+  function cleanIP(ip) {
+    if (ip.startsWith('::ffff:')) return ip.substring(7);
+    return ip;
+  }
+
+  function indentText(text) {
+    return text.split('\\n').map(line => '    ' + line).join('\\n');
+  }
+
+  function lineBreakAfterDot(text) {
+    return text.replace(/\\. /g, '.\\n');
+  }
+
+  function markdownQuote(text) {
+    return text.split('\\n').map(line => '> ' + line).join('\\n');
+  }
+
+  function markdownCodeBlock(text) {
+    return '```\n' + text + '\n```';
+  }
+
+  function createButton(text, onClick) {
+    const btn = document.createElement('button');
+    btn.textContent = text;
+    btn.addEventListener('click', onClick);
+    return btn;
+  }
+
+  function fallbackCopyTextToClipboard(text) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";  
+    textArea.style.top = "-9999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      return successful;
+    } catch (err) {
+      document.body.removeChild(textArea);
+      return false;
+    }
+  }
+
+  function copyToClipboard(text, btn) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Kopiert!';
+        setTimeout(() => btn.textContent = 'Kopieren', 1500);
+      }).catch(() => {
+        if (fallbackCopyTextToClipboard(text)) {
+          btn.textContent = 'Kopiert!';
+          setTimeout(() => btn.textContent = 'Kopieren', 1500);
+        } else {
+          alert('Kopieren nicht möglich!');
+        }
+      });
+    } else {
+      if (fallbackCopyTextToClipboard(text)) {
+        btn.textContent = 'Kopiert!';
+        setTimeout(() => btn.textContent = 'Kopieren', 1500);
+      } else {
+        alert('Kopieren nicht möglich!');
+      }
+    }
+  }
+
+  function renderError({ message, timestamp, ip }, prepend = true) {
+    const cleanIp = cleanIP(ip);
+    const id = timestamp + '_' + cleanIp + '_' + Math.random().toString(36).substr(2,5);
+
+    const container = document.createElement('div');
+    container.className = 'error';
+
+    const header = document.createElement('div');
+    header.className = 'error-header';
+
+    const firstLine = message.split('\n')[0];
+    header.textContent = `[${timestamp}] (${cleanIp}): ${firstLine}`;
+
+    const arrow = document.createElement('span');
+    arrow.className = 'toggle-arrow';
+    arrow.textContent = '▶';
+    header.appendChild(arrow);
+
+    container.appendChild(header);
+
+    const content = document.createElement('div');
+    content.className = 'error-content';
+
+    const pre = document.createElement('pre');
+    pre.textContent = message;
+    content.appendChild(pre);
+
+    originalMessages.set(id, message);
+
+    const btnContainer = document.createElement('div');
+    btnContainer.className = 'buttons';
+
+    btnContainer.appendChild(createButton('Original', () => {
+      pre.textContent = originalMessages.get(id);
+    }));
+    btnContainer.appendChild(createButton('Einrücken', () => {
+      pre.textContent = indentText(originalMessages.get(id));
+    }));
+    btnContainer.appendChild(createButton('Zeilenumbruch', () => {
+      pre.textContent = lineBreakAfterDot(originalMessages.get(id));
+    }));
+    btnContainer.appendChild(createButton('Zitat', () => {
+      pre.textContent = markdownQuote(originalMessages.get(id));
+    }));
+    btnContainer.appendChild(createButton('Code-Block', () => {
+      pre.textContent = markdownCodeBlock(originalMessages.get(id));
+    }));
+
+    content.appendChild(btnContainer);
+
+    const copyBtn = createButton('Kopieren', () => {
+      copyToClipboard(pre.textContent, copyBtn);
+    });
+    copyBtn.classList.add('copy-btn');
+    container.appendChild(copyBtn);
+
+    container.appendChild(content);
+
+    header.addEventListener('click', () => {
+      const isOpen = content.classList.toggle('open');
+      arrow.classList.toggle('open', isOpen);
+      arrow.textContent = isOpen ? '▼' : '▶';
+    });
+
+    if (prepend) {
+      errorList.prepend(container);
+      errorList.scrollTop = 0;
+    } else {
+      errorList.appendChild(container);
+    }
+  }
+
+  function connectSSE() {
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+    originalMessages.clear();
+    errorList.innerHTML = '';
+    waitingDiv.style.display = 'flex';
+
+    eventSource = new EventSource('http://18.197.100.102:8080/events');
+
+    eventSource.onopen = () => {
+      apiStatusSpan.textContent = 'Online';
+      apiStatusSpan.style.color = 'limegreen';
+    };
+
+    eventSource.onerror = () => {
+      apiStatusSpan.textContent = 'Offline';
+      apiStatusSpan.style.color = 'red';
+    };
+
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      waitingDiv.style.display = 'none';
+      renderError(data);
+    };
+  }
+
+  async function loadArchive() {
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+    originalMessages.clear();
+    errorList.innerHTML = '';
+    waitingDiv.style.display = 'none';
+
+    apiStatusSpan.textContent = 'Archiv (kein Live-Update)';
+    apiStatusSpan.style.color = 'orange';
+
+    try {
+      const res = await fetch('http://18.197.100.102:8080/archive');
+      const errors = await res.json();
+      errors.forEach(e => renderError(e, false));
+    } catch {
+      apiStatusSpan.textContent = 'Fehler beim Laden des Archivs';
+      apiStatusSpan.style.color = 'red';
+    }
+  }
+
+  btnLive.addEventListener('click', () => {
+    btnLive.classList.add('active');
+    btnArchive.classList.remove('active');
+    connectSSE();
+  });
+
+  btnArchive.addEventListener('click', () => {
+    btnArchive.classList.add('active');
+    btnLive.classList.remove('active');
+    loadArchive();
+  });
+
+  // Direkt beim Laden SSE verbinden
+  connectSSE();
+</script>
+
+</body>
+</html>
