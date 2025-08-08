@@ -7,19 +7,26 @@ const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Ses// === SESSION API ROUTES ===
+// Ses// Middleware für JSON body parsing
+app.use(express.json());
 
-// Get new session token
-app.get('/api/token', (req, res) => {
+// === SESSION API ROUTES ===
+
+// Get new session token (POST with optional name and password)
+app.post('/api/token', (req, res) => {
     try {
-        const session = SessionManager.createSession();
+        const { name, password } = req.body || {};
+        const session = SessionManager.createSession(name, password);
         res.json({
             success: true,
             token: session.token,
             session: {
                 name: session.name,
                 createdAt: session.createdAt,
-                errorCount: session.errors.length
+                lastModified: session.lastModified,
+                modifiedBy: session.modifiedBy,
+                errorCount: session.errors.length,
+                hasPassword: session.hasPassword
             }
         });
     } catch (error) {
@@ -30,7 +37,75 @@ app.get('/api/token', (req, res) => {
     }
 });
 
-// Restore session with token
+// Get new session token (GET for backwards compatibility)
+app.get('/api/token', (req, res) => {
+    try {
+        const session = SessionManager.createSession();
+        res.json({
+            success: true,
+            token: session.token,
+            session: {
+                name: session.name,
+                createdAt: session.createdAt,
+                lastModified: session.lastModified,
+                modifiedBy: session.modifiedBy,
+                errorCount: session.errors.length,
+                hasPassword: session.hasPassword
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to create session'
+        });
+    }
+});
+
+// Restore session with token (POST with optional password)
+app.post('/api/session/:token', (req, res) => {
+    try {
+        const { token } = req.params;
+        const { password } = req.body || {};
+        
+        const session = SessionManager.getSession(token);
+        
+        if (!session) {
+            return res.status(404).json({
+                success: false,
+                error: 'Session not found'
+            });
+        }
+        
+        // Verify password if session is protected
+        if (session.hasPassword && !SessionManager.verifyPassword(token, password)) {
+            return res.status(401).json({
+                success: false,
+                error: 'Incorrect password',
+                requiresPassword: true
+            });
+        }
+        
+        res.json({
+            success: true,
+            session: {
+                token: session.token,
+                name: session.name,
+                createdAt: session.createdAt,
+                lastModified: session.lastModified,
+                modifiedBy: session.modifiedBy,
+                errorCount: session.errors.length,
+                hasPassword: session.hasPassword
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to restore session'
+        });
+    }
+});
+
+// Restore session with token (GET for backwards compatibility, no password support)
 app.get('/api/session/:token', (req, res) => {
     try {
         const { token } = req.params;
@@ -43,20 +118,32 @@ app.get('/api/session/:token', (req, res) => {
             });
         }
         
+        // For GET requests, only allow access to non-password protected sessions
+        if (session.hasPassword) {
+            return res.status(401).json({
+                success: false,
+                error: 'Password required',
+                requiresPassword: true,
+                hasPassword: true
+            });
+        }
+        
         res.json({
             success: true,
             session: {
                 token: session.token,
                 name: session.name,
                 createdAt: session.createdAt,
-                lastAccessed: session.lastAccessed,
-                errorCount: session.errors.length
+                lastModified: session.lastModified,
+                modifiedBy: session.modifiedBy,
+                errorCount: session.errors.length,
+                hasPassword: session.hasPassword
             }
         });
     } catch (error) {
         res.status(500).json({
             success: false,
-            error: 'Failed to load session'
+            error: 'Failed to restore session'
         });
     }
 });
@@ -219,14 +306,18 @@ function generateSessionToken() {
 
 // Session management
 class SessionManager {
-    static createSession(name = '') {
+    static createSession(name = '', password = '') {
         const token = generateSessionToken();
         const session = {
             token,
             name: name || `Session ${new Date().toLocaleString('de-DE')}`,
             createdAt: new Date().toISOString(),
+            lastModified: new Date().toISOString(),
+            modifiedBy: 'System',
             errors: [],
-            lastAccessed: new Date().toISOString()
+            lastAccessed: new Date().toISOString(),
+            hasPassword: !!password,
+            passwordHash: password ? crypto.createHash('sha256').update(password).digest('hex') : null
         };
         
         sessions.set(token, session);
@@ -279,12 +370,25 @@ class SessionManager {
     static updateSession(token, updates) {
         const session = this.getSession(token);
         if (session) {
-            Object.assign(session, updates);
+            // Update lastModified when session is modified
+            Object.assign(session, updates, {
+                lastModified: new Date().toISOString(),
+                modifiedBy: updates.modifiedBy || 'System'
+            });
             session.lastAccessed = new Date().toISOString();
             this.saveSessionToDisk(session);
             return session;
         }
         return null;
+    }
+    
+    static verifyPassword(token, password) {
+        const session = this.getSession(token);
+        if (!session) return false;
+        if (!session.hasPassword) return true; // No password required
+        
+        const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+        return session.passwordHash === passwordHash;
     }
     
     static deleteSession(token) {
@@ -434,77 +538,69 @@ setInterval(() => {
     }
 }, CLEANUP_INTERVAL);
 
-// Connection rate limiting
-const connectionTracker = new Map(); // IP -> { count, lastReset }
-const MAX_CONNECTIONS_PER_MINUTE = 10;
-
-function checkRateLimit(ip) {
-    const now = Date.now();
-    const tracker = connectionTracker.get(ip) || { count: 0, lastReset: now };
-    
-    // Reset counter every minute
-    if (now - tracker.lastReset > 60000) {
-        tracker.count = 0;
-        tracker.lastReset = now;
-    }
-    
-    tracker.count++;
-    connectionTracker.set(ip, tracker);
-    
-    return tracker.count <= MAX_CONNECTIONS_PER_MINUTE;
-}
-
 // SSE endpoint for live error streaming
 app.get('/live', (req, res) => {
     const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
     const clientId = ++clientIdCounter;
+    const now = Date.now();
     
-    // Simple rate limiting
-    if (!checkRateLimit(ip)) {
+    // Rate limiting check
+    const connectionData = connectionAttempts.get(ip) || { count: 0, lastAttempt: 0, blocked: false };
+    
+    // Reset count if last attempt was more than 1 minute ago
+    if (now - connectionData.lastAttempt > 60000) {
+        connectionData.count = 0;
+        connectionData.blocked = false;
+    }
+    
+    // Check if IP is blocked
+    if (connectionData.blocked && now - connectionData.lastAttempt < BLOCK_DURATION) {
         console.log(`🚫 Rate limited connection from ${ip}`);
         res.status(429).json({ error: 'Too many connection attempts. Please wait.' });
         return;
     }
     
-    // Check for existing connections from same IP - only close if more than 3
-    let existingCount = 0;
+    connectionData.count++;
+    connectionData.lastAttempt = now;
+    
+    // Block if too many attempts
+    if (connectionData.count > CONNECTION_LIMIT) {
+        connectionData.blocked = true;
+        connectionAttempts.set(ip, connectionData);
+        console.log(`🚫 Blocking excessive connections from ${ip} (${connectionData.count} attempts)`);
+        res.status(429).json({ error: 'Too many connection attempts. Please wait.' });
+        return;
+    }
+    
+    connectionAttempts.set(ip, connectionData);
+    
+    // Check for existing connections from same IP (but be less aggressive)
+    let existingConnections = 0;
+    const existingClients = [];
+    
     for (const [id, client] of clients.entries()) {
         if (client._clientIp === ip) {
-            existingCount++;
-            if (existingCount > 3) {
-                console.log(`🔄 Closing excessive connection ${id} from ${ip}`);
-                try {
-                    client.end();
-                } catch (e) {
-                    // Connection already closed
-                }
-                clients.delete(id);
-            }
+            existingClients.push({ id, client });
+            existingConnections++;
         }
     }
     
-    console.log(`📡 New SSE connection from ${ip} with ID ${clientId} (${existingCount + 1} total)`);
-    
-    // Check for existing connections from same IP and close them
-    let existingConnections = 0;
-    for (const [id, client] of clients.entries()) {
-        if (client._clientIp === ip) {
-            console.log(`� Closing existing SSE connection ${id} from ${ip}`);
+    // Only close existing connections if there are more than 2
+    if (existingConnections > 2) {
+        console.log(`🔄 Too many connections from ${ip}, closing ${existingConnections} existing connections`);
+        existingClients.forEach(({ id, client }) => {
             try {
                 client.end();
             } catch (e) {
                 // Connection already closed
             }
             clients.delete(id);
-            existingConnections++;
-        }
+        });
+    } else if (existingConnections > 0) {
+        console.log(`ℹ️ Allowing parallel connection from ${ip} (${existingConnections + 1} total)`);
     }
     
-    if (existingConnections > 0) {
-        console.log(`🧹 Cleaned up ${existingConnections} existing connections from ${ip}`);
-    }
-    
-    console.log(`�📡 New SSE connection from ${ip} with ID ${clientId}`);
+    console.log(`📡 New SSE connection from ${ip} with ID ${clientId}`);
     
     // Set SSE headers
     res.writeHead(200, {

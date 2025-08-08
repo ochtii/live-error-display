@@ -1321,19 +1321,69 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
 
     saveCurrentSession() {
         if (this.currentSession) {
-            const sessionData = {
-                ...this.currentSession,
-                savedAt: new Date().toISOString()
-            };
-            
-            const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
-            savedSessions.push(sessionData);
-            localStorage.setItem('savedSessions', JSON.stringify(savedSessions));
-            
-            this.showNotification('Session gespeichert!', 'success');
+            // Show modal for save options including password
+            this.showSaveSessionModal();
         } else {
             this.showNotification('Keine aktive Session zum Speichern', 'warning');
         }
+    }
+    
+    showSaveSessionModal() {
+        // Create modal for save session options
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>📁 Session speichern</h2>
+                    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="input-group">
+                        <label>Session Name</label>
+                        <input type="text" id="saveSessionName" value="${this.currentSession.name}" class="session-input">
+                    </div>
+                    <div class="input-group">
+                        <label>Passwort für gespeicherte Session (optional)</label>
+                        <input type="password" id="saveSessionPassword" placeholder="Passwort (leer = kein Passwort)" class="session-input">
+                        <small class="input-hint">💡 Dieses Passwort wird für die gespeicherte Session verwendet</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Abbrechen</button>
+                    <button class="btn btn-primary" onclick="window.errorDisplay.confirmSaveSession()">Speichern</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    confirmSaveSession() {
+        const name = document.getElementById('saveSessionName').value.trim();
+        const password = document.getElementById('saveSessionPassword').value;
+        
+        if (!name) {
+            this.showNotification('Bitte Session Name eingeben', 'warning');
+            return;
+        }
+        
+        const sessionData = {
+            ...this.currentSession,
+            name: name,
+            savedAt: new Date().toISOString(),
+            savedPassword: password || null,
+            hasPassword: !!password
+        };
+        
+        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
+        savedSessions.push(sessionData);
+        localStorage.setItem('savedSessions', JSON.stringify(savedSessions));
+        
+        // Close modal
+        document.querySelector('.modal-overlay').remove();
+        
+        this.showNotification('Session gespeichert!', 'success');
+        this.loadSavedSessionsInline();
     }
 
     showSessionRequiredMessage() {
@@ -1422,24 +1472,76 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         this.updateSessionDisplay();
         window.location.reload(); // Reload to show session required message
     }
+    
+    onSessionLoaded() {
+        // Called when a session is loaded (created or restored)
+        // This unlocks all tabs and starts SSE connection
+        console.log('🎯 Session loaded globally, enabling full app functionality');
+        
+        // Hide session required message if visible
+        const errorsContainer = document.getElementById('errorsContainer');
+        if (errorsContainer && errorsContainer.querySelector('.session-required')) {
+            errorsContainer.innerHTML = '';
+        }
+        
+        // Connect SSE if not already connected
+        if (!this.eventSource || this.eventSource.readyState !== EventSource.OPEN) {
+            this.connectSSE();
+        }
+        
+        // Switch to live mode to show the app is now functional
+        this.displayMode('live');
+        
+        // Update all UI elements
+        this.updateStats();
+    }
 
     async createNewSessionInline() {
         try {
-            const response = await fetch(`${this.serverUrl}/api/token`);
+            const name = document.getElementById('newSessionName').value.trim();
+            const password = document.getElementById('newSessionPassword').value;
+            
+            const requestData = {};
+            if (name) requestData.name = name;
+            if (password) requestData.password = password;
+            
+            // Use POST for new API with name/password support
+            const response = await fetch(`${this.serverUrl}/api/token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
+            
             if (response.ok) {
                 const data = await response.json();
                 this.currentSession = {
-                    name: data.sessionName,
+                    name: data.session.name,
                     token: data.token,
-                    created: new Date().toISOString()
+                    createdAt: data.session.createdAt,
+                    lastModified: data.session.lastModified,
+                    modifiedBy: data.session.modifiedBy,
+                    hasPassword: data.session.hasPassword
                 };
                 localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
                 this.updateSessionDisplay();
                 this.showNotification('Session erfolgreich erstellt!', 'success');
                 
+                // Clear input fields
+                document.getElementById('newSessionName').value = '';
+                document.getElementById('newSessionPassword').value = '';
+                
                 // Update current session display in session manager
                 this.updateCurrentSessionCard();
+                
+                // Global session load - unlock tabs and connect
+                this.onSessionLoaded();
+                
                 return this.currentSession;
+            } else {
+                const errorData = await response.json();
+                this.showNotification(`Fehler: ${errorData.error}`, 'error');
             }
         } catch (error) {
             console.error('Failed to create session:', error);
@@ -1450,6 +1552,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
 
     async restoreSessionFromToken() {
         const token = document.getElementById('sessionTokenInput').value.trim();
+        const password = document.getElementById('sessionPasswordInput').value;
         
         if (!token) {
             this.showNotification('Bitte geben Sie einen Session Token ein', 'warning');
@@ -1457,24 +1560,61 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         }
 
         try {
-            const response = await fetch(`${this.serverUrl}/api/session/${token}`);
-            const data = await response.json();
+            // Try POST first with password
+            let response = await fetch(`${this.serverUrl}/api/session/${token}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ password })
+            });
+            
+            let data = await response.json();
+            
+            // If POST fails with 401 and password required, show specific error
+            if (!response.ok && response.status === 401 && data.requiresPassword) {
+                if (!password) {
+                    this.showNotification('Diese Session ist passwortgeschützt. Bitte Passwort eingeben.', 'warning');
+                } else {
+                    this.showNotification('Falsches Passwort!', 'error');
+                }
+                return;
+            }
+            
+            // If POST fails, try GET for backwards compatibility (only for non-protected sessions)
+            if (!response.ok) {
+                response = await fetch(`${this.serverUrl}/api/session/${token}`);
+                data = await response.json();
+                
+                if (!response.ok && response.status === 401 && data.requiresPassword) {
+                    this.showNotification('Diese Session ist passwortgeschützt. Bitte Passwort eingeben.', 'warning');
+                    return;
+                }
+            }
             
             if (data.success) {
                 this.currentSession = {
                     name: data.session.name,
                     token: token,
-                    created: data.session.created || new Date().toISOString()
+                    createdAt: data.session.createdAt || data.session.created,
+                    lastModified: data.session.lastModified,
+                    modifiedBy: data.session.modifiedBy,
+                    hasPassword: data.session.hasPassword
                 };
                 localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
                 this.updateSessionDisplay();
                 this.showNotification(`Session "${data.session.name}" erfolgreich geladen!`, 'success');
                 
-                // Clear input and update current session display
+                // Clear input fields
                 document.getElementById('sessionTokenInput').value = '';
+                document.getElementById('sessionPasswordInput').value = '';
+                
                 this.updateCurrentSessionCard();
+                
+                // Global session load - unlock tabs and connect
+                this.onSessionLoaded();
             } else {
-                this.showNotification('Session nicht gefunden oder ungültig', 'error');
+                this.showNotification(`Fehler: ${data.error}`, 'error');
             }
         } catch (error) {
             console.error('Error restoring session:', error);
@@ -1532,43 +1672,140 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             return;
         }
 
-        container.innerHTML = savedSessions.map(session => `
-            <div class="saved-session-item">
-                <div class="saved-session-info">
-                    <div class="session-name">${session.name}</div>
-                    <div class="session-meta">
-                        <span>Erstellt: ${new Date(session.created).toLocaleDateString()}</span>
-                        <span>Gespeichert: ${new Date(session.savedAt).toLocaleDateString()}</span>
+        // Sort sessions by last modification date (newest first)
+        savedSessions.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+
+        container.innerHTML = savedSessions.map(session => {
+            const createdDate = new Date(session.createdAt || session.created);
+            const savedDate = new Date(session.savedAt);
+            const modifiedDate = session.lastModified ? new Date(session.lastModified) : null;
+            
+            return `
+                <div class="saved-session-item">
+                    <div class="saved-session-info">
+                        <div class="session-name">
+                            ${session.name}
+                            ${session.hasPassword ? '<span class="password-icon" title="Passwortgeschützt">🔒</span>' : ''}
+                        </div>
+                        <div class="session-meta">
+                            <div class="session-dates">
+                                <div><strong>Erstellt:</strong> ${createdDate.toLocaleDateString('de-DE')} ${createdDate.toLocaleTimeString('de-DE')}</div>
+                                <div><strong>Gespeichert:</strong> ${savedDate.toLocaleDateString('de-DE')} ${savedDate.toLocaleTimeString('de-DE')}</div>
+                                ${modifiedDate ? `<div><strong>Letzte Änderung:</strong> ${modifiedDate.toLocaleDateString('de-DE')} ${modifiedDate.toLocaleTimeString('de-DE')} (${session.modifiedBy || 'System'})</div>` : ''}
+                            </div>
+                        </div>
+                        <code class="session-token-preview">${session.token.substring(0, 16)}...</code>
                     </div>
-                    <code class="session-token-preview">${session.token.substring(0, 16)}...</code>
+                    <div class="saved-session-actions">
+                        <button class="btn btn-small btn-primary" onclick="window.errorDisplay.restoreSessionFromSaved('${session.token}', ${session.hasPassword})">
+                            🔄 Laden
+                        </button>
+                        <button class="btn btn-small btn-danger" onclick="window.errorDisplay.deleteSavedSession('${session.token}')">
+                            🗑️
+                        </button>
+                    </div>
                 </div>
-                <div class="saved-session-actions">
-                    <button class="btn btn-small btn-primary" onclick="window.errorDisplay.restoreSessionFromSaved('${session.token}')">
-                        🔄 Laden
-                    </button>
-                    <button class="btn btn-small btn-danger" onclick="window.errorDisplay.deleteSavedSession('${session.token}')">
-                        🗑️
-                    </button>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
-    async restoreSessionFromSaved(token) {
+    async restoreSessionFromSaved(token, hasPassword = false) {
+        if (hasPassword) {
+            // Show password prompt modal for protected sessions
+            this.showPasswordPromptModal(token);
+            return;
+        }
+        
+        // For non-protected sessions, restore directly
+        await this.restoreSessionWithPassword(token, null);
+    }
+    
+    showPasswordPromptModal(token) {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>🔒 Passwort erforderlich</h2>
+                    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+                </div>
+                <div class="modal-body">
+                    <p>Diese gespeicherte Session ist passwortgeschützt.</p>
+                    <div class="input-group">
+                        <input type="password" id="savedSessionPassword" placeholder="Passwort eingeben..." class="session-input" onkeypress="if(event.key==='Enter') window.errorDisplay.confirmRestoreWithPassword('${token}')">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Abbrechen</button>
+                    <button class="btn btn-primary" onclick="window.errorDisplay.confirmRestoreWithPassword('${token}')">Laden</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        // Focus password input
+        setTimeout(() => document.getElementById('savedSessionPassword').focus(), 100);
+    }
+    
+    async confirmRestoreWithPassword(token) {
+        const password = document.getElementById('savedSessionPassword').value;
+        
+        if (!password) {
+            this.showNotification('Bitte Passwort eingeben', 'warning');
+            return;
+        }
+        
+        // Close modal
+        document.querySelector('.modal-overlay').remove();
+        
+        // Check if this is the saved password or the session password
+        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
+        const savedSession = savedSessions.find(s => s.token === token);
+        
+        if (savedSession && savedSession.savedPassword) {
+            // Check against saved password first
+            if (savedSession.savedPassword === password) {
+                await this.restoreSessionWithPassword(token, null);
+            } else {
+                this.showNotification('Falsches Passwort für gespeicherte Session!', 'error');
+            }
+        } else {
+            // Try with session password
+            await this.restoreSessionWithPassword(token, password);
+        }
+    }
+    
+    async restoreSessionWithPassword(token, password) {
         try {
-            const response = await fetch(`${this.serverUrl}/api/session/${token}`);
+            // Use POST with password
+            const response = await fetch(`${this.serverUrl}/api/session/${token}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ password })
+            });
+            
             const data = await response.json();
             
             if (data.success) {
                 this.currentSession = {
                     name: data.session.name,
                     token: token,
-                    created: data.session.created || new Date().toISOString()
+                    createdAt: data.session.createdAt || data.session.created,
+                    lastModified: data.session.lastModified,
+                    modifiedBy: data.session.modifiedBy,
+                    hasPassword: data.session.hasPassword
                 };
                 localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
                 this.updateSessionDisplay();
                 this.showNotification(`Session "${data.session.name}" erfolgreich geladen!`, 'success');
                 this.updateCurrentSessionCard();
+                
+                // Global session load - unlock tabs and connect
+                this.onSessionLoaded();
+            } else if (response.status === 401) {
+                this.showNotification('Falsches Passwort!', 'error');
             } else {
                 this.showNotification('Session nicht mehr gültig', 'error');
                 this.deleteSavedSession(token);

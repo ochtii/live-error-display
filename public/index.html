@@ -992,6 +992,15 @@ curl -s "$SERVER_URL/errors" | jq '.errors[] | .timestamp + ": " + .message'</pr
                     <h2>✨ Neue Session erstellen</h2>
                     <p>Erstellt eine neue Session mit individuellem API-Token</p>
                     
+                    <div class="input-group">
+                        <input type="text" id="newSessionName" placeholder="Session Name (optional)" class="session-input">
+                    </div>
+                    
+                    <div class="input-group">
+                        <input type="password" id="newSessionPassword" placeholder="Passwort (optional)" class="session-input">
+                        <small class="input-hint">💡 Leer lassen für öffentliche Session</small>
+                    </div>
+                    
                     <div class="session-actions">
                         <button class="btn btn-primary" id="createNewSessionBtn">
                             ✨ Session erstellen
@@ -1006,6 +1015,14 @@ curl -s "$SERVER_URL/errors" | jq '.errors[] | .timestamp + ": " + .message'</pr
                     
                     <div class="input-group">
                         <input type="text" id="sessionTokenInput" placeholder="Session Token eingeben..." class="session-input">
+                    </div>
+                    
+                    <div class="input-group">
+                        <input type="password" id="sessionPasswordInput" placeholder="Passwort (falls erforderlich)" class="session-input">
+                        <small class="input-hint">💡 Nur bei passwortgeschützten Sessions erforderlich</small>
+                    </div>
+                    
+                    <div class="session-actions">
                         <button class="btn btn-primary" id="restoreSessionBtn">
                             🔑 Session laden
                         </button>
