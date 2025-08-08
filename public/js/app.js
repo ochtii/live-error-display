@@ -1588,13 +1588,12 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     async createNewSessionInline() {
         try {
             const name = document.getElementById('newSessionName').value.trim();
-            const password = document.getElementById('newSessionPassword').value;
             
             const requestData = {};
             if (name) requestData.name = name;
-            if (password) requestData.password = password;
+            // No password field - sessions are created without password protection
             
-            // Use POST for new API with name/password support
+            // Use POST for new API with name support
             const response = await fetch(`${this.serverUrl}/api/token`, {
                 method: 'POST',
                 headers: {
@@ -1617,9 +1616,8 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 this.updateSessionDisplay();
                 this.showNotification('Session erfolgreich erstellt!', 'success');
                 
-                // Clear input fields
+                // Clear input field
                 document.getElementById('newSessionName').value = '';
-                document.getElementById('newSessionPassword').value = '';
                 
                 // Update current session display in session manager
                 this.updateCurrentSessionCard();
