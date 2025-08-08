@@ -398,7 +398,7 @@ class ErrorDisplay {
                         <button class="action-btn" onclick="errorDisplay.formatText('${id}', 'code')">Code-Block</button>
                     </div>
                 </div>
-                <button class="copy-btn action-btn" onclick="errorDisplay.copyToClipboard('${id}', this)">📋 Kopieren</button>
+                <button class="copy-btn action-btn" onclick="window.errorDisplay.copyToClipboard('${id}', this)">📋 Kopieren</button>
             </div>
         `;
         
@@ -466,7 +466,14 @@ class ErrorDisplay {
         const text = element.textContent;
         
         try {
-            await navigator.clipboard.writeText(text);
+            // Moderne Clipboard API versuchen
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                // Fallback für ältere Browser oder HTTP-Verbindungen
+                this.fallbackCopyToClipboard(text);
+            }
+            
             const originalText = button.textContent;
             button.textContent = '✅ Kopiert!';
             button.style.background = 'rgba(16, 185, 129, 0.3)';
@@ -475,9 +482,44 @@ class ErrorDisplay {
                 button.textContent = originalText;
                 button.style.background = '';
             }, 2000);
+            
         } catch (err) {
             console.error('Copy failed:', err);
-            this.showNotification('Kopieren fehlgeschlagen', 'error');
+            // Fallback versuchen wenn moderne API fehlschlägt
+            try {
+                this.fallbackCopyToClipboard(text);
+                const originalText = button.textContent;
+                button.textContent = '✅ Kopiert!';
+                button.style.background = 'rgba(16, 185, 129, 0.3)';
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = '';
+                }, 2000);
+            } catch (fallbackErr) {
+                this.showNotification('Kopieren nicht verfügbar - Text manuell markieren und Strg+C drücken', 'warning');
+            }
+        }
+    }
+    
+    // Fallback für ältere Browser
+    fallbackCopyToClipboard(text) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            const successful = document.execCommand('copy');
+            if (!successful) {
+                throw new Error('execCommand failed');
+            }
+        } finally {
+            document.body.removeChild(textArea);
         }
     }
 
