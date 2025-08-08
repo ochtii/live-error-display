@@ -688,7 +688,31 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
 💡 TIPP: Nach dem Zurücksetzen laden Sie die Seite neu und klicken Sie auf "Zulassen" wenn die Berechtigung angefragt wird.
         `;
         
-        this.showDataModal('Push-Benachrichtigungen aktivieren', instructions);
+        this.showInstructionModal('Push-Benachrichtigungen aktivieren', instructions);
+    }
+    
+    // Modal speziell für Anleitungen (ohne Kopieren-Button)
+    showInstructionModal(title, content) {
+        const modal = document.createElement('div');
+        modal.className = 'data-modal';
+        modal.innerHTML = `
+            <div class="data-modal-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3>${this.escapeHtml(title)}</h3>
+                    <button class="btn btn-outline" onclick="this.closest('.data-modal').remove()">✕ Schließen</button>
+                </div>
+                <div class="data-display" style="white-space: pre-wrap;">${this.escapeHtml(content)}</div>
+            </div>
+        `;
+        
+        // Schließen bei Klick außerhalb
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+        
+        document.body.appendChild(modal);
     }
     
     // Direkt zu Chrome-Benachrichtigungseinstellungen
