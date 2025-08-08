@@ -418,10 +418,85 @@ app.get('/errors', (req, res) => {
     res.json(response);
 });
 
+// Connection tracking for rate limiting
+const connectionAttempts = new Map(); // IP -> { count, lastAttempt, blocked }
+const CONNECTION_LIMIT = 5; // Max connections per minute
+const BLOCK_DURATION = 60000; // 1 minute block
+const CLEANUP_INTERVAL = 300000; // 5 minutes
+
+// Cleanup old connection attempts
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, data] of connectionAttempts.entries()) {
+        if (now - data.lastAttempt > CLEANUP_INTERVAL) {
+            connectionAttempts.delete(ip);
+        }
+    }
+}, CLEANUP_INTERVAL);
+
 // SSE endpoint for live error streaming
 app.get('/live', (req, res) => {
     const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
     const clientId = ++clientIdCounter;
+    const now = Date.now();
+    
+    // Rate limiting check
+    const connectionData = connectionAttempts.get(ip) || { count: 0, lastAttempt: 0, blocked: false };
+    
+    // Reset count if last attempt was more than 1 minute ago
+    if (now - connectionData.lastAttempt > 60000) {
+        connectionData.count = 0;
+        connectionData.blocked = false;
+    }
+    
+    // Check if IP is blocked
+    if (connectionData.blocked && now - connectionData.lastAttempt < BLOCK_DURATION) {
+        console.log(`🚫 Rate limited connection from ${ip}`);
+        res.status(429).json({ error: 'Too many connection attempts. Please wait.' });
+        return;
+    }
+    
+    connectionData.count++;
+    connectionData.lastAttempt = now;
+    
+    // Block if too many attempts
+    if (connectionData.count > CONNECTION_LIMIT) {
+        connectionData.blocked = true;
+        connectionAttempts.set(ip, connectionData);
+        console.log(`🚫 Blocking excessive connections from ${ip} (${connectionData.count} attempts)`);
+        res.status(429).json({ error: 'Too many connection attempts. Please wait.' });
+        return;
+    }
+    
+    connectionAttempts.set(ip, connectionData);
+    
+    // Check for existing connections from same IP (but be less aggressive)
+    let existingConnections = 0;
+    const existingClients = [];
+    
+    for (const [id, client] of clients.entries()) {
+        if (client._clientIp === ip) {
+            existingClients.push({ id, client });
+            existingConnections++;
+        }
+    }
+    
+    // Only close existing connections if there are more than 2
+    if (existingConnections > 2) {
+        console.log(`🔄 Too many connections from ${ip}, closing ${existingConnections} existing connections`);
+        existingClients.forEach(({ id, client }) => {
+            try {
+                client.end();
+            } catch (e) {
+                // Connection already closed
+            }
+            clients.delete(id);
+        });
+    } else if (existingConnections > 0) {
+        console.log(`ℹ️ Allowing parallel connection from ${ip} (${existingConnections + 1} total)`);
+    }
+    
+    console.log(`📡 New SSE connection from ${ip} with ID ${clientId}`);
     
     // Check for existing connections from same IP and close them
     let existingConnections = 0;
