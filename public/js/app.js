@@ -116,6 +116,62 @@ class ErrorDisplay {
         if (sessionManagerContainer) {
             sessionManagerContainer.style.display = 'block';
         }
+        
+        // Ensure session UI is hidden when no session active
+        if (!this.sessionManager.currentSession) {
+            const sessionBar = document.getElementById('sessionBar');
+            const headerSession = document.getElementById('headerSession');
+            
+            if (sessionBar) sessionBar.style.display = 'none';
+            if (headerSession) headerSession.style.display = 'none';
+        }
+    }
+
+    // === MODE SWITCHING ===
+    switchMode(mode) {
+        console.log(`🔄 Switching to mode: ${mode}`);
+        
+        // Block access to certain modes without session
+        if (!this.sessionManager.currentSession && ['live', 'archive', 'api'].includes(mode)) {
+            console.log(`🚫 Access to ${mode} blocked: No active session`);
+            this.showStartPage();
+            return;
+        }
+        
+        this.currentMode = mode;
+        
+        // Update button states
+        const buttons = ['liveBtn', 'archiveBtn', 'settingsBtn', 'apiBtn'];
+        buttons.forEach(btnId => {
+            const btn = document.getElementById(btnId);
+            if (btn) {
+                btn.classList.toggle('active', btnId === mode + 'Btn');
+            }
+        });
+        
+        // Hide all containers
+        const containers = ['errorsContainer', 'settingsContainer', 'apiPanel', 'sessionManagerContainer'];
+        containers.forEach(containerId => {
+            const container = document.getElementById(containerId);
+            if (container) container.style.display = 'none';
+        });
+        
+        // Show appropriate container
+        if (mode === 'live') {
+            document.getElementById('errorsContainer').style.display = 'block';
+            this.connectSSE();
+        } else if (mode === 'settings') {
+            document.getElementById('settingsContainer').style.display = 'block';
+            this.disconnectSSE();
+        } else if (mode === 'api') {
+            document.getElementById('apiPanel').style.display = 'block';
+            this.disconnectSSE();
+        } else if (mode === 'archive') {
+            document.getElementById('errorsContainer').style.display = 'block';
+            this.disconnectSSE();
+        }
+        
+        console.log(`✅ Mode switched to: ${mode}`);
     }
 
     updateNavigationState(hasSession) {

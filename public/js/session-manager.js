@@ -168,65 +168,52 @@ class SessionManager {
     }
 
     updateSessionDisplay() {
+        console.log('🔄 Updating session display');
         const sessionBar = document.getElementById('sessionBar');
         const sessionName = document.getElementById('sessionName');
         const sessionToken = document.getElementById('sessionToken');
         
         // Header session info elements
         const headerSession = document.getElementById('headerSession');
-        const sessionNameHeader = document.getElementById('sessionNameHeader');
-        const sessionTokenHeader = document.getElementById('sessionTokenHeader');
         const autoSaveToggle = document.getElementById('autoSaveToggle');
         
-        console.log('🔄 Updating session display:', {
-            hasSession: !!this.currentSession,
-            sessionName: this.currentSession?.name,
-            tokenPreview: this.currentSession?.token?.substring(0, 16) + '...',
-            isSessionSaved: this.isSessionSaved(),
-            sessionBarExists: !!sessionBar,
-            headerSessionExists: !!headerSession
-        });
-        
-        // Skip update if header is hidden (no session UI available)
-        if (!sessionBar && !headerSession) {
-            console.log('📝 Session display skipped - UI elements not available');
-            return;
-        }
-        
         if (this.currentSession) {
+            console.log('✅ Session active - showing session UI');
             const sessionNameText = this.currentSession.name || 'Unbenannte Session';
             const tokenPreview = this.currentSession.token.substring(0, 16) + '...';
             
-            console.log('🔧 Session Display Decision:', {
-                sessionExists: true,
-                sessionName: sessionNameText,
-                isSessionSaved: this.isSessionSaved(),
-                decision: 'Always show session bar when session exists'
-            });
-            
-            // Always show session bar when session exists
+            // Show session bar
             if (sessionBar) {
                 sessionBar.style.display = 'flex';
-                console.log('✅ Session bar should now be visible');
             }
+            
+            // Hide header session info (we use session bar instead)
             if (headerSession) headerSession.style.display = 'none';
+            
+            // Update session info
             if (sessionName) sessionName.textContent = sessionNameText;
             if (sessionToken) sessionToken.textContent = tokenPreview;
             
-            // Show auto-save toggle based on saved status
+            // Show auto-save toggle if session is saved
             if (autoSaveToggle) {
                 autoSaveToggle.style.display = this.isSessionSaved() ? 'flex' : 'none';
             }
-            // Also update the header controls to show session status
-            this.updateHeaderSessionStatus(true);
+            
+            // Update navigation
+            this.errorDisplay.updateNavigationState(true);
         } else {
-            console.log('🔧 Session Display Decision: No session - hiding all session UI');
+            console.log('� No session - hiding session UI');
+            
+            // Hide session UI elements
             if (sessionBar) sessionBar.style.display = 'none';
             if (headerSession) headerSession.style.display = 'none';
-            if (autoSaveToggle) {
-                autoSaveToggle.style.display = 'none';
-            }
-            this.updateHeaderSessionStatus(false);
+            if (autoSaveToggle) autoSaveToggle.style.display = 'none';
+            
+            // Update navigation
+            this.errorDisplay.updateNavigationState(false);
+            
+            // Show start page
+            this.errorDisplay.showStartPage();
         }
         
         // Update unsaved changes indicator
@@ -719,6 +706,7 @@ class SessionManager {
         } else {
             if (sessionBar) sessionBar.style.display = 'none';
             this.errorDisplay.updateNavigationState(false);
+            this.errorDisplay.showStartPage();
         }
     }
 
