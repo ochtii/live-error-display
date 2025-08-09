@@ -1597,30 +1597,53 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     
     // Einstellungen laden und anwenden
     loadAndApplySettings() {
-        // Form-Felder mit aktuellen Einstellungen befüllen
-        document.getElementById('archiveRetentionDays').value = this.settings.archiveRetentionDays;
-        document.getElementById('retentionValue').textContent = this.settings.archiveRetentionDays;
-        document.getElementById('maxArchiveItems').value = this.settings.maxArchiveItems;
-        document.getElementById('maxItemsValue').textContent = this.settings.maxArchiveItems;
-        document.getElementById('autoArchive').checked = this.settings.autoArchive;
-        document.getElementById('bufferOfflineErrors').checked = this.settings.bufferOfflineErrors;
-        document.getElementById('showDeleteConfirmation').checked = this.settings.showDeleteConfirmation;
+        // Form-Felder mit aktuellen Einstellungen befüllen - with null checks
+        const archiveRetentionDays = document.getElementById('archiveRetentionDays');
+        const retentionValue = document.getElementById('retentionValue');
+        const maxArchiveItems = document.getElementById('maxArchiveItems');
+        const maxItemsValue = document.getElementById('maxItemsValue');
+        const autoArchive = document.getElementById('autoArchive');
+        const bufferOfflineErrors = document.getElementById('bufferOfflineErrors');
+        const showDeleteConfirmation = document.getElementById('showDeleteConfirmation');
         
-        // Sound-Einstellungen
-        document.getElementById('enableSounds').checked = this.settings.enableSounds;
-        document.getElementById('notifyNewError').checked = this.settings.notifyNewError;
-        document.getElementById('soundNewError').checked = this.settings.soundNewError;
-        document.getElementById('pushNewError').checked = this.settings.pushNewError;
-        document.getElementById('notifyConnectionSuccess').checked = this.settings.notifyConnectionSuccess;
-        document.getElementById('soundConnectionSuccess').checked = this.settings.soundConnectionSuccess;
-        document.getElementById('pushConnectionSuccess').checked = this.settings.pushConnectionSuccess;
-        document.getElementById('notifyConnectionClosed').checked = this.settings.notifyConnectionClosed;
-        document.getElementById('soundConnectionClosed').checked = this.settings.soundConnectionClosed;
-        document.getElementById('pushConnectionClosed').checked = this.settings.pushConnectionClosed;
-        document.getElementById('notifyBufferedErrors').checked = this.settings.notifyBufferedErrors;
-        document.getElementById('soundBufferedErrors').checked = this.settings.soundBufferedErrors;
-        document.getElementById('pushBufferedErrors').checked = this.settings.pushBufferedErrors;
-        document.getElementById('soundErrorDeleted').checked = this.settings.soundErrorDeleted;
+        if (archiveRetentionDays) archiveRetentionDays.value = this.settings.archiveRetentionDays;
+        if (retentionValue) retentionValue.textContent = this.settings.archiveRetentionDays;
+        if (maxArchiveItems) maxArchiveItems.value = this.settings.maxArchiveItems;
+        if (maxItemsValue) maxItemsValue.textContent = this.settings.maxArchiveItems;
+        if (autoArchive) autoArchive.checked = this.settings.autoArchive;
+        if (bufferOfflineErrors) bufferOfflineErrors.checked = this.settings.bufferOfflineErrors;
+        if (showDeleteConfirmation) showDeleteConfirmation.checked = this.settings.showDeleteConfirmation;
+        
+        // Sound-Einstellungen - with null checks
+        const enableSounds = document.getElementById('enableSounds');
+        const notifyNewError = document.getElementById('notifyNewError');
+        const soundNewError = document.getElementById('soundNewError');
+        const pushNewError = document.getElementById('pushNewError');
+        const notifyConnectionSuccess = document.getElementById('notifyConnectionSuccess');
+        const soundConnectionSuccess = document.getElementById('soundConnectionSuccess');
+        const pushConnectionSuccess = document.getElementById('pushConnectionSuccess');
+        const notifyConnectionClosed = document.getElementById('notifyConnectionClosed');
+        const soundConnectionClosed = document.getElementById('soundConnectionClosed');
+        const pushConnectionClosed = document.getElementById('pushConnectionClosed');
+        const notifyBufferedErrors = document.getElementById('notifyBufferedErrors');
+        const soundBufferedErrors = document.getElementById('soundBufferedErrors');
+        const pushBufferedErrors = document.getElementById('pushBufferedErrors');
+        const soundErrorDeleted = document.getElementById('soundErrorDeleted');
+        
+        if (enableSounds) enableSounds.checked = this.settings.enableSounds;
+        if (notifyNewError) notifyNewError.checked = this.settings.notifyNewError;
+        if (soundNewError) soundNewError.checked = this.settings.soundNewError;
+        if (pushNewError) pushNewError.checked = this.settings.pushNewError;
+        if (notifyConnectionSuccess) notifyConnectionSuccess.checked = this.settings.notifyConnectionSuccess;
+        if (soundConnectionSuccess) soundConnectionSuccess.checked = this.settings.soundConnectionSuccess;
+        if (pushConnectionSuccess) pushConnectionSuccess.checked = this.settings.pushConnectionSuccess;
+        if (notifyConnectionClosed) notifyConnectionClosed.checked = this.settings.notifyConnectionClosed;
+        if (soundConnectionClosed) soundConnectionClosed.checked = this.settings.soundConnectionClosed;
+        if (pushConnectionClosed) pushConnectionClosed.checked = this.settings.pushConnectionClosed;
+        if (notifyBufferedErrors) notifyBufferedErrors.checked = this.settings.notifyBufferedErrors;
+        if (soundBufferedErrors) soundBufferedErrors.checked = this.settings.soundBufferedErrors;
+        if (pushBufferedErrors) pushBufferedErrors.checked = this.settings.pushBufferedErrors;
+        if (soundErrorDeleted) soundErrorDeleted.checked = this.settings.soundErrorDeleted;
         
         // Sound-Manager konfigurieren
         if (window.soundManager) {
@@ -2401,7 +2424,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     }
     
     hideAllMainUIElements() {
-        // Force hide header and all navigation
+        // Force hide header and all navigation but keep errorsContainer for start page
         const elementsToHide = [
             '.header',
             '.controls', 
@@ -2409,7 +2432,6 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             '.navigation',
             '.nav-tabs',
             '#mainContent',
-            '.error-container',
             '.archive-container',
             '.settings-container'
         ];
@@ -2427,8 +2449,8 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     
     clearAllContentContainers() {
         // Clear content from containers that might show session-related data
+        // But DON'T clear errorsContainer as it's used for start page
         const containersToClean = [
-            '#errorsContainer',
             '#archiveContainer', 
             '#settingsContainer',
             '#sessionContainer'
@@ -2481,6 +2503,15 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         
         // Double-check that no UI elements are visible
         this.forceCleanUIState();
+        
+        // Ensure errorsContainer is visible for start page
+        const errorsContainer = document.getElementById('errorsContainer');
+        if (errorsContainer) {
+            errorsContainer.style.display = '';
+            errorsContainer.style.visibility = '';
+            errorsContainer.style.opacity = '';
+            errorsContainer.style.pointerEvents = '';
+        }
         
         // Ensure body class is correct
         document.body.className = 'start-page-mode';
