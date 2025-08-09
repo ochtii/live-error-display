@@ -16,10 +16,13 @@ LOCK_FILE="/tmp/live-error-display-deploy.lock"
 CHECK_INTERVAL=1
 PM2_USER="ubuntu"
 
+# PM2_HOME initialisieren (verhindert unbound variable error)
+export PM2_HOME="${PM2_HOME:-}"
+
 # PM2 Home-Verzeichnis automatisch erkennen
 detect_pm2_home() {
   # Wenn PM2_HOME bereits gesetzt ist, verwende es
-  if [ -n "$PM2_HOME" ] && [ -d "$PM2_HOME" ]; then
+  if [ -n "${PM2_HOME:-}" ] && [ -d "${PM2_HOME:-}" ]; then
     return 0
   fi
   
@@ -222,7 +225,7 @@ show_status() {
   log "${BLUE}Lock-Datei:${NC} $LOCK_FILE"
   log "${BLUE}Log-Datei:${NC} $LOG_FILE"
   log "${BLUE}Repo-Verzeichnis:${NC} $REPO_DIR"
-  log "${BLUE}PM2_HOME:${NC} $PM2_HOME"
+  log "${BLUE}PM2_HOME:${NC} ${PM2_HOME:-'(not set)'}"
   log "${CYAN}${BOLD}==============================${NC}"
   log ""
   log "${YELLOW}Zum manuellen Stoppen der Skripte:${NC}"
@@ -249,9 +252,9 @@ debug_pm2_setup() {
   fi
   
   # Zeige Socket-Dateien
-  if [ -n "$PM2_HOME" ] && [ -d "$PM2_HOME" ]; then
+  if [ -n "${PM2_HOME:-}" ] && [ -d "${PM2_HOME:-}" ]; then
     info "PM2 Socket Dateien:"
-    ls -la "$PM2_HOME"/*.sock 2>/dev/null | while read line; do info "  $line"; done || warn "  Keine Socket-Dateien gefunden"
+    ls -la "${PM2_HOME:-}"/*.sock 2>/dev/null | while read line; do info "  $line"; done || warn "  Keine Socket-Dateien gefunden"
   fi
   
   info "PM2 List Output:"
