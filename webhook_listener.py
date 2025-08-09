@@ -84,7 +84,7 @@ class WebhookListener:
         
         # Console handler with colors
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
+        console_handler.setLevel(logging.DEBUG)  # Show all messages
         console_formatter = ColoredFormatter(
             f'{Fore.BLUE}%(asctime)s{Style.RESET_ALL} - '
             f'{Fore.MAGENTA}%(name)s{Style.RESET_ALL} - '
@@ -294,11 +294,16 @@ class WebhookListener:
             
             if result.returncode == 0:
                 self.logger.debug(f"Command succeeded: {command}")
+                if result.stdout:
+                    self.logger.debug(f"Command output: {result.stdout.strip()}")
                 return True, result.stdout
             else:
-                self.logger.error(f"Command failed: {command}")
-                self.logger.error(f"Error output: {result.stderr}")
-                return False, result.stderr
+                self.logger.warning(f"Command failed with code {result.returncode}: {command}")
+                if result.stderr:
+                    self.logger.error(f"Error output: {result.stderr.strip()}")
+                if result.stdout:
+                    self.logger.info(f"Standard output: {result.stdout.strip()}")
+                return False, result.stderr or result.stdout
                 
         except subprocess.TimeoutExpired:
             self.logger.error(f"Command timed out: {command}")
