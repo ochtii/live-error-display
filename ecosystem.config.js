@@ -1,5 +1,12 @@
-module.exports = {
-  apps: [
+module.expor      // Environment variables
+      env: {
+        NODE_ENV: 'development',
+        PORT: 8088
+      },
+      env_production: {
+        NODE_ENV: 'production',
+        PORT: 8088
+      }, apps: [
     {
       // Main Live Error Display Application
       name: 'live-error-display',
@@ -13,11 +20,11 @@ module.exports = {
       // Environment variables
       env: {
         NODE_ENV: 'development',
-        PORT: 8080
+        PORT: 8088
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: 8080
+        PORT: 8088
       },
       
       // Logging configuration
@@ -32,7 +39,7 @@ module.exports = {
       restart_delay: 1000,
       
       // Health monitoring
-      health_check_url: 'http://localhost:8080/api/health',
+      health_check_url: 'http://localhost:8088/api/health',
       health_check_grace_period: 3000,
       
       // Process management

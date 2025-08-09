@@ -76,8 +76,8 @@ class WebhookListener:
         self.repo_path = "/opt/live-error-display"
         
         # Health check URLs
-        self.health_check_url = "http://localhost:9090/api/health"
-        self.db_health_url = "http://localhost:9090/api/db/health"
+        self.health_check_url = "http://localhost:8088/api/health"
+        self.db_health_url = "http://localhost:8088/api/db/health"
         
     def setup_logging(self):
         """Configure detailed logging with colors"""
@@ -451,7 +451,7 @@ class WebhookListener:
         
         # Environment Information
         self.logger.info(f"🌍 Environment: {Fore.YELLOW}production{Style.RESET_ALL}")
-        self.logger.info(f"🚪 Port: {Fore.YELLOW}8080{Style.RESET_ALL}")
+        self.logger.info(f"🚪 Port: {Fore.YELLOW}8088{Style.RESET_ALL}")
         self.logger.info(f"📁 Path: {Fore.YELLOW}{self.repo_path}{Style.RESET_ALL}")
         
         # Deployment time

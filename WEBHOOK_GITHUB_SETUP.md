@@ -123,7 +123,7 @@ pm2 logs
 - **Health Check:** `http://18.197.100.102:9090/health`
 - **Status:** `http://18.197.100.102:9090/status`
 - **Webhook:** `http://18.197.100.102:9090/webhook` (POST)
-- **App Health:** `http://18.197.100.102:8080/api/health`
+- **App Health:** `http://18.197.100.102:8088/api/health`
 
 ## 🔧 6. Troubleshooting
 

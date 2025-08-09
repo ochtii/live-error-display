@@ -16,7 +16,7 @@ echo "====================================="
 
 # Configuration
 WEBHOOK_URL="http://localhost:9090"
-APP_URL="http://localhost:8080"
+APP_URL="http://localhost:8088"
 PM2_APP_NAME="live-error-display"
 
 # Function to check if service is running
@@ -165,10 +165,10 @@ check_network() {
         echo -e "${RED}❌ Port 9090 (webhook) is not listening${NC}"
     fi
     
-    if netstat -tlnp 2>/dev/null | grep -q ":8080"; then
-        echo -e "${GREEN}✅ Port 8080 (application) is listening${NC}"
+    if netstat -tlnp 2>/dev/null | grep -q ":8088"; then
+        echo -e "${GREEN}✅ Port 8088 (application) is listening${NC}"
     else
-        echo -e "${RED}❌ Port 8080 (application) is not listening${NC}"
+        echo -e "${RED}❌ Port 8088 (application) is not listening${NC}"
     fi
 }
 

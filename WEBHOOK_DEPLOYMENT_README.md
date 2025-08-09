@@ -35,10 +35,10 @@ errordisplay/
 
 Die `ecosystem.config.js` wurde aktualisiert mit:
 
-- **Port 8080** für die Hauptanwendung
+- **Port 8088** für die Hauptanwendung
 - **Branch 'live'** statt 'main' für Deployment
 - **Webhook-Listener auf Port 9090** als zweiter PM2-Prozess (`live-error-display-webhook`)
-- **Health Check URLs** auf Port 8080 angepasst
+- **Health Check URLs** auf Port 8088 angepasst
 
 ### Umgebungsvariablen
 
@@ -197,7 +197,7 @@ git push origin live
 🔧 PM2 Status: online
 🔧 Process ID: 12345
 🌍 Environment: production
-🚪 Port: 8080
+🚪 Port: 8088
 📁 Path: /opt/live-error-display
 ⏰ Deployed: 2025-08-09 14:30:45
 ============================================================
@@ -238,10 +238,10 @@ pm2 restart live-error-display
 
 ```bash
 # Verwendete Ports prüfen
-netstat -tlnp | grep -E "(8080|9090)"
+netstat -tlnp | grep -E "(8088|9090)"
 
 # Prozesse auf Ports finden
-sudo lsof -i :8080
+sudo lsof -i :8088
 sudo lsof -i :9090
 ```
 
