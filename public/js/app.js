@@ -2008,33 +2008,30 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             const sessionNameText = this.currentSession.name || 'Unbenannte Session';
             const tokenPreview = this.currentSession.token.substring(0, 16) + '...';
             
-            // Check if session is saved to determine display location
-            if (this.isSessionSaved()) {
-                // Show in header permanently for saved sessions
-                if (sessionBar) sessionBar.style.display = 'none';
-                if (headerSession) headerSession.style.display = 'flex';
-                if (sessionNameHeader) sessionNameHeader.textContent = sessionNameText;
-                if (sessionTokenHeader) sessionTokenHeader.textContent = tokenPreview;
-                
-                // Show auto-save toggle for saved sessions
-                if (autoSaveToggle) {
-                    autoSaveToggle.style.display = 'flex';
-                }
-            } else {
-                // Show session bar with hide option for unsaved sessions
-                if (sessionBar) sessionBar.style.display = 'flex';
-                if (headerSession) headerSession.style.display = 'none';
-                if (sessionName) sessionName.textContent = sessionNameText;
-                if (sessionToken) sessionToken.textContent = tokenPreview;
-                
-                // Hide auto-save toggle for unsaved sessions
-                if (autoSaveToggle) {
-                    autoSaveToggle.style.display = 'none';
-                }
+            console.log('🔧 Session Display Decision:', {
+                sessionExists: true,
+                sessionName: sessionNameText,
+                isSessionSaved: this.isSessionSaved(),
+                decision: 'Always show session bar when session exists'
+            });
+            
+            // Always show session bar when session exists
+            if (sessionBar) {
+                sessionBar.style.display = 'flex';
+                console.log('✅ Session bar should now be visible');
+            }
+            if (headerSession) headerSession.style.display = 'none';
+            if (sessionName) sessionName.textContent = sessionNameText;
+            if (sessionToken) sessionToken.textContent = tokenPreview;
+            
+            // Show auto-save toggle based on saved status
+            if (autoSaveToggle) {
+                autoSaveToggle.style.display = this.isSessionSaved() ? 'flex' : 'none';
             }
             // Also update the header controls to show session status
             this.updateHeaderSessionStatus(true);
         } else {
+            console.log('🔧 Session Display Decision: No session - hiding all session UI');
             if (sessionBar) sessionBar.style.display = 'none';
             if (headerSession) headerSession.style.display = 'none';
             if (autoSaveToggle) {
