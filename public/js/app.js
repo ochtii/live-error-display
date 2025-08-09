@@ -35,7 +35,11 @@ class ErrorDisplay {
         
         // Always show start page instead of auto-loading sessions
         this.showStartPage();
+        // Force UI visibility update regardless of session state
         await this.validateAndUpdateUIState();
+        
+        // Start auto-cleanup timer for deleted sessions
+        this.startAutoCleanupTimer();
     }
 
     setupEventListeners() {
@@ -2086,32 +2090,51 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         const errorsContainer = document.getElementById('errorsContainer');
         if (!errorsContainer) return;
 
-        // Get last sessions for display
-        const lastSessions = this.getLastSessions();
+        // Get last sessions for display with validation
+        const lastSessions = await this.validateAndCleanupLastSessions();
         const hasLastSessions = lastSessions.length > 0;
         
         let lastSessionsHtml = '';
         if (hasLastSessions) {
+            let hasInvalidSessions = false;
+            
+            const sessionItems = lastSessions.slice(0, 5).map(session => {
+                const lastAccessed = new Date(session.lastAccessed).toLocaleString('de-DE');
+                const isDeleted = session.serverDeleted === true;
+                hasInvalidSessions = hasInvalidSessions || isDeleted;
+                
+                return `
+                    <div class="start-session-item ${isDeleted ? 'deleted-session' : ''}" ${isDeleted ? '' : `onclick="errorDisplay.restoreFromLastSessions('${session.token}')"`}>
+                        <div class="start-session-info">
+                            <span class="start-session-name">
+                                ${this.escapeHtml(session.name)}
+                                ${isDeleted ? '<span class="deleted-indicator">🗑️ GELÖSCHT</span>' : ''}
+                            </span>
+                            ${session.hasPassword ? '<span class="password-indicator">🔒</span>' : ''}
+                        </div>
+                        <div class="start-session-date">${lastAccessed}</div>
+                        <div class="start-session-action">
+                            ${isDeleted ? `
+                                <span class="start-session-btn" onclick="event.stopPropagation(); errorDisplay.removeFromLastSessionsAndRefresh('${session.token}')">🗑️ Entfernen</span>
+                            ` : `
+                                <span class="start-session-btn">🔄 Laden</span>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
             lastSessionsHtml = `
                 <div class="start-page-section">
                     <h3>🕒 Letzte Sessions</h3>
                     <div class="start-last-sessions">
-                        ${lastSessions.slice(0, 5).map(session => {
-                            const lastAccessed = new Date(session.lastAccessed).toLocaleString('de-DE');
-                            return `
-                                <div class="start-session-item" onclick="errorDisplay.restoreFromLastSessions('${session.token}')">
-                                    <div class="start-session-info">
-                                        <span class="start-session-name">${this.escapeHtml(session.name)}</span>
-                                        ${session.hasPassword ? '<span class="password-indicator">🔒</span>' : ''}
-                                    </div>
-                                    <div class="start-session-date">${lastAccessed}</div>
-                                    <div class="start-session-action">
-                                        <span class="start-session-btn">🔄 Laden</span>
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
+                        ${sessionItems}
                     </div>
+                    ${hasInvalidSessions ? `
+                        <div class="cleanup-info">
+                            <small>💡 Gelöschte Sessions werden automatisch nach 5 Minuten aus dem Browser-Cache entfernt</small>
+                        </div>
+                    ` : ''}
                 </div>
             `;
         }
@@ -2173,7 +2196,15 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 console.warn('Session validation failed:', error);
                 isValidSession = false;
             }
+        } else {
+            // No session at all
+            isValidSession = false;
         }
+        
+        console.log('🔍 Session validation result:', { 
+            hasSession: !!this.currentSession, 
+            isValid: isValidSession 
+        });
         
         // Update UI based on session validity
         this.updateUIVisibility(isValidSession);
@@ -2682,8 +2713,15 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     async validateAndCleanupLastSessions() {
         const lastSessions = this.getLastSessions();
         const validSessions = [];
+        const now = Date.now();
         
         for (const session of lastSessions) {
+            // Check if session is marked for auto-deletion and time has passed
+            if (session.serverDeleted && session.autoDeleteAt && now >= session.autoDeleteAt) {
+                console.log(`🗑️ Auto-removing expired deleted session: ${session.name}`);
+                continue; // Skip this session (auto-delete)
+            }
+            
             try {
                 // Check if session still exists on server
                 const response = await fetch(`${this.serverUrl}/api/session/${session.token}`, {
@@ -2695,18 +2733,57 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 });
                 
                 if (response.ok) {
+                    // Session is valid - remove deletion flag if it exists
+                    if (session.serverDeleted) {
+                        delete session.serverDeleted;
+                        delete session.autoDeleteAt;
+                    }
                     validSessions.push(session);
                 } else {
-                    console.log(`🧹 Removing invalid session from last sessions: ${session.name}`);
+                    // Session is deleted on server
+                    if (!session.serverDeleted) {
+                        // Mark as deleted and set auto-delete timer (5 minutes)
+                        session.serverDeleted = true;
+                        session.autoDeleteAt = now + (5 * 60 * 1000); // 5 minutes from now
+                        console.log(`🗑️ Marking session as deleted: ${session.name}`);
+                    }
+                    validSessions.push(session); // Keep it for now, will be auto-deleted later
                 }
             } catch (error) {
                 console.log(`🧹 Removing session due to validation error: ${session.name}`);
+                // Don't add to validSessions (immediate removal for network errors)
             }
         }
         
-        // Update storage with only valid sessions
+        // Update storage with processed sessions
         localStorage.setItem('lastSessions', JSON.stringify(validSessions));
         return validSessions;
+    }
+
+    startAutoCleanupTimer() {
+        // Check every minute for sessions to auto-delete
+        setInterval(() => {
+            const lastSessions = this.getLastSessions();
+            const now = Date.now();
+            let hasChanges = false;
+            
+            const filteredSessions = lastSessions.filter(session => {
+                if (session.serverDeleted && session.autoDeleteAt && now >= session.autoDeleteAt) {
+                    console.log(`🗑️ Auto-cleaning deleted session: ${session.name}`);
+                    hasChanges = true;
+                    return false; // Remove this session
+                }
+                return true; // Keep this session
+            });
+            
+            if (hasChanges) {
+                localStorage.setItem('lastSessions', JSON.stringify(filteredSessions));
+                // Refresh display if on session manager or start page
+                if (this.currentMode === 'session-manager' || !this.currentSession) {
+                    this.loadLastSessionsInline();
+                }
+            }
+        }, 60000); // Check every minute
     }
     
     async loadLastActiveSession() {
@@ -2779,21 +2856,29 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             
             const container = document.getElementById('inlineLastSessions');
             if (!container) return;
-            
+
             if (validSessions.length === 0) {
                 container.innerHTML = '<p class="no-sessions">Keine letzten Sessions gefunden</p>';
                 return;
             }
-            
+
             let html = '';
-            validSessions.forEach(session => {
+            let hasInvalidSessions = false;
+            
+            for (const session of validSessions) {
                 const isActive = session.lastActive === true;
                 const lastAccessed = new Date(session.lastAccessed).toLocaleString('de-DE');
+                const isDeleted = session.serverDeleted === true;
+                hasInvalidSessions = hasInvalidSessions || isDeleted;
                 
                 html += `
-                    <div class="session-item ${isActive ? 'active-session' : ''}">
+                    <div class="session-item ${isActive ? 'active-session' : ''} ${isDeleted ? 'deleted-session' : ''}">
                         <div class="session-item-header">
-                            <span class="session-item-name">${this.escapeHtml(session.name)} ${isActive ? '(Aktiv)' : ''}</span>
+                            <span class="session-item-name">
+                                ${this.escapeHtml(session.name)} 
+                                ${isActive ? '(Aktiv)' : ''} 
+                                ${isDeleted ? '<span class="deleted-indicator">🗑️ GELÖSCHT</span>' : ''}
+                            </span>
                             <span class="session-item-date">${lastAccessed}</span>
                         </div>
                         <div class="session-item-token">
@@ -2801,17 +2886,33 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                             ${session.hasPassword ? '<span class="password-indicator">🔒</span>' : ''}
                         </div>
                         <div class="session-item-actions">
-                            <button class="btn btn-small btn-primary" onclick="errorDisplay.restoreFromLastSessions('${session.token}')">
-                                🔄 Laden
-                            </button>
-                            <button class="btn btn-small btn-danger" onclick="errorDisplay.removeFromLastSessionsAndRefresh('${session.token}')">
-                                🗑️
-                            </button>
+                            ${isDeleted ? `
+                                <button class="btn btn-small btn-danger" onclick="errorDisplay.removeFromLastSessionsAndRefresh('${session.token}')">
+                                    🗑️ Entfernen
+                                </button>
+                                <span class="auto-cleanup-hint">Wird automatisch in ${Math.max(0, Math.ceil((session.autoDeleteAt - Date.now()) / 60000))} Min entfernt</span>
+                            ` : `
+                                <button class="btn btn-small btn-primary" onclick="errorDisplay.restoreFromLastSessions('${session.token}')">
+                                    🔄 Laden
+                                </button>
+                                <button class="btn btn-small btn-danger" onclick="errorDisplay.removeFromLastSessionsAndRefresh('${session.token}')">
+                                    🗑️
+                                </button>
+                            `}
                         </div>
                     </div>
                 `;
-            });
+            }
             
+            // Add info text about auto-cleanup if there are deleted sessions
+            if (hasInvalidSessions) {
+                html += `
+                    <div class="cleanup-info">
+                        <small>💡 Gelöschte Sessions werden automatisch nach 5 Minuten aus dem Browser-Cache entfernt</small>
+                    </div>
+                `;
+            }
+
             container.innerHTML = html;
         } catch (error) {
             console.error('Error loading last sessions:', error);
@@ -2820,9 +2921,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 container.innerHTML = '<p class="error-state">Fehler beim Laden der letzten Sessions</p>';
             }
         }
-    }
-    
-    async restoreFromLastSessions(token) {
+    }    async restoreFromLastSessions(token) {
         const lastSessions = this.getLastSessions();
         const session = lastSessions.find(s => s.token === token);
         

@@ -2679,6 +2679,40 @@ body:has(.header:not([style*="display: none"])) .start-page {
     font-size: 0.9rem;
 }
 
+/* Deleted Session Styles */
+.deleted-session {
+    opacity: 0.6;
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.deleted-indicator {
+    color: var(--danger);
+    font-weight: bold;
+    font-size: 0.8rem;
+    margin-left: 0.5rem;
+}
+
+.auto-cleanup-hint {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-style: italic;
+    margin-left: 0.5rem;
+}
+
+.cleanup-info {
+    text-align: center;
+    padding: 1rem;
+    margin-top: 1rem;
+    background: rgba(59, 130, 246, 0.1);
+    border-radius: 0.5rem;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.cleanup-info small {
+    color: var(--text-secondary);
+}
+
 /* Responsive Design für Startseite */
 @media (max-width: 768px) {
     .start-page-title {
