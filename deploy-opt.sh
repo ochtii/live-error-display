@@ -290,6 +290,11 @@ critical() {
   log "${BG_RED}${WHITE}KRITISCH:${NC} $1"
 }
 
+# Befehl ankündigen
+announce_command() {
+  log "${YELLOW}${BOLD}>>> next task: $1${NC}"
+}
+
 process() {
   log "${PURPLE}⚙️  PROZESS:${NC} $1"
 }
@@ -380,13 +385,15 @@ init_repo_silent() {
   # Prüfen, ob das Repo-Verzeichnis existiert
   if [ ! -d "$REPO_DIR" ]; then
     mkdir -p "$REPO_DIR"
-    git clone -q "$REPO_URL" "$REPO_DIR"
+  announce_command "git clone -q $REPO_URL $REPO_DIR"
+  git clone -q "$REPO_URL" "$REPO_DIR"
   else
     cd "$REPO_DIR"
     
     # Alle ungetrackten und geänderten Dateien zurücksetzen - mit reduzierter Ausgabe
-    git reset --hard HEAD > /dev/null
-    git clean -fd > /dev/null
+  announce_command "git reset --hard HEAD && git clean -fd"
+  git reset --hard HEAD > /dev/null
+  git clean -fd > /dev/null
   fi
 }
 
@@ -398,6 +405,7 @@ pull_changes() {
   local old_commit=$(git rev-parse HEAD)
   
   # Änderungen holen aber Output speichern für den Fall von Änderungen
+  announce_command "git pull -q origin live"
   local pull_output=$(git pull -q origin main 2>&1)
   
   # Neue Commit-ID
@@ -430,7 +438,8 @@ handle_merge_conflicts() {
     warn "Merge-Konflikt erkannt. Versuche automatische Lösung..."
     
     # Versuche, mit der --strategy-option theirs zu lösen
-    if git merge --abort && git pull -s recursive -X theirs origin main; then
+  announce_command "git merge --abort && git pull -s recursive -X theirs origin main"
+  if git merge --abort && git pull -s recursive -X theirs origin main; then
       success "Merge-Konflikt automatisch gelöst."
     else
       error "Konnte Merge-Konflikt nicht automatisch lösen. Manuelle Intervention erforderlich."
@@ -448,13 +457,13 @@ install_dependencies() {
     debug "package.json Details: $(ls -la package.json)"
     
     # Versuche zuerst npm ci, dann npm install bei Synchronisationsproblemen
-    process "Versuche npm ci (clean install)..."
+    announce_command "npm ci"
     if npm ci 2>/dev/null; then
       success "✅ Abhängigkeiten erfolgreich installiert (npm ci)"
       debug "npm ci erfolgreich - verwende package-lock.json"
     else
       warn "⚠️  npm ci fehlgeschlagen - versuche npm install..."
-      process "Führe npm install durch..."
+      announce_command "npm install"
       if npm install; then
         success "✅ Abhängigkeiten erfolgreich installiert (npm install)"
         debug "npm install erfolgreich - package-lock.json aktualisiert"
@@ -473,6 +482,7 @@ build_app() {
   
   # Prüfe, ob ein build-Skript in package.json existiert
   if grep -q '"build"' package.json; then
+    announce_command "npm run build"
     if npm run build; then
       success "Build erfolgreich."
     else
@@ -556,7 +566,8 @@ handle_merge_conflicts_silent() {
   # Prüfe, ob wir uns in einem Merge-Zustand befinden
   if [ -f "$REPO_DIR/.git/MERGE_HEAD" ]; then
     # Versuche, mit der --strategy-option theirs zu lösen
-    git merge --abort && git pull -s recursive -X theirs origin main
+  announce_command "git merge --abort && git pull -s recursive -X theirs origin main"
+  git merge --abort && git pull -s recursive -X theirs origin main
   fi
 }
 
@@ -642,7 +653,7 @@ perform_detailed_deployment() {
   
   # PM2 Status vor Ende anzeigen
   step "Finale PM2 Status-Überprüfung..."
-  process "Ausführung: pm2 status"
+  announce_command "pm2 status"
   pm2 status 2>/dev/null || warn "PM2 Status konnte nicht abgerufen werden"
   
   # Deployment abgeschlossen - Zusammenfassung anzeigen
@@ -652,7 +663,7 @@ perform_detailed_deployment() {
   # Finale PM2 Status nach Zusammenfassung
   echo ""
   highlight "=== FINALE PM2 STATUS ÜBERSICHT ==="
-  process "Ausführung: pm2 status"
+  announce_command "pm2 status"
   pm2 status 2>/dev/null || warn "PM2 Status konnte nicht abgerufen werden"
   
   success "=== DETAILLIERTES DEPLOYMENT ABGESCHLOSSEN ==="
@@ -809,7 +820,7 @@ manage_pm2_services() {
   
   # Schritt 1: PM2 Service stoppen
   step "Stoppe live-error-display Service..."
-  process "Ausführung: pm2 stop live-error-display"
+  announce_command "pm2 stop live-error-display"
   if pm2 stop live-error-display 2>/dev/null; then
     success "✅ Service erfolgreich gestoppt"
   else
@@ -818,7 +829,7 @@ manage_pm2_services() {
   
   # PM2 Logs für diesen Service leeren
   step "Leere PM2 Logs für live-error-display-deploy..."
-  process "Ausführung: pm2 flush live-error-display-deploy"
+  announce_command "pm2 flush live-error-display-deploy"
   if pm2 flush live-error-display-deploy 2>/dev/null; then
     success "✅ PM2 Logs geleert"
   else
@@ -845,7 +856,7 @@ manage_pm2_services() {
   
   # Schritt 3: PM2 Service starten
   step "Starte live-error-display Service..."
-  process "Ausführung: pm2 start $config_file"
+  announce_command "pm2 start $config_file"
   if pm2 start "$config_file" 2>/dev/null; then
     success "✅ Service erfolgreich gestartet"
   else
@@ -854,6 +865,7 @@ manage_pm2_services() {
   fi
   
   # PM2 Konfiguration speichern
+  announce_command "pm2 save"
   pm2 save 2>/dev/null
 }
 

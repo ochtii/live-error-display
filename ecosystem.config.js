@@ -1,5 +1,12 @@
-module.exports = {
-  apps: [
+module.expor      // Environment variables
+      env: {
+        NODE_ENV: 'development',
+        PORT: 8080
+      },
+      env_production: {
+        NODE_ENV: 'production',
+        PORT: 8080
+      }, apps: [
     {
       // Main Live Error Display Application (Test Comment)
       name: 'live-error-display',
@@ -13,11 +20,11 @@ module.exports = {
       // Environment variables
       env: {
         NODE_ENV: 'development',
-        PORT: 8080
+        PORT: 8888
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: 8080
+        PORT: 8888
       },
       
       // Logging configuration
@@ -48,37 +55,40 @@ module.exports = {
     },
     
     {
-      // Auto-Deploy Service
-      name: 'live-error-display-deploy',
-      script: '/opt/live-error-display/deploy-opt.sh',
+      // GitHub Webhook Listener for Auto-Deployment
+      name: 'webhook-listener',
+      script: '/opt/live-error-display/webhook_listener.py',
       instances: 1,
       exec_mode: 'fork',
       autorestart: true,
       watch: false,
-      max_memory_restart: '100M',
+      max_memory_restart: '200M',
       
-      // Environment for deploy script
+      // Environment for webhook listener
       env: {
         NODE_ENV: 'production',
-        DEPLOY_ENV: 'production'
+        WEBHOOK_PORT: 9090,
+        WEBHOOK_HOST: '0.0.0.0',
+        TARGET_BRANCH: 'live',
+        GITHUB_WEBHOOK_SECRET: 'FUT_ORSCH_BEIDL_TRINK_MA_NO_A_SEIDL'
       },
       
-      // Logging for deploy script
+      // Logging for webhook listener
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      error_file: '/var/log/live-error-display-deploy-error.log',
-      out_file: '/var/log/live-error-display-deploy-out.log',
-      log_file: '/var/log/live-error-display-deploy-combined.log',
+      error_file: '/var/log/webhook-listener-error.log',
+      out_file: '/var/log/webhook-listener-out.log',
+      log_file: '/var/log/webhook-listener-combined.log',
       
-      // Restart configuration for deploy script
-      min_uptime: '30s',
-      max_restarts: 5,
-      restart_delay: 5000,
+      // Restart configuration for webhook listener
+      min_uptime: '10s',
+      max_restarts: 10,
+      restart_delay: 3000,
       
-      // Deploy script should restart less frequently
-      kill_timeout: 10000,
+      // Kill timeout for graceful shutdown
+      kill_timeout: 8000,
       
-      // Interpreter for shell script
-      interpreter: '/bin/bash',
+      // Python interpreter
+      interpreter: '/usr/bin/python3',
       interpreter_args: ''
     }
   ],
@@ -86,9 +96,9 @@ module.exports = {
   // Deployment configuration
   deploy: {
     production: {
-      user: 'ubuntu',
+      user: 'ochtii',
       host: ['18.197.100.102'],
-      ref: 'origin/main',
+      ref: 'origin/live',
       repo: 'https://github.com/ochtii/live-error-display.git',
       path: '/opt/live-error-display',
       'pre-deploy-local': '',

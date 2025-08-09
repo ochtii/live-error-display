@@ -91,3 +91,6 @@ private-key.pem
 # public/sounds/*.mp3
 # public/sounds/*.wav
 # public/sounds/*.ogg
+webhook_listener.py
+WEBHOOK_DEPLOYMENT_README.md
+WEBHOOK_GITHUB_SETUP.md

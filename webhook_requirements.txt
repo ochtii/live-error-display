@@ -1,0 +1,4 @@
+flask==2.3.3
+colorama==0.4.6
+requests==2.31.0
+gunicorn==21.2.0
