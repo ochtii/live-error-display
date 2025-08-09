@@ -1,0 +1,25 @@
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+/* Dark mode toggle button specific styles */
+#darkModeToggle {
+    font-size: 1.2rem;
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.3s;
+}
+
+#darkModeToggle:hover {
+    background-color: var(--color-background-hover);
+    transform: scale(1.05);
+}

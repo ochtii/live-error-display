@@ -7,8 +7,10 @@
     <link rel="stylesheet" href="/css/variables.css">
     <link rel="stylesheet" href="/css/base.css">
     <link rel="stylesheet" href="/css/layout.css">
+    <link rel="stylesheet" href="/css/layout/header-controls.css">
     <link rel="stylesheet" href="/css/components/cards.css">
     <link rel="stylesheet" href="/css/components/buttons.css">
+    <link rel="stylesheet" href="/css/dark-mode.css">
     <style>
         .sound-test-container {
             max-width: 800px;
@@ -56,7 +58,12 @@
 <body>
     <div class="sound-test-container">
         <header>
-            <h1>🔊 Sound Test</h1>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h1>🔊 Sound Test</h1>
+                <button id="darkModeToggle" class="btn btn-icon" title="Dark/Light Mode umschalten">
+                    🌓
+                </button>
+            </div>
             <p>Test die verschiedenen Benachrichtigungstöne für die Live Error Display Anwendung.</p>
         </header>
         
@@ -170,5 +177,6 @@
             }, 100);
         });
     </script>
+    <script src="/js/dark-mode.js"></script>
 </body>
 </html>
