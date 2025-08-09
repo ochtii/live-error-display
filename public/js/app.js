@@ -35,7 +35,7 @@ class ErrorDisplay {
         
         // Always show start page instead of auto-loading sessions
         this.showStartPage();
-        this.updateHeaderForStartPage();
+        await this.validateAndUpdateUIState();
     }
 
     setupEventListeners() {
@@ -275,7 +275,7 @@ class ErrorDisplay {
         if (!this.currentSession && ['live', 'archive', 'api'].includes(mode)) {
             console.log(`🚫 Access to ${mode} blocked: No active session`);
             this.showStartPage();
-            this.updateHeaderForStartPage();
+            this.updateUIVisibility(false);
             return;
         }
         
@@ -1790,6 +1790,12 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             isSessionSaved: this.isSessionSaved()
         });
         
+        // Skip update if header is hidden (no session UI available)
+        if (!sessionBar && !headerSession) {
+            console.log('📝 Session display skipped - UI elements not available');
+            return;
+        }
+        
         if (this.currentSession) {
             const sessionNameText = this.currentSession.name || 'Unbenannte Session';
             const tokenPreview = this.currentSession.token.substring(0, 16) + '...';
@@ -1797,10 +1803,10 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             // Check if session is saved to determine display location
             if (this.isSessionSaved()) {
                 // Show in header permanently for saved sessions
-                sessionBar.style.display = 'none';
-                headerSession.style.display = 'flex';
-                sessionNameHeader.textContent = sessionNameText;
-                sessionTokenHeader.textContent = tokenPreview;
+                if (sessionBar) sessionBar.style.display = 'none';
+                if (headerSession) headerSession.style.display = 'flex';
+                if (sessionNameHeader) sessionNameHeader.textContent = sessionNameText;
+                if (sessionTokenHeader) sessionTokenHeader.textContent = tokenPreview;
                 
                 // Show auto-save toggle for saved sessions
                 if (autoSaveToggle) {
@@ -1808,20 +1814,21 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 }
             } else {
                 // Show session bar with hide option for unsaved sessions
-                sessionBar.style.display = 'flex';
-                headerSession.style.display = 'none';
-                sessionName.textContent = sessionNameText;
-                sessionToken.textContent = tokenPreview;
+                if (sessionBar) sessionBar.style.display = 'flex';
+                if (headerSession) headerSession.style.display = 'none';
+                if (sessionName) sessionName.textContent = sessionNameText;
+                if (sessionToken) sessionToken.textContent = tokenPreview;
                 
                 // Hide auto-save toggle for unsaved sessions
                 if (autoSaveToggle) {
                     autoSaveToggle.style.display = 'none';
                 }
-            }            // Also update the header controls to show session status
+            }
+            // Also update the header controls to show session status
             this.updateHeaderSessionStatus(true);
         } else {
-            sessionBar.style.display = 'none';
-            headerSession.style.display = 'none';
+            if (sessionBar) sessionBar.style.display = 'none';
+            if (headerSession) headerSession.style.display = 'none';
             if (autoSaveToggle) {
                 autoSaveToggle.style.display = 'none';
             }
@@ -2148,6 +2155,44 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         }, 100);
     }
 
+    async validateAndUpdateUIState() {
+        // Check if current session is actually valid on server
+        let isValidSession = false;
+        
+        if (this.currentSession && this.currentSession.token) {
+            try {
+                const response = await fetch(`${this.serverUrl}/api/session/${this.currentSession.token}/expiry`);
+                isValidSession = response.ok;
+                
+                if (!isValidSession) {
+                    // Clear invalid session
+                    this.currentSession = null;
+                    localStorage.removeItem('currentSession');
+                }
+            } catch (error) {
+                console.warn('Session validation failed:', error);
+                isValidSession = false;
+            }
+        }
+        
+        // Update UI based on session validity
+        this.updateUIVisibility(isValidSession);
+    }
+
+    updateUIVisibility(hasValidSession) {
+        const header = document.querySelector('.header');
+        
+        if (hasValidSession) {
+            // Show normal header and navigation
+            if (header) header.style.display = 'block';
+            this.updateHeaderForActiveSession();
+        } else {
+            // Hide header completely when no valid session
+            if (header) header.style.display = 'none';
+            this.showStartPage();
+        }
+    }
+
     updateHeaderForStartPage() {
         // Show simplified header for start page
         const header = document.querySelector('.header');
@@ -2280,8 +2325,8 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         // This unlocks all tabs and starts SSE connection
         console.log('🎯 Session loaded globally, enabling full app functionality');
         
-        // Update header back to normal mode
-        this.updateHeaderForActiveSession();
+        // Show header and update to normal mode
+        this.updateUIVisibility(true);
         
         // Hide session required message if visible
         const errorsContainer = document.getElementById('errorsContainer');

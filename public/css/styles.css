@@ -2443,6 +2443,26 @@ input:checked + .toggle-slider:before {
     font-size: 0.9rem;
 }
 
+/* Startseite Vollbild-Layout ohne Header */
+.start-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem;
+    margin: -1rem; /* Kompensiert body padding */
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Wenn Header sichtbar ist, weniger Höhe verwenden */
+body:has(.header:not([style*="display: none"])) .start-page {
+    min-height: 60vh;
+    margin: 0;
+}
+
 /* Session Expiry Styles */
 .session-expiry {
     margin-top: 0.5rem;
@@ -2461,18 +2481,6 @@ input:checked + .toggle-slider:before {
 
 .expiry-info {
     color: var(--text-secondary);
-}
-
-.start-page {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 60vh;
-    padding: 2rem;
-    opacity: 0;
-    transform: translateY(20px);
-    transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .start-page-loaded {
