@@ -118,6 +118,14 @@ app.get('/api/server-info', (req, res) => {
     });
 });
 
+// Simple status check endpoint
+app.get('/api/status', (req, res) => {
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString()
+    });
+});
+
 // Get session expiry information
 app.get('/api/session/:token/expiry', (req, res) => {
     try {
