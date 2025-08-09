@@ -299,6 +299,12 @@ class ErrorDisplay {
         document.getElementById('settingsContainer').style.display = 'none';
         document.getElementById('apiPanel').style.display = 'none';
         
+        // Hide session manager container
+        const sessionManagerContainer = document.getElementById('sessionManagerContainer');
+        if (sessionManagerContainer) {
+            sessionManagerContainer.style.display = 'none';
+        }
+        
         if (mode === 'live') {
             document.getElementById('errorsContainer').style.display = 'flex';
             this.connectSSE();
@@ -2161,6 +2167,9 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         if (errorsContainer && errorsContainer.querySelector('.session-required')) {
             errorsContainer.innerHTML = '';
         }
+        
+        // Switch to live mode and hide session manager
+        this.switchMode('live');
         
         // Archiviere alle aktuellen Live-Fehler beim Session-Load
         this.archiveExistingErrors();
