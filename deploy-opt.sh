@@ -148,10 +148,16 @@ install_dependencies() {
   cd "$REPO_DIR"
   
   if [ -f "package.json" ]; then
-    if npm ci; then
-      success "Abhängigkeiten erfolgreich installiert."
+    # Versuche zuerst npm ci, dann npm install bei Synchronisationsproblemen
+    if npm ci 2>/dev/null; then
+      success "Abhängigkeiten erfolgreich installiert (npm ci)."
     else
-      error "Fehler beim Installieren der Abhängigkeiten!"
+      warn "npm ci fehlgeschlagen - versuche npm install..."
+      if npm install; then
+        success "Abhängigkeiten erfolgreich installiert (npm install)."
+      else
+        error "Fehler beim Installieren der Abhängigkeiten!"
+      fi
     fi
   else
     warn "Keine package.json gefunden. Überspringe Abhängigkeiten."
@@ -247,7 +253,10 @@ handle_merge_conflicts_silent() {
 
 install_dependencies_silent() {
   cd "$REPO_DIR"
-  npm install --silent
+  # Versuche zuerst npm ci, dann npm install bei Synchronisationsproblemen
+  if ! npm ci --silent 2>/dev/null; then
+    npm install --silent
+  fi
 }
 
 build_app_silent() {
