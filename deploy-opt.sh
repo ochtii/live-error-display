@@ -43,12 +43,40 @@ detect_pm2_home() {
 # PM2 Home beim Start erkennen
 detect_pm2_home
 
-# Farben
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[1;33m'
-readonly BLUE='\033[0;34m'
-readonly NC='\033[0m' # No Color
+# Farben (mit Terminal-Check für bessere Kompatibilität)
+if [ -t 1 ]; then
+  readonly RED='\033[0;31m'
+  readonly GREEN='\033[0;32m'
+  readonly YELLOW='\033[1;33m'
+  readonly BLUE='\033[0;34m'
+  readonly PURPLE='\033[0;35m'
+  readonly CYAN='\033[0;36m'
+  readonly BOLD='\033[1m'
+  readonly NC='\033[0m' # No Color
+else
+  readonly RED=''
+  readonly GREEN=''
+  readonly YELLOW=''
+  readonly BLUE=''
+  readonly PURPLE=''
+  readonly CYAN=''
+  readonly BOLD=''
+  readonly NC=''
+fi
+
+# Signal Handler für graceful shutdown
+cleanup() {
+  log "${YELLOW}Signal empfangen. Stoppe Deploy-Skript...${NC}"
+  if [ -f "$LOCK_FILE" ]; then
+    rm -f "$LOCK_FILE"
+    log "${GREEN}Lock-Datei entfernt.${NC}"
+  fi
+  log "${GREEN}Deploy-Skript gestoppt.${NC}"
+  exit 0
+}
+
+# Signal Handler registrieren
+trap cleanup SIGTERM SIGINT SIGQUIT
 
 # === FUNKTIONEN ===
 log() {
@@ -71,6 +99,23 @@ info() {
 
 success() {
   log "${GREEN}ERFOLG:${NC} $1"
+}
+
+show_status() {
+  log "${CYAN}${BOLD}=== DEPLOY-SKRIPT STATUS ===${NC}"
+  log "${BLUE}PID:${NC} $$"
+  log "${BLUE}Lock-Datei:${NC} $LOCK_FILE"
+  log "${BLUE}Log-Datei:${NC} $LOG_FILE"
+  log "${BLUE}Repo-Verzeichnis:${NC} $REPO_DIR"
+  log "${BLUE}PM2_HOME:${NC} $PM2_HOME"
+  log "${CYAN}${BOLD}==============================${NC}"
+  log ""
+  log "${YELLOW}Zum manuellen Stoppen der Skripte:${NC}"
+  log "${PURPLE}1. Deploy-Skript stoppen:${NC} kill $$"
+  log "${PURPLE}2. PM2 Prozesse stoppen:${NC} pm2 stop all"
+  log "${PURPLE}3. PM2 Prozesse löschen:${NC} pm2 delete all"
+  log "${PURPLE}4. Lock-Datei entfernen:${NC} rm -f $LOCK_FILE"
+  log ""
 }
 
 debug_pm2_setup() {
@@ -704,6 +749,9 @@ deploy() {
 
 # === HAUPTPROGRAMM ===
 check_dependencies_silent
+
+# Zeige Skript-Status und Stopp-Anleitungen
+show_status
 
 # Reduzierte Startmeldung - nur 1 Zeile
 success "Live Error Display Auto-Deploy gestartet (Repository: $REPO_URL)"
