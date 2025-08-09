@@ -193,10 +193,13 @@ class WebhookListener:
             
             # Check if it's a push event to target branch
             if payload.get('ref') != f'refs/heads/{self.target_branch}':
-                self.logger.info(f"Ignoring push to {payload.get('ref', 'unknown')} branch")
+                ignored_branch = payload.get('ref', 'unknown').replace('refs/heads/', '')
+                self.logger.info(f"{Fore.YELLOW}⏭️  Ignoring push to {Fore.CYAN}{ignored_branch}{Fore.YELLOW} branch (target: {Fore.GREEN}{self.target_branch}{Fore.YELLOW}){Style.RESET_ALL}")
                 return {'message': 'Branch ignored'}, 200
             
-            self.logger.info(f"{Fore.GREEN}🚀 Webhook received for {self.target_branch} branch{Style.RESET_ALL}")
+            self.logger.info(f"\n{Fore.GREEN}{'='*50}{Style.RESET_ALL}")
+            self.logger.info(f"{Fore.GREEN}🚀 WEBHOOK RECEIVED FOR {self.target_branch.upper()} BRANCH{Style.RESET_ALL}")
+            self.logger.info(f"{Fore.GREEN}{'='*50}{Style.RESET_ALL}")
             
             # Log commit information
             commits = payload.get('commits', [])
@@ -224,19 +227,24 @@ class WebhookListener:
             message = commit.get('message', 'No message')
             commit_id = commit.get('id', '')[:8]
             
-            self.logger.info(f"  {Fore.YELLOW}[{commit_id}]{Style.RESET_ALL} {message} by {author}")
+            self.logger.info(f"  {Fore.MAGENTA}📝 [{commit_id}]{Style.RESET_ALL} {Fore.WHITE}{message}{Style.RESET_ALL}")
+            self.logger.info(f"     {Fore.CYAN}👤 Author: {author}{Style.RESET_ALL}")
             
-            # Log file changes
+            # Log file changes with better formatting
             added = commit.get('added', [])
             modified = commit.get('modified', [])
             removed = commit.get('removed', [])
             
-            for file in added:
-                self.logger.info(f"    {Fore.GREEN}++++ {file}{Style.RESET_ALL}")
-            for file in modified:
-                self.logger.info(f"    {Fore.YELLOW}~~~~ {file}{Style.RESET_ALL}")
-            for file in removed:
-                self.logger.info(f"    {Fore.RED}---- {file}{Style.RESET_ALL}")
+            if added or modified or removed:
+                self.logger.info(f"     {Fore.BLUE}📁 File changes:{Style.RESET_ALL}")
+                for file in added:
+                    self.logger.info(f"       {Fore.GREEN}+ {file}{Style.RESET_ALL}")
+                for file in modified:
+                    self.logger.info(f"       {Fore.YELLOW}~ {file}{Style.RESET_ALL}")
+                for file in removed:
+                    self.logger.info(f"       {Fore.RED}- {file}{Style.RESET_ALL}")
+            else:
+                self.logger.info(f"     {Fore.BLUE}📁 No file changes detected{Style.RESET_ALL}")
     
     def deploy(self) -> bool:
         """Execute deployment process"""
@@ -266,6 +274,9 @@ class WebhookListener:
             self.logger.info(f"{Fore.YELLOW}5. Starting PM2 process{Style.RESET_ALL}")
             if not self.start_pm2_process():
                 return False
+            
+            # Show PM2 status after restart
+            self.show_pm2_status()
             
             # Step 6: Health checks
             self.logger.info(f"{Fore.YELLOW}6. Performing health checks{Style.RESET_ALL}")
@@ -426,47 +437,97 @@ class WebhookListener:
                 processes = json.loads(output)
                 for proc in processes:
                     if proc.get('name') == self.pm2_app_name:
+                        pm2_env = proc.get('pm2_env', {})
                         return {
-                            'status': proc.get('pm2_env', {}).get('status'),
+                            'status': pm2_env.get('status'),
                             'pid': proc.get('pid'),
-                            'uptime': proc.get('pm2_env', {}).get('pm_uptime'),
-                            'restarts': proc.get('pm2_env', {}).get('restart_time')
+                            'uptime': pm2_env.get('pm_uptime'),
+                            'restarts': pm2_env.get('restart_time'),
+                            'memory': proc.get('monit', {}).get('memory'),
+                            'cpu': proc.get('monit', {}).get('cpu')
                         }
-            except:
-                pass
+            except Exception as e:
+                self.logger.debug(f"Error parsing PM2 status: {e}")
         return {'status': 'unknown'}
+    
+    def show_pm2_status(self):
+        """Show current PM2 status during deployment"""
+        self.logger.info(f"   {Fore.CYAN}🔍 Checking PM2 status...{Style.RESET_ALL}")
+        pm2_status = self.get_pm2_status()
+        status = pm2_status.get('status', 'unknown')
+        status_color = Fore.GREEN if status == 'online' else Fore.RED
+        
+        self.logger.info(f"   {Fore.YELLOW}Process:{Style.RESET_ALL} {self.pm2_app_name}")
+        self.logger.info(f"   {Fore.YELLOW}Status:{Style.RESET_ALL} {status_color}{status.upper()}{Style.RESET_ALL}")
+        
+        if pm2_status.get('pid'):
+            self.logger.info(f"   {Fore.YELLOW}PID:{Style.RESET_ALL} {pm2_status['pid']}")
+        
+        if pm2_status.get('memory'):
+            memory_mb = round(pm2_status['memory'] / 1024 / 1024, 1)
+            self.logger.info(f"   {Fore.YELLOW}Memory:{Style.RESET_ALL} {memory_mb} MB")
     
     def print_deployment_summary(self):
         """Print detailed deployment summary"""
-        self.logger.info(f"\n{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+        self.logger.info(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
         self.logger.info(f"{Fore.CYAN}🎉 DEPLOYMENT SUMMARY{Style.RESET_ALL}")
-        self.logger.info(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+        self.logger.info(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
         
         # Git information
         success, branch_output = self.run_command("git rev-parse --abbrev-ref HEAD")
-        success, commit_output = self.run_command("git rev-parse --short HEAD")
+        success2, commit_output = self.run_command("git rev-parse --short HEAD")
+        success3, commit_msg = self.run_command("git log -1 --pretty=%B")
         
-        if success:
-            self.logger.info(f"📍 Current Branch: {Fore.GREEN}{branch_output.strip()}{Style.RESET_ALL}")
-            self.logger.info(f"📍 Current Commit: {Fore.GREEN}{commit_output.strip()}{Style.RESET_ALL}")
+        if success and success2:
+            self.logger.info(f"📍 {Fore.YELLOW}Branch:{Style.RESET_ALL} {Fore.GREEN}{branch_output.strip()}{Style.RESET_ALL}")
+            self.logger.info(f"📍 {Fore.YELLOW}Commit:{Style.RESET_ALL} {Fore.GREEN}{commit_output.strip()}{Style.RESET_ALL}")
+            if success3:
+                self.logger.info(f"📝 {Fore.YELLOW}Message:{Style.RESET_ALL} {commit_msg.strip()}")
         
-        # PM2 Status
+        # PM2 Status with detailed information
+        self.logger.info(f"\n{Fore.CYAN}🔧 PM2 PROCESS STATUS{Style.RESET_ALL}")
         pm2_status = self.get_pm2_status()
-        status_color = Fore.GREEN if pm2_status.get('status') == 'online' else Fore.RED
-        self.logger.info(f"🔧 PM2 Status: {status_color}{pm2_status.get('status', 'unknown')}{Style.RESET_ALL}")
+        status = pm2_status.get('status', 'unknown')
+        status_color = Fore.GREEN if status == 'online' else Fore.RED
+        
+        self.logger.info(f"   {Fore.YELLOW}Status:{Style.RESET_ALL} {status_color}{status.upper()}{Style.RESET_ALL}")
         
         if pm2_status.get('pid'):
-            self.logger.info(f"🔧 Process ID: {pm2_status['pid']}")
+            self.logger.info(f"   {Fore.YELLOW}PID:{Style.RESET_ALL} {pm2_status['pid']}")
         
-        # Environment Information
-        self.logger.info(f"🌍 Environment: {Fore.YELLOW}production{Style.RESET_ALL}")
-        self.logger.info(f"🚪 Port: {Fore.YELLOW}8088{Style.RESET_ALL}")
-        self.logger.info(f"📁 Path: {Fore.YELLOW}{self.repo_path}{Style.RESET_ALL}")
+        if pm2_status.get('uptime'):
+            uptime_ms = pm2_status['uptime']
+            uptime_sec = int((datetime.now().timestamp() * 1000 - uptime_ms) / 1000) if uptime_ms else 0
+            uptime_str = f"{uptime_sec // 60}m {uptime_sec % 60}s" if uptime_sec > 60 else f"{uptime_sec}s"
+            self.logger.info(f"   {Fore.YELLOW}Uptime:{Style.RESET_ALL} {uptime_str}")
+        
+        if pm2_status.get('restarts'):
+            self.logger.info(f"   {Fore.YELLOW}Restarts:{Style.RESET_ALL} {pm2_status['restarts']}")
+        
+        if pm2_status.get('memory'):
+            memory_mb = round(pm2_status['memory'] / 1024 / 1024, 1)
+            self.logger.info(f"   {Fore.YELLOW}Memory:{Style.RESET_ALL} {memory_mb} MB")
+        
+        if pm2_status.get('cpu'):
+            self.logger.info(f"   {Fore.YELLOW}CPU:{Style.RESET_ALL} {pm2_status['cpu']}%")
+        
+        # Service endpoints
+        self.logger.info(f"\n{Fore.CYAN}🌐 SERVICE ENDPOINTS{Style.RESET_ALL}")
+        self.logger.info(f"   {Fore.YELLOW}App:{Style.RESET_ALL} http://localhost:8080")
+        self.logger.info(f"   {Fore.YELLOW}Webhook:{Style.RESET_ALL} http://localhost:8088/webhook")
+        self.logger.info(f"   {Fore.YELLOW}Health:{Style.RESET_ALL} http://localhost:8088/health")
+        
+        # Environment information
+        self.logger.info(f"\n{Fore.CYAN}⚙️  ENVIRONMENT{Style.RESET_ALL}")
+        self.logger.info(f"   {Fore.YELLOW}Node Env:{Style.RESET_ALL} production")
+        self.logger.info(f"   {Fore.YELLOW}Target Branch:{Style.RESET_ALL} {self.target_branch}")
+        self.logger.info(f"   {Fore.YELLOW}Repository:{Style.RESET_ALL} {self.repo_path}")
         
         # Deployment time
-        self.logger.info(f"⏰ Deployed: {Fore.GREEN}{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{Style.RESET_ALL}")
+        deploy_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.logger.info(f"\n⏰ {Fore.GREEN}Deployment completed at: {deploy_time}{Style.RESET_ALL}")
         
-        self.logger.info(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}\n")
+        self.logger.info(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
     
     def run(self):
         """Start the webhook listener"""
