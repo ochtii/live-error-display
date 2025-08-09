@@ -48,7 +48,7 @@ module.exports = {
     },
     
     {
-      // GitHub Webhook Listener for Auto-Deployment
+      // GitHub Webhook Listener for Auto-Deeployment
       name: 'live-error-display-webhook',
       script: '/opt/live-error-display/webhook_listener.py',
       instances: 1,
