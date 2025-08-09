@@ -1993,7 +1993,9 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             hasSession: !!this.currentSession,
             sessionName: this.currentSession?.name,
             tokenPreview: this.currentSession?.token?.substring(0, 16) + '...',
-            isSessionSaved: this.isSessionSaved()
+            isSessionSaved: this.isSessionSaved(),
+            sessionBarExists: !!sessionBar,
+            headerSessionExists: !!headerSession
         });
         
         // Skip update if header is hidden (no session UI available)
