@@ -243,14 +243,63 @@ EOL
   sudo -u $PM2_USER pm2 save
 }
 
+# === STILLE VERSIONEN DER FUNKTIONEN ===
+# Diese Funktionen führen die gleichen Aktionen aus wie die Originalfunktionen,
+# geben aber keine Logs aus, um die Ausgabe auf maximal 2 Zeilen zu halten
+
+handle_merge_conflicts_silent() {
+  cd "$REPO_DIR"
+  
+  # Prüfe, ob wir uns in einem Merge-Zustand befinden
+  if [ -f "$REPO_DIR/.git/MERGE_HEAD" ]; then
+    # Versuche, mit der --strategy-option theirs zu lösen
+    git merge --abort && git pull -s recursive -X theirs origin main
+  fi
+}
+
+install_dependencies_silent() {
+  cd "$REPO_DIR"
+  npm install --silent
+}
+
+build_app_silent() {
+  cd "$REPO_DIR"
+  if [ -f "$REPO_DIR/package.json" ]; then
+    # Prüfe, ob ein build-Skript existiert
+    if grep -q '"build"' package.json; then
+      npm run build --silent
+    fi
+  fi
+}
+
+setup_pm2_silent() {
+  cd "$REPO_DIR"
+  
+  # Pfad zur Konfigurationsdatei
+  local config_file="$REPO_DIR/ecosystem.config.js"
+  
+  # Wenn die PM2-Konfigurationsdatei existiert
+  if [ -f "$config_file" ]; then
+    # Prüfe, ob der Service bereits läuft
+    if sudo -u $PM2_USER pm2 list | grep -q "$SERVICE_NAME"; then
+      sudo -u $PM2_USER pm2 reload "$config_file"
+    else
+      sudo -u $PM2_USER pm2 start "$config_file"
+    fi
+  fi
+  
+  # PM2 Startup speichern, damit es beim Neustart automatisch startet
+  sudo -u $PM2_USER pm2 save
+}
+
 deploy() {
-  # Nur ausgeben wenn wirklich etwas passiert
+  # Völlig still, wenn keine Änderungen
   
   if ! acquire_lock; then
     return 1  # Kein Deployment durchgeführt
   fi
   
-  # Hauptfunktionen
+  # Hauptfunktionen - kein Log
   init_repo
   pull_changes
   local changes_found=$?
@@ -261,34 +310,32 @@ deploy() {
     return 1  # Kein Deployment durchgeführt
   fi
   
-  # Ab hier gibt es Änderungen, die wir deployen müssen
-  info "Starte Deployment-Prozess..."
+  # Ab hier gibt es Änderungen - erster Log (Zeile 1 von 2)
+  success "Deployment: Änderungen werden installiert..."
   
-  # Detailliertes Feedback zu den Änderungen
-  if [ -f "/tmp/pull_output.txt" ]; then
-    info "=== Git Pull Ausgabe ==="
-    cat /tmp/pull_output.txt
-    info "======================="
+  # Detailliertes Feedback zu den Änderungen in einer Datei statt Logs
+  if [ -f "/tmp/pull_output.txt" ] || [ -f "/tmp/changed_files.txt" ] || [ -f "/tmp/commit_log.txt" ]; then
+    # Alle Outputs in eine Datei zusammenführen für späteren Zugriff
+    {
+      echo "=== Git Pull Ausgabe ==="
+      cat /tmp/pull_output.txt 2>/dev/null
+      echo
+      echo "=== Geänderte Dateien ==="
+      cat /tmp/changed_files.txt 2>/dev/null
+      echo
+      echo "=== Commit-Logs ==="
+      cat /tmp/commit_log.txt 2>/dev/null
+    } > /tmp/deploy_details.log
   fi
   
-  if [ -f "/tmp/changed_files.txt" ]; then
-    info "=== Geänderte Dateien ==="
-    cat /tmp/changed_files.txt
-    info "========================="
-  fi
+  # Funktionen ohne Logs ausführen
+  handle_merge_conflicts_silent
+  install_dependencies_silent
+  build_app_silent
+  setup_pm2_silent
   
-  if [ -f "/tmp/commit_log.txt" ]; then
-    info "=== Commit-Logs ==="
-    cat /tmp/commit_log.txt
-    info "==================="
-  fi
-  
-  handle_merge_conflicts
-  install_dependencies
-  build_app
-  setup_pm2
-  
-  success "Deployment abgeschlossen!"
+  # Abschluss-Log (Zeile 2 von 2)
+  success "Deployment erfolgreich abgeschlossen - Details in /tmp/deploy_details.log"
   release_lock
   
   # Temp-Dateien aufräumen
@@ -298,51 +345,34 @@ deploy() {
 }
 
 # === HAUPTPROGRAMM ===
-check_dependencies
+check_dependencies > /dev/null
 
-info "=== Live Error Display Auto-Deploy gestartet ==="
-info "Repository: $REPO_URL"
-info "Zielverzeichnis: $REPO_DIR"
-info "Service-Name: $SERVICE_NAME"
-info "Prüfintervall: $CHECK_INTERVAL Sekunde(n)"
+# Reduzierte Startmeldung - nur 1 Zeile
+success "Live Error Display Auto-Deploy gestartet (Repository: $REPO_URL)"
 
-# Logdatei initialisieren
+# Logdatei ohne Ausgabe initialisieren
 if [ ! -f "$LOG_FILE" ]; then
-  touch "$LOG_FILE" || error "Konnte Logdatei nicht erstellen: $LOG_FILE"
-  info "Logdatei erstellt: $LOG_FILE"
+  touch "$LOG_FILE" 2>/dev/null || error "Konnte Logdatei nicht erstellen: $LOG_FILE"
 fi
 
-# Initialer Deploy beim Start
+# Initialer Deploy beim Start - still ausführen
 deploy
 
-# Fortlaufende Überwachung
-info "Starte fortlaufende Überwachung..."
+# Fortlaufende Überwachung - auf 2 Zeilen reduziert
+success "Überwachung aktiv - prüfe alle $CHECK_INTERVAL Sekunden"
 
-# Zähler für reduzierte Logs
-COUNTER=0
-MAX_SILENT_RUNS=10
-
+# Stiller Modus
 while true; do
-  # Reduziere Ausgabe, zeige nur alle 10 Durchläufe eine Nachricht an
-  if [ $COUNTER -eq 0 ]; then
-    info "Überwache Repository (stille Prüfungen für die nächsten $MAX_SILENT_RUNS Durchläufe)..."
-  fi
-  
-  # Deployment ausführen - hier werden die Logs reduziert
-  # Bei erkannten Änderungen gibt es ausführliches Feedback
+  # Kein Log für reguläre Prüfungen
   deploy
   
-  # Bei Änderungen Counter zurücksetzen für neuen Zyklus der stillen Prüfungen
+  # Bei Änderungen werden logs innerhalb von deploy ausgegeben
   if [ $? -eq 0 ]; then
-    COUNTER=0
     # Längere Pause nach Deployment um System zu entlasten
     sleep $((CHECK_INTERVAL * 5))
+    # Nach Deployment: Eine einzelne Zeile zur Bestätigung der Wiederaufnahme
+    success "Überwachung fortgesetzt - prüfe alle $CHECK_INTERVAL Sekunden"
   else
-    # Zähler erhöhen und prüfen ob wir die Nachricht ausgeben
-    COUNTER=$((COUNTER + 1))
-    if [ $COUNTER -ge $MAX_SILENT_RUNS ]; then
-      COUNTER=0
-    fi
     sleep $CHECK_INTERVAL
   fi
 done
