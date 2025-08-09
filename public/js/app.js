@@ -26,6 +26,9 @@ class ErrorDisplay {
 
     // === INITIALIZATION === 
     async init() {
+        // Always start with clean UI state
+        this.forceCleanUIState();
+        
         // Check for server restart and clear old data if needed
         await this.checkServerRestartAndClearData();
         
@@ -36,9 +39,10 @@ class ErrorDisplay {
         this.initPushNotifications();
         this.updateSessionDisplay();
         
-        // Always show start page instead of auto-loading sessions
-        this.showStartPage();
-        // Force UI visibility update regardless of session state
+        // Always show start page first
+        this.enforceStartPageState();
+        
+        // Validate session state after UI is clean
         await this.validateAndUpdateUIState();
         
         // Start auto-cleanup timer for deleted sessions
@@ -114,7 +118,7 @@ class ErrorDisplay {
         this.showNotification('Erfolgreich alle Browserdaten gelöscht', 'success');
         
         // Force UI update to ensure clean state
-        this.updateUIVisibility(false);
+        this.enforceStartPageState();
     }
 
     setupEventListeners() {
@@ -354,7 +358,7 @@ class ErrorDisplay {
         if (!this.currentSession && ['live', 'archive', 'api'].includes(mode)) {
             console.log(`🚫 Access to ${mode} blocked: No active session`);
             this.showStartPage();
-            this.updateUIVisibility(false);
+            this.enforceStartPageState();
             return;
         }
         
@@ -1912,6 +1916,11 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         this.currentSession = null;
         localStorage.removeItem('currentSession');
         this.updateSessionDisplay();
+        
+        // Force UI to clean state and redirect to start page
+        this.forceCleanUIState();
+        this.showStartPage();
+        this.showNotification('Session beendet', 'info');
     }
 
     updateSessionDisplay() {
@@ -2344,54 +2353,171 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             isValid: isValidSession 
         });
         
-        // Update UI based on session validity
-        this.updateUIVisibility(isValidSession);
-    }
-
-    updateUIVisibility(hasValidSession) {
-        const header = document.querySelector('.header');
-        
-        if (hasValidSession) {
-            // Show normal header and navigation
-            if (header) {
-                header.style.display = 'grid';
-                header.style.visibility = 'visible';
-            }
-            this.updateHeaderForActiveSession();
+        // Update UI based on session validity using new robust system
+        if (isValidSession) {
+            this.enableSessionUIMode();
         } else {
-            // Hide header completely when no valid session
-            if (header) {
-                header.style.display = 'none';
-                header.style.visibility = 'hidden';
-            }
-            this.showStartPage();
+            this.enforceStartPageState();
         }
     }
 
-    updateHeaderForStartPage() {
-        // Show simplified header for start page
+    // === NEW ROBUST UI VISIBILITY SYSTEM ===
+    
+    forceCleanUIState() {
+        // Force complete UI reset - remove all session-related UI elements
+        console.log('🧹 Forcing clean UI state...');
+        
+        // Hide all main UI elements
+        this.hideAllMainUIElements();
+        
+        // Clear all content containers
+        this.clearAllContentContainers();
+        
+        // Reset navigation state
+        this.resetNavigationState();
+        
+        // Clear session displays
+        this.clearAllSessionDisplays();
+        
+        console.log('✅ UI forced to clean state');
+    }
+    
+    hideAllMainUIElements() {
+        // Force hide header and all navigation
+        const elementsToHide = [
+            '.header',
+            '.controls', 
+            '.session-info',
+            '.navigation',
+            '.nav-tabs',
+            '#mainContent',
+            '.error-container',
+            '.archive-container',
+            '.settings-container'
+        ];
+        
+        elementsToHide.forEach(selector => {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(element => {
+                element.style.display = 'none';
+                element.style.visibility = 'hidden';
+                element.style.opacity = '0';
+                element.style.pointerEvents = 'none';
+            });
+        });
+    }
+    
+    clearAllContentContainers() {
+        // Clear content from containers that might show session-related data
+        const containersToClean = [
+            '#errorsContainer',
+            '#archiveContainer', 
+            '#settingsContainer',
+            '#sessionContainer'
+        ];
+        
+        containersToClean.forEach(selector => {
+            const container = document.querySelector(selector);
+            if (container) {
+                container.innerHTML = '';
+            }
+        });
+    }
+    
+    resetNavigationState() {
+        // Reset navigation buttons and mode indicators
+        const navButtons = document.querySelectorAll('.nav-btn, .mode-btn, .tab-btn');
+        navButtons.forEach(btn => {
+            btn.classList.remove('active');
+            btn.style.display = 'none';
+        });
+        
+        // Reset current mode
+        this.currentMode = null;
+    }
+    
+    clearAllSessionDisplays() {
+        // Clear all session-related display elements
+        const sessionElements = [
+            '#sessionBar',
+            '#headerSession', 
+            '#sessionName',
+            '#sessionToken',
+            '#sessionNameHeader',
+            '#sessionTokenHeader'
+        ];
+        
+        sessionElements.forEach(selector => {
+            const element = document.querySelector(selector);
+            if (element) {
+                element.style.display = 'none';
+                element.innerHTML = '';
+                element.textContent = '';
+            }
+        });
+    }
+    
+    enforceStartPageState() {
+        // Aggressively enforce start page state
+        console.log('🎯 Enforcing start page state...');
+        
+        // Double-check that no UI elements are visible
+        this.forceCleanUIState();
+        
+        // Ensure body class is correct
+        document.body.className = 'start-page-mode';
+        
+        // Show only the start page
+        this.showStartPage();
+        
+        console.log('✅ Start page state enforced');
+    }
+    
+    enableSessionUIMode() {
+        // Enable full UI when session is valid
+        console.log('🔓 Enabling session UI mode...');
+        
+        // Show main UI elements
+        const elementsToShow = [
+            '.header',
+            '.controls', 
+            '.session-info',
+            '.navigation',
+            '.nav-tabs'
+        ];
+        
+        elementsToShow.forEach(selector => {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(element => {
+                element.style.display = '';
+                element.style.visibility = '';
+                element.style.opacity = '';
+                element.style.pointerEvents = '';
+            });
+        });
+        
+        // Update header for active session
+        this.updateHeaderForActiveSession();
+        
+        // Set body class for session mode
+        document.body.className = 'session-mode';
+        
+        // Switch to live mode by default
+        this.switchMode('live');
+        
+        console.log('✅ Session UI mode enabled');
+    }
+    
+    updateHeaderForActiveSession() {
+        // Update header to show session information
         const header = document.querySelector('.header');
-        const controls = document.querySelector('.controls');
-        const sessionInfo = document.querySelector('.session-info');
-        
         if (header) {
-            header.classList.add('start-page-header');
+            header.classList.remove('start-page-header');
+            header.style.display = 'grid';
         }
         
-        // Hide navigation controls
-        if (controls) {
-            controls.style.display = 'none';
-        }
-        
-        // Update session info to show welcome message
-        if (sessionInfo) {
-            sessionInfo.innerHTML = `
-                <div class="start-session-info">
-                    <span class="start-welcome-text">Willkommen bei Live Error Display</span>
-                    <small class="start-version-text">Version 2.1 - Bereit für neue Sessions</small>
-                </div>
-            `;
-        }
+        // Show session information
+        this.updateSessionDisplay();
     }
 
     updateHeaderForActiveSession() {
@@ -2500,8 +2626,8 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         // This unlocks all tabs and starts SSE connection
         console.log('🎯 Session loaded globally, enabling full app functionality');
         
-        // Show header and update to normal mode
-        this.updateUIVisibility(true);
+        // Show header and update to session mode
+        this.enableSessionUIMode();
         
         // Hide session required message if visible
         const errorsContainer = document.getElementById('errorsContainer');

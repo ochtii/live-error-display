@@ -32,6 +32,22 @@ body {
     padding: 1rem;
 }
 
+/* === BODY MODES === */
+body.start-page-mode .header,
+body.start-page-mode .controls,
+body.start-page-mode .session-info,
+body.start-page-mode .navigation,
+body.start-page-mode .nav-tabs {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+body.session-mode .start-page {
+    display: none;
+}
+
 /* === CONTAINER === */
 .container {
     max-width: 1200px;
