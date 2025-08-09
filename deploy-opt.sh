@@ -111,7 +111,7 @@ init_repo() {
 }
 
 pull_changes() {
-  info "Prüfe auf Updates..."
+  # Reduzierte Logs auf 2 Zeilen
   cd "$REPO_DIR"
   
   # Aktuelle Commit-ID speichern
@@ -125,7 +125,7 @@ pull_changes() {
   
   # Prüfen, ob es Änderungen gab
   if [ "$old_commit" == "$new_commit" ]; then
-    info "Keine neuen Änderungen."
+    # Keine Ausgabe für keine Änderungen, um Logs zu reduzieren
     return 1
   else
     success "Neue Änderungen gefunden: $old_commit -> $new_commit"
@@ -238,7 +238,7 @@ EOL
 }
 
 deploy() {
-  info "Starte Deployment-Prozess..."
+  # Nur ausgeben wenn wirklich etwas passiert
   
   if ! acquire_lock; then
     return 0
@@ -247,6 +247,9 @@ deploy() {
   # Hauptfunktionen
   init_repo
   pull_changes || { release_lock; return 0; }
+  
+  # Ab hier gibt es Änderungen, die wir deployen müssen
+  info "Starte Deployment-Prozess..."
   handle_merge_conflicts
   install_dependencies
   build_app
