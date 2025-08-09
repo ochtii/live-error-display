@@ -1,92 +1,203 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Error Display v4.0</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #0f172a;
-            color: white;
-            padding: 20px;
-            margin: 0;
-        }
-        h1 {
-            color: #3b82f6;
-            text-align: center;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background: #1e293b;
-            padding: 30px;
-            border-radius: 10px;
-            border: 1px solid #334155;
-        }
-        .status {
-            padding: 15px;
-            margin: 15px 0;
-            border-radius: 8px;
-            text-align: center;
-            font-weight: bold;
-        }
-        .status.info {
-            background: rgba(59, 130, 246, 0.2);
-            border: 1px solid #3b82f6;
-            color: #60a5fa;
-        }
-        .status.success {
-            background: rgba(34, 197, 94, 0.2);
-            border: 1px solid #22c55e;
-            color: #4ade80;
-        }
-        .test-info {
-            background: #374151;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 10px 0;
-            font-family: monospace;
-            font-size: 14px;
-        }
-    </style>
+    <title>Live Error Display v4.0 - PRIMITIVE</title>
 </head>
 <body>
-    <div class="container">
-        <h1>🚨 Live Error Display v4.0</h1>
-        
-        <div class="status info">
-            ✅ HTML erfolgreich geladen!
-        </div>
-        
-        <div class="test-info">
-            <strong>Browser Test:</strong><br>
-            URL: <span id="currentUrl">-</span><br>
-            Host: <span id="currentHost">-</span><br>
-            Time: <span id="currentTime">-</span>
-        </div>
-        
-        <div class="status success">
-            🎉 Frontend funktioniert!<br>
-            <small>Das Problem lag am komplexen JavaScript.</small>
-        </div>
-        
-        <div style="text-align: center; margin-top: 30px;">
-            <a href="debug.html" style="color: #60a5fa; text-decoration: none;">
-                🔧 Zur Debug-Seite →
-            </a>
-        </div>
-    </div>
+    <h1>Live Error Display v4.0</h1>
+    <h2>Primitive Version ohne CSS</h2>
+    
+    <hr>
+    
+    <h3>System Status</h3>
+    <p id="status">Lade...</p>
+    
+    <hr>
+    
+    <h3>Session Management</h3>
+    
+    <h4>Neue Session erstellen:</h4>
+    <p>Name: <input type="text" id="sessionName" value="Test Session"></p>
+    <p>Passwort: <input type="password" id="sessionPassword"></p>
+    <p><button onclick="createSession()">Session erstellen</button></p>
+    
+    <h4>Session wiederherstellen:</h4>
+    <p>Token: <input type="text" id="restoreToken"></p>
+    <p><button onclick="restoreSession()">Session laden</button></p>
+    
+    <hr>
+    
+    <h3>Aktuelle Session</h3>
+    <p id="currentSession">Keine Session aktiv</p>
+    
+    <hr>
+    
+    <h3>Live Errors</h3>
+    <p><button onclick="connectSSE()">Live-Überwachung starten</button></p>
+    <p><button onclick="clearErrors()">Fehler löschen</button></p>
+    <div id="errors">Keine Fehler</div>
+    
+    <hr>
+    
+    <h3>Debug Info</h3>
+    <pre id="debug"></pre>
 
     <script>
-        console.log('🚀 Simple version loaded successfully');
+        // Globale Variablen
+        let currentSession = null;
+        let eventSource = null;
+        let errors = [];
         
-        // Update page info
-        document.getElementById('currentUrl').textContent = window.location.href;
-        document.getElementById('currentHost').textContent = window.location.host;
-        document.getElementById('currentTime').textContent = new Date().toLocaleString();
+        // Status anzeigen
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+            console.log('Status:', message);
+        }
         
-        console.log('✅ All info updated');
+        // Debug info anzeigen
+        function updateDebug() {
+            const info = {
+                url: window.location.href,
+                host: window.location.host,
+                session: currentSession,
+                errors: errors.length
+            };
+            document.getElementById('debug').textContent = JSON.stringify(info, null, 2);
+        }
+        
+        // Session erstellen
+        async function createSession() {
+            const name = document.getElementById('sessionName').value;
+            const password = document.getElementById('sessionPassword').value;
+            
+            if (!name) {
+                alert('Name erforderlich');
+                return;
+            }
+            
+            try {
+                updateStatus('Erstelle Session...');
+                
+                const response = await fetch('/api/token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        name: name, 
+                        password: password || undefined 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    currentSession = { token: data.token, name: name };
+                    document.getElementById('currentSession').textContent = 
+                        `Session aktiv: ${name} | Token: ${data.token}`;
+                    updateStatus('Session erstellt!');
+                    updateDebug();
+                } else {
+                    updateStatus('Fehler: ' + data.error);
+                }
+            } catch (error) {
+                updateStatus('Fehler beim Erstellen: ' + error.message);
+            }
+        }
+        
+        // Session wiederherstellen
+        function restoreSession() {
+            const token = document.getElementById('restoreToken').value;
+            
+            if (!token) {
+                alert('Token erforderlich');
+                return;
+            }
+            
+            currentSession = { token: token, name: 'Wiederhergestellt' };
+            document.getElementById('currentSession').textContent = 
+                `Session aktiv: Wiederhergestellt | Token: ${token}`;
+            updateStatus('Session wiederhergestellt!');
+            updateDebug();
+        }
+        
+        // SSE Verbindung
+        function connectSSE() {
+            if (eventSource) {
+                eventSource.close();
+            }
+            
+            try {
+                eventSource = new EventSource('/events');
+                
+                eventSource.onopen = function() {
+                    updateStatus('Live-Überwachung aktiv');
+                };
+                
+                eventSource.onmessage = function(event) {
+                    try {
+                        const error = JSON.parse(event.data);
+                        errors.unshift(error);
+                        displayErrors();
+                        updateDebug();
+                    } catch (e) {
+                        console.log('SSE Nachricht:', event.data);
+                    }
+                };
+                
+                eventSource.onerror = function() {
+                    updateStatus('Verbindung unterbrochen');
+                };
+            } catch (error) {
+                updateStatus('SSE Fehler: ' + error.message);
+            }
+        }
+        
+        // Fehler anzeigen
+        function displayErrors() {
+            const errorsDiv = document.getElementById('errors');
+            
+            if (errors.length === 0) {
+                errorsDiv.innerHTML = 'Keine Fehler';
+                return;
+            }
+            
+            let html = '<h4>Fehler (' + errors.length + '):</h4>';
+            errors.slice(0, 10).forEach((error, index) => {
+                html += '<p><strong>' + (error.level || 'ERROR') + ':</strong> ' + 
+                       error.message + '<br>' +
+                       '<small>Zeit: ' + new Date(error.timestamp).toLocaleString() + '</small></p>';
+            });
+            
+            errorsDiv.innerHTML = html;
+        }
+        
+        // Fehler löschen
+        function clearErrors() {
+            errors = [];
+            displayErrors();
+            updateDebug();
+        }
+        
+        // Server Test
+        async function testServer() {
+            try {
+                const response = await fetch('/api/health');
+                if (response.ok) {
+                    updateStatus('Server verbunden');
+                } else {
+                    updateStatus('Server Fehler: ' + response.status);
+                }
+            } catch (error) {
+                updateStatus('Server nicht erreichbar: ' + error.message);
+            }
+        }
+        
+        // Initialisierung
+        window.onload = function() {
+            updateStatus('Initialisiere...');
+            updateDebug();
+            testServer();
+        };
     </script>
 </body>
 </html>
