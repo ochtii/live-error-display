@@ -9,6 +9,7 @@ import * as ErrorManager from './modules/error-manager.js';
 import * as SessionManager from './modules/session-manager.js';
 import * as SSEClient from './modules/sse-client.js';
 import * as SoundManager from './modules/sound-manager.js';
+import * as ProjectNameGenerator from './modules/project-name-generator.js';
 
 /**
  * Initialize the application
@@ -20,6 +21,7 @@ async function initApp() {
     ErrorManager.initErrorManager();
     SessionManager.initSessionManager();
     SoundManager.initSoundManager();
+    ProjectNameGenerator.initProjectNameGenerator();
     
     // Set up event listeners
     setupEventHandlers();

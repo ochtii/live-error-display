@@ -6,6 +6,7 @@
 import { getElement, setText, setVisible, getInputValue, setInputValue, addSafeEventListener, createElement, clearChildren } from './modules/dom-utils.js';
 import { STATUS, setStatus } from './modules/status-manager.js';
 import * as SessionManager from './modules/session-manager.js';
+import * as ProjectNameGenerator from './modules/project-name-generator.js';
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', initSessionAdmin);
@@ -15,6 +16,9 @@ document.addEventListener('DOMContentLoaded', initSessionAdmin);
  */
 function initSessionAdmin() {
     console.log('📝 Session Admin Interface initializing...');
+    
+    // Initialize project name generator
+    ProjectNameGenerator.initProjectNameGenerator();
     
     // Set up event handlers
     setupEventHandlers();
