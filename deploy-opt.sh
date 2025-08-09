@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Live Error Display - Auto-Deploy Script für /opt (root)
+# Live Error Display - Auto-Deploy Script für /opt (ubuntu user)
 # Prüft jede Sekunde auf Git-Änderungen und deployed automatisch
-# Test-Kommentar für PowerShell Commit & Push Test
+# Test-Kommentar für PowerShell Commit & Push Test - Updated
 
 # Entferne -e flag um zu verhindern, dass Script bei return 1 beendet wird
 set -uo pipefail
