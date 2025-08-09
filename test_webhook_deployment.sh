@@ -38,7 +38,18 @@ check_service() {
 # Function to check PM2 status
 check_pm2_status() {
     echo -e "${YELLOW}📊 PM2 Status:${NC}"
-    pm2 status | grep -E "(App name|$PM2_APP_NAME)" || echo "PM2 not running or app not found"
+    
+    if command -v pm2 &> /dev/null; then
+        pm2 status
+        echo ""
+        echo -e "${CYAN}Webhook Listener Status:${NC}"
+        pm2 show live-error-display-webhook 2>/dev/null || echo "Webhook listener not found in PM2"
+        echo ""
+        echo -e "${CYAN}Main App Status:${NC}"
+        pm2 show live-error-display 2>/dev/null || echo "Main app not found in PM2"
+    else
+        echo "PM2 not installed or not in PATH"
+    fi
 }
 
 # Function to test webhook endpoint
@@ -107,24 +118,24 @@ EOF
 
 # Function to check logs
 check_logs() {
-    echo -e "${YELLOW}📋 Recent webhook listener logs:${NC}"
+    echo -e "${YELLOW}📋 Recent logs:${NC}"
     
-    # Check systemd logs if service is running as systemd
-    if systemctl is-active --quiet webhook-listener 2>/dev/null; then
-        echo -e "${CYAN}Systemd logs (last 10 lines):${NC}"
-        journalctl -u webhook-listener -n 10 --no-pager
-    fi
-    
-    # Check PM2 logs if running via PM2
-    if pm2 list | grep -q webhook-listener 2>/dev/null; then
-        echo -e "${CYAN}PM2 logs (last 10 lines):${NC}"
-        pm2 logs webhook-listener --lines 10 --nostream 2>/dev/null || echo "No PM2 logs available"
+    # Check PM2 logs
+    if command -v pm2 &> /dev/null; then
+        echo -e "${CYAN}Webhook listener logs (last 10 lines):${NC}"
+        pm2 logs live-error-display-webhook --lines 10 --nostream 2>/dev/null || echo "No webhook listener logs available"
+        
+        echo ""
+        echo -e "${CYAN}Main app logs (last 10 lines):${NC}"
+        pm2 logs live-error-display --lines 10 --nostream 2>/dev/null || echo "No main app logs available"
+    else
+        echo "PM2 not available"
     fi
     
     # Check file logs
-    if [ -f "/var/log/webhook-listener.log" ]; then
-        echo -e "${CYAN}File logs (last 10 lines):${NC}"
-        tail -n 10 /var/log/webhook-listener.log
+    if [ -f "/var/log/live-error-display-webhook-combined.log" ]; then
+        echo -e "${CYAN}Webhook file logs (last 5 lines):${NC}"
+        tail -n 5 /var/log/live-error-display-webhook-combined.log
     fi
 }
 
@@ -193,9 +204,9 @@ run_comprehensive_test() {
     echo ""
     echo -e "${BLUE}💡 Next Steps:${NC}"
     echo "1. If webhook listener is not running, start it:"
-    echo "   sudo systemctl start webhook-listener"
+    echo "   pm2 start ecosystem.config.js --env production"
     echo "   OR"
-    echo "   pm2 start ecosystem.config.js"
+    echo "   pm2 start live-error-display-webhook"
     echo ""
     echo "2. Test real deployment by pushing to 'live' branch:"
     echo "   git checkout live"
@@ -203,7 +214,7 @@ run_comprehensive_test() {
     echo "   git push origin live"
     echo ""
     echo "3. Monitor logs during deployment:"
-    echo "   sudo journalctl -u webhook-listener -f"
+    echo "   pm2 logs live-error-display-webhook"
     echo "   pm2 logs live-error-display"
 }
 

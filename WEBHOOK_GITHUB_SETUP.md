@@ -57,27 +57,30 @@ a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456
 
 ### Schritt 1: Umgebungsvariable setzen
 
-Bearbeiten Sie die Service-Datei:
+Bearbeiten Sie die ecosystem.config.js Datei:
 ```bash
-sudo nano /etc/systemd/system/webhook-listener.service
+nano /opt/live-error-display/ecosystem.config.js
 ```
 
-Ändern Sie diese Zeile:
-```bash
-Environment=GITHUB_WEBHOOK_SECRET=a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456
+Ändern Sie diese Zeile im live-error-display-webhook Abschnitt:
+```javascript
+GITHUB_WEBHOOK_SECRET: 'a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456'
 ```
 
-### Schritt 2: Service neu laden und starten
+### Schritt 2: PM2 Services starten
+
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable webhook-listener
-sudo systemctl start webhook-listener
+cd /opt/live-error-display
+pm2 start ecosystem.config.js --env production
+pm2 save
+pm2 startup
 ```
 
 ### Schritt 3: Status überprüfen
 ```bash
-sudo systemctl status webhook-listener
-sudo journalctl -u webhook-listener -f
+pm2 status
+pm2 logs webhook-listener
+pm2 logs live-error-display
 ```
 
 ## 🧪 4. Webhook testen
@@ -103,15 +106,17 @@ git push origin live
 
 ### Service Status
 ```bash
-# Service Status
-sudo systemctl status webhook-listener
-
-# Live Logs
-sudo journalctl -u webhook-listener -f
-
 # PM2 Status
 pm2 status
+
+# Webhook Logs
+pm2 logs live-error-display-webhook
+
+# Main App Logs
 pm2 logs live-error-display
+
+# All PM2 Logs
+pm2 logs
 ```
 
 ### Webhook Endpoints
@@ -125,10 +130,11 @@ pm2 logs live-error-display
 ### Webhook wird nicht ausgelöst
 1. Überprüfen Sie die GitHub Webhook Logs:
    - Repository → Settings → Webhooks → Ihr Webhook → Recent Deliveries
-2. Prüfen Sie den Server Status:
+2. Prüfen Sie den PM2 Status:
    ```bash
-   sudo systemctl status webhook-listener
-   curl http://localhost:9000/health
+   pm2 status
+   pm2 logs live-error-display-webhook
+   curl http://localhost:9090/health
    ```
 
 ### Deployment schlägt fehl
@@ -150,13 +156,16 @@ pm2 logs live-error-display
 ### Logs überprüfen
 ```bash
 # Webhook Listener Logs
-sudo journalctl -u webhook-listener -n 100
+pm2 logs live-error-display-webhook
 
 # Application Logs
-tail -f /var/log/live-error-display-*.log
+pm2 logs live-error-display
 
-# System Logs
-tail -f /var/log/syslog | grep webhook
+# All PM2 Logs
+pm2 logs
+
+# System Logs (if needed)
+tail -f /var/log/live-error-display-webhook-*.log
 ```
 
 ## 🛡️ 7. Sicherheit

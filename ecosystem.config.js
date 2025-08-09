@@ -1,14 +1,7 @@
-module.expor      // Environment variables
-      env: {
-        NODE_ENV: 'development',
-        PORT: 8080
-      },
-      env_production: {
-        NODE_ENV: 'production',
-        PORT: 8080
-      }, apps: [
+module.exports = {
+  apps: [
     {
-      // Main Live Error Display Application (Test Comment)
+      // Main Live Error Display Application
       name: 'live-error-display',
       script: 'server.js',
       instances: 1,
@@ -20,11 +13,11 @@ module.expor      // Environment variables
       // Environment variables
       env: {
         NODE_ENV: 'development',
-        PORT: 8888
+        PORT: 8080
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: 8888
+        PORT: 8080
       },
       
       // Logging configuration
@@ -56,7 +49,7 @@ module.expor      // Environment variables
     
     {
       // GitHub Webhook Listener for Auto-Deployment
-      name: 'webhook-listener',
+      name: 'live-error-display-webhook',
       script: '/opt/live-error-display/webhook_listener.py',
       instances: 1,
       exec_mode: 'fork',
@@ -75,9 +68,9 @@ module.expor      // Environment variables
       
       // Logging for webhook listener
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      error_file: '/var/log/webhook-listener-error.log',
-      out_file: '/var/log/webhook-listener-out.log',
-      log_file: '/var/log/webhook-listener-combined.log',
+      error_file: '/var/log/live-error-display-webhook-error.log',
+      out_file: '/var/log/live-error-display-webhook-out.log',
+      log_file: '/var/log/live-error-display-webhook-combined.log',
       
       // Restart configuration for webhook listener
       min_uptime: '10s',

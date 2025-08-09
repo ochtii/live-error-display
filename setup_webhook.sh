@@ -18,7 +18,7 @@ NC='\033[0m' # No Color
 # Configuration
 WEBHOOK_USER="webhook"
 WEBHOOK_DIR="/opt/live-error-display"
-WEBHOOK_SERVICE="webhook-listener"
+WEBHOOK_SERVICE="live-error-display-webhook"
 WEBHOOK_PORT="9090"
 
 echo -e "${BLUE}📋 Installation Summary:${NC}"
@@ -69,68 +69,46 @@ create_webhook_user() {
     chmod +x $WEBHOOK_DIR/webhook_listener.py
 }
 
-# Function to create systemd service
-create_systemd_service() {
-    echo -e "${YELLOW}⚙️ Creating systemd service...${NC}"
+# Function to create PM2 ecosystem configuration
+setup_pm2_config() {
+    echo -e "${YELLOW}⚙️ Setting up PM2 configuration...${NC}"
     
-    cat > /etc/systemd/system/$WEBHOOK_SERVICE.service << EOF
-[Unit]
-Description=GitHub Webhook Listener for Live Error Display
-After=network.target
-Wants=network.target
-
-[Service]
-Type=simple
-User=$WEBHOOK_USER
-Group=$WEBHOOK_USER
-WorkingDirectory=$WEBHOOK_DIR
-Environment=PYTHONPATH=$WEBHOOK_DIR
-Environment=GITHUB_WEBHOOK_SECRET=your_github_secret_here
-Environment=WEBHOOK_PORT=$WEBHOOK_PORT
-Environment=WEBHOOK_HOST=0.0.0.0
-Environment=TARGET_BRANCH=live
-ExecStart=/usr/bin/python3 $WEBHOOK_DIR/webhook_listener.py
-Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=$WEBHOOK_SERVICE
-
-# Security settings
-NoNewPrivileges=yes
-PrivateTmp=yes
-ProtectSystem=strict
-ProtectHome=yes
-ReadWritePaths=$WEBHOOK_DIR /var/log
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    systemctl daemon-reload
-    echo -e "${GREEN}✅ Systemd service created${NC}"
+    # Ensure webhook listener is configured in ecosystem.config.js
+    if grep -q "live-error-display-webhook" $WEBHOOK_DIR/ecosystem.config.js; then
+        echo -e "${GREEN}✅ Webhook listener already configured in ecosystem.config.js${NC}"
+    else
+        echo -e "${RED}❌ Webhook listener not found in ecosystem.config.js${NC}"
+        echo "Please ensure the live-error-display-webhook app is configured in ecosystem.config.js"
+        exit 1
+    fi
+    
+    # Update GitHub secret in ecosystem.config.js if needed
+    echo -e "${BLUE}ℹ️ Remember to update GITHUB_WEBHOOK_SECRET in ecosystem.config.js${NC}"
 }
 
-# Function to setup log rotation
-setup_log_rotation() {
-    echo -e "${YELLOW}📋 Setting up log rotation...${NC}"
+# Function to test PM2 services
+test_pm2_services() {
+    echo -e "${YELLOW}🧪 Testing PM2 services...${NC}"
     
-    cat > /etc/logrotate.d/$WEBHOOK_SERVICE << EOF
-/var/log/webhook-listener.log {
-    daily
-    missingok
-    rotate 30
-    compress
-    delaycompress
-    notifempty
-    create 644 $WEBHOOK_USER $WEBHOOK_USER
-    postrotate
-        systemctl reload $WEBHOOK_SERVICE
-    endscript
-}
-EOF
-
-    echo -e "${GREEN}✅ Log rotation configured${NC}"
+    # Wait for services to start
+    sleep 5
+    
+    # Check PM2 status
+    pm2 status
+    
+    # Test webhook health endpoint
+    if curl -f http://localhost:$WEBHOOK_PORT/health &>/dev/null; then
+        echo -e "${GREEN}✅ Webhook health endpoint responding${NC}"
+    else
+        echo -e "${YELLOW}⚠️ Webhook health endpoint not responding (may still be starting)${NC}"
+    fi
+    
+    # Test main app (if running on port 8080)
+    if curl -f http://localhost:8080/health &>/dev/null 2>&1 || curl -f http://localhost:8080/ &>/dev/null 2>&1; then
+        echo -e "${GREEN}✅ Main application responding${NC}"
+    else
+        echo -e "${YELLOW}⚠️ Main application not responding (may not be started yet)${NC}"
+    fi
 }
 
 # Function to configure firewall
@@ -149,28 +127,24 @@ configure_firewall() {
     fi
 }
 
-# Function to test webhook listener
-test_webhook() {
-    echo -e "${YELLOW}🧪 Testing webhook listener...${NC}"
+# Function to start PM2 services
+start_pm2_services() {
+    echo -e "${YELLOW}🚀 Starting PM2 services...${NC}"
     
-    # Start the service
-    systemctl start $WEBHOOK_SERVICE
-    sleep 3
+    # Stop any existing PM2 processes
+    pm2 stop ecosystem.config.js 2>/dev/null || true
     
-    # Check if service is running
-    if systemctl is-active --quiet $WEBHOOK_SERVICE; then
-        echo -e "${GREEN}✅ Webhook service is running${NC}"
-        
-        # Test health endpoint
-        if curl -f http://localhost:$WEBHOOK_PORT/health &>/dev/null; then
-            echo -e "${GREEN}✅ Health endpoint responding${NC}"
-        else
-            echo -e "${YELLOW}⚠️ Health endpoint not responding (this is normal if the service just started)${NC}"
-        fi
-    else
-        echo -e "${RED}❌ Webhook service failed to start${NC}"
-        echo "Check logs with: journalctl -u $WEBHOOK_SERVICE -f"
-    fi
+    # Start all services from ecosystem config
+    cd $WEBHOOK_DIR
+    pm2 start ecosystem.config.js --env production
+    
+    # Save PM2 configuration
+    pm2 save
+    
+    # Setup PM2 startup script
+    pm2 startup
+    
+    echo -e "${GREEN}✅ PM2 services started${NC}"
 }
 
 # Main installation process
@@ -180,26 +154,25 @@ main() {
     check_root
     install_dependencies
     create_webhook_user
-    create_systemd_service
-    setup_log_rotation
+    setup_pm2_config
     configure_firewall
-    test_webhook
+    start_pm2_services
+    test_pm2_services
     
     echo ""
     echo -e "${GREEN}🎉 Installation completed successfully!${NC}"
     echo ""
     echo -e "${BLUE}📋 Next Steps:${NC}"
-    echo "1. Edit the GitHub webhook secret in /etc/systemd/system/$WEBHOOK_SERVICE.service"
-    echo "2. Reload systemd: sudo systemctl daemon-reload"
-    echo "3. Enable service: sudo systemctl enable $WEBHOOK_SERVICE"
-    echo "4. Start service: sudo systemctl start $WEBHOOK_SERVICE"
-    echo "5. Configure GitHub webhook (see WEBHOOK_GITHUB_SETUP.md)"
+    echo "1. Update the GitHub webhook secret in ecosystem.config.js"
+    echo "2. Configure GitHub webhook (see WEBHOOK_GITHUB_SETUP.md)"
+    echo "3. Test deployment with a push to the live branch"
     echo ""
-    echo -e "${BLUE}📊 Service Management:${NC}"
-    echo "  Status: sudo systemctl status $WEBHOOK_SERVICE"
-    echo "  Logs:   sudo journalctl -u $WEBHOOK_SERVICE -f"
-    echo "  Stop:   sudo systemctl stop $WEBHOOK_SERVICE"
-    echo "  Start:  sudo systemctl start $WEBHOOK_SERVICE"
+    echo -e "${BLUE}📊 PM2 Management:${NC}"
+    echo "  Status: pm2 status"
+    echo "  Logs:   pm2 logs live-error-display-webhook"
+    echo "  Stop:   pm2 stop live-error-display-webhook"
+    echo "  Start:  pm2 start live-error-display-webhook"
+    echo "  Reload: pm2 reload ecosystem.config.js --env production"
     echo ""
     echo -e "${BLUE}🌐 Webhook URL:${NC}"
     echo "  http://YOUR_SERVER_IP:$WEBHOOK_PORT/webhook"

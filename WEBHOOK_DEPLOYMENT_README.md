@@ -37,7 +37,7 @@ Die `ecosystem.config.js` wurde aktualisiert mit:
 
 - **Port 8080** für die Hauptanwendung
 - **Branch 'live'** statt 'main' für Deployment
-- **Webhook-Listener auf Port 9090** als zweiter PM2-Prozess
+- **Webhook-Listener auf Port 9090** als zweiter PM2-Prozess (`live-error-display-webhook`)
 - **Health Check URLs** auf Port 8080 angepasst
 
 ### Umgebungsvariablen
@@ -63,13 +63,12 @@ sudo chmod +x setup_webhook.sh
 sudo ./setup_webhook.sh
 
 # 3. GitHub Secret konfigurieren
-sudo nano /etc/systemd/system/webhook-listener.service
-# Ändern Sie: Environment=GITHUB_WEBHOOK_SECRET=IHR_SECRET
+nano ecosystem.config.js
+# Ändern Sie: GITHUB_WEBHOOK_SECRET: 'IHR_SECRET'
 
-# 4. Service starten
-sudo systemctl daemon-reload
-sudo systemctl enable webhook-listener
-sudo systemctl start webhook-listener
+# 4. PM2 Services starten
+pm2 start ecosystem.config.js --env production
+pm2 save
 ```
 
 ### Manuelle Installation
@@ -120,13 +119,18 @@ Bei einem Push zum `live` Branch:
 ### Service Status
 
 ```bash
-# Webhook-Listener Status
-sudo systemctl status webhook-listener
-sudo journalctl -u webhook-listener -f
-
-# PM2 Status
+# PM2 Status aller Services
 pm2 status
+
+# Webhook-Listener Logs
+pm2 logs live-error-display-webhook
+pm2 logs live-error-display-webhook
+
+# Hauptanwendung Logs
 pm2 logs live-error-display
+
+# Alle Logs zusammen
+pm2 logs
 
 # Umfassender Test
 ./test_webhook_deployment.sh
@@ -134,9 +138,10 @@ pm2 logs live-error-display
 
 ### Log-Locations
 
-- **Webhook Logs**: `/var/log/webhook-listener.log`
-- **PM2 App Logs**: `/var/log/live-error-display-*.log`
-- **Systemd Logs**: `journalctl -u webhook-listener`
+- **PM2 Webhook Logs**: `pm2 logs live-error-display-webhook`
+- **PM2 App Logs**: `pm2 logs live-error-display`
+- **File Logs**: `/var/log/live-error-display-webhook-*.log`
+- **PM2 App File Logs**: `/var/log/live-error-display-*.log`
 
 ### Endpoints
 
