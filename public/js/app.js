@@ -2558,7 +2558,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({})
+                body: JSON.stringify({ password: '' })
             });
 
             if (response.ok) {
