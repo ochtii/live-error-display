@@ -469,6 +469,7 @@ class ErrorDisplay {
                 this.updateCurrentSessionCard();
                 this.loadLastSessionsInline(); // Load last sessions instead of saved sessions
                 this.updateSessionManagerState();
+                this.setRandomPlaceholder(); // Set random placeholder for session name
             }
             this.disconnectSSE();
             this.updateStatus('🔑 Session Manager');
@@ -3675,11 +3676,79 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             console.error('Error during auto-save:', error);
         }
     }
+
+    // === SESSION MANAGER UI FUNCTIONS ===
+    
+    generateRandomSessionName() {
+        const RANDOM_SESSION_NAMES = [
+            "🚀 Projekt Apollo", "🌟 Nebula Scan", "⚡ Lightning Debug", "🔥 Phoenix Watch", 
+            "🌊 Ocean Flow", "🎯 Target Lock", "🛡️ Shield Guard", "⚗️ Lab Monitor",
+            "🎭 Theater Mode", "🌈 Rainbow Check", "🔮 Crystal Ball", "🎪 Circus Watch",
+            "🌙 Moonlight Scan", "☀️ Solar Flare", "❄️ Ice Crystal", "🌸 Cherry Bloom",
+            "🎨 Paint Debug", "🎵 Music Flow", "📡 Signal Watch", "🎲 Dice Roll",
+            "🏔️ Mountain Peak", "🌋 Volcano Alert", "🌪️ Storm Track", "🌻 Sunflower",
+            "🦋 Butterfly Effect", "🐝 Bee Swarm", "🦅 Eagle Eye", "🐙 Octopus Arms",
+            "💎 Diamond Core", "🗝️ Master Key", "🎯 Bullseye Hit", "🌠 Shooting Star",
+            "🎪 Magic Portal", "🌿 Green Garden", "🎨 Color Splash", "🎯 Focus Point",
+            "🌊 Wave Rider", "⚡ Thunder Strike", "🔥 Flame Core", "❄️ Frost Edge",
+            "🎵 Sound Wave", "🌈 Prism Light", "🚀 Space Quest", "🎭 Drama Mode",
+            "🔮 Future Vision", "🎪 Wonder Land", "🌙 Night Watch", "☀️ Day Break",
+            "🦋 Flutter Wing", "🐝 Buzz Hive", "🦅 Sky Soar", "💎 Gem Stone"
+        ];
+        
+        const randomName = RANDOM_SESSION_NAMES[Math.floor(Math.random() * RANDOM_SESSION_NAMES.length)];
+        const nameInput = document.getElementById('newSessionName');
+        if (nameInput) {
+            nameInput.value = randomName;
+        }
+    }
+    
+    setRandomPlaceholder() {
+        const RANDOM_SESSION_NAMES = [
+            "🚀 Projekt Apollo", "🌟 Nebula Scan", "⚡ Lightning Debug", "🔥 Phoenix Watch", 
+            "🌊 Ocean Flow", "🎯 Target Lock", "🛡️ Shield Guard", "⚗️ Lab Monitor",
+            "🎭 Theater Mode", "🌈 Rainbow Check", "🔮 Crystal Ball", "🎪 Circus Watch",
+            "🌙 Moonlight Scan", "☀️ Solar Flare", "❄️ Ice Crystal", "🌸 Cherry Bloom",
+            "🎨 Paint Debug", "🎵 Music Flow", "📡 Signal Watch", "🎲 Dice Roll",
+            "🏔️ Mountain Peak", "🌋 Volcano Alert", "🌪️ Storm Track", "🌻 Sunflower",
+            "🦋 Butterfly Effect", "🐝 Bee Swarm", "🦅 Eagle Eye", "🐙 Octopus Arms",
+            "💎 Diamond Core", "🗝️ Master Key", "🎯 Bullseye Hit", "🌠 Shooting Star",
+            "🎪 Magic Portal", "🌿 Green Garden", "🎨 Color Splash", "🎯 Focus Point",
+            "🌊 Wave Rider", "⚡ Thunder Strike", "🔥 Flame Core", "❄️ Frost Edge",
+            "🎵 Sound Wave", "🌈 Prism Light", "🚀 Space Quest", "🎭 Drama Mode",
+            "🔮 Future Vision", "🎪 Wonder Land", "🌙 Night Watch", "☀️ Day Break",
+            "🦋 Flutter Wing", "🐝 Buzz Hive", "🦅 Sky Soar", "💎 Gem Stone"
+        ];
+        
+        const randomName = RANDOM_SESSION_NAMES[Math.floor(Math.random() * RANDOM_SESSION_NAMES.length)];
+        const nameInput = document.getElementById('newSessionName');
+        if (nameInput) {
+            nameInput.placeholder = randomName;
+        }
+    }
+    
+    togglePasswordVisibility(inputId) {
+        const input = document.getElementById(inputId);
+        const button = input?.nextElementSibling;
+        
+        if (!input || !button) return;
+        
+        if (input.type === 'password') {
+            input.type = 'text';
+            button.textContent = '🙈';
+            button.title = 'Passwort verstecken';
+        } else {
+            input.type = 'password';
+            button.textContent = '👁️';
+            button.title = 'Passwort anzeigen';
+        }
+    }
 }
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.errorDisplay = new ErrorDisplay();
+    window.app = window.errorDisplay; // Make app globally available for inline onclick handlers
 });
 
 // Handle page visibility - only reconnect if in live mode

@@ -1118,18 +1118,30 @@ curl -s "$SERVER_URL/errors" | jq '.errors[] | .timestamp + ": " + .message'</pr
                 
                 <!-- Create New Session -->
                 <div class="session-card">
-                    <h2>✨ Neue Session erstellen</h2>
+                    <h2>🆕 Neue Session erstellen</h2>
                     <p>Erstellt eine neue Session mit individuellem API-Token</p>
                     
-                    <div class="input-group">
-                        <input type="text" id="newSessionName" placeholder="Session Name (optional)" class="session-input">
+                    <div class="form-group">
+                        <label for="newSessionName">Session Name</label>
+                        <div class="input-group">
+                            <input type="text" id="newSessionName" placeholder="" class="session-input">
+                            <button class="btn btn-icon" onclick="app.generateRandomSessionName()" title="Zufälligen Namen generieren">
+                                🎲
+                            </button>
+                        </div>
                     </div>
                     
-                    <div class="input-group">
-                        <input type="password" id="newSessionPassword" placeholder="Session Passwort (optional)" class="session-input">
+                    <div class="form-group">
+                        <label for="newSessionPassword">Passwort <span class="required">*</span></label>
+                        <div class="input-group">
+                            <input type="password" id="newSessionPassword" placeholder="Mindestens 4 Zeichen" class="session-input" required minlength="4">
+                            <button class="btn btn-icon" onclick="app.togglePasswordVisibility('newSessionPassword')" title="Passwort anzeigen/verstecken">
+                                👁️
+                            </button>
+                        </div>
                     </div>
                     
-                    <div class="input-group checkbox-group">
+                    <div class="form-group checkbox-group">
                         <label class="checkbox-label">
                             <input type="checkbox" id="saveSessionLocally" checked>
                             <span class="checkbox-text">Session im Browser speichern (Letzte Sessions)</span>
@@ -1139,23 +1151,29 @@ curl -s "$SERVER_URL/errors" | jq '.errors[] | .timestamp + ": " + .message'</pr
                     
                     <div class="session-actions">
                         <button class="btn btn-primary" id="createNewSessionBtn">
-                            ✨ Session erstellen
+                            🚀 Session erstellen
                         </button>
                     </div>
                 </div>
                 
                 <!-- Restore Session -->
                 <div class="session-card">
-                    <h2>🔑 Session wiederherstellen</h2>
+                    <h2>� Session wiederherstellen</h2>
                     <p>Laden Sie eine bestehende Session mit ihrem Token</p>
                     
-                    <div class="input-group">
-                        <input type="text" id="sessionTokenInput" placeholder="Session Token eingeben..." class="session-input">
+                    <div class="form-group">
+                        <label for="sessionTokenInput">Session Token <span class="required">*</span></label>
+                        <input type="text" id="sessionTokenInput" placeholder="Session Token eingeben..." class="session-input" required>
                     </div>
                     
-                    <div class="input-group">
-                        <input type="password" id="sessionPasswordInput" placeholder="Passwort (falls erforderlich)" class="session-input">
-                        <small class="input-hint">💡 Nur bei passwortgeschützten Sessions erforderlich</small>
+                    <div class="form-group">
+                        <label for="sessionPasswordInput">Passwort <span class="required">*</span></label>
+                        <div class="input-group">
+                            <input type="password" id="sessionPasswordInput" placeholder="Session Passwort" class="session-input" required minlength="4">
+                            <button class="btn btn-icon" onclick="app.togglePasswordVisibility('sessionPasswordInput')" title="Passwort anzeigen/verstecken">
+                                👁️
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="session-actions">
@@ -1176,7 +1194,7 @@ curl -s "$SERVER_URL/errors" | jq '.errors[] | .timestamp + ": " + .message'</pr
                         <p class="no-sessions">Keine letzten Sessions gefunden</p>
                     </div>
                     <div class="session-actions">
-                        <button class="btn btn-secondary" id="refreshLastSessionsBtn">
+                        <button class="btn btn-primary" id="refreshLastSessionsBtn">
                             🔄 Aktualisieren
                         </button>
                     </div>
