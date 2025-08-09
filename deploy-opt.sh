@@ -50,26 +50,15 @@ detect_pm2_home() {
 # PM2 Home beim Start erkennen
 detect_pm2_home
 
-# Farben (mit Terminal-Check für bessere Kompatibilität)
-if [ -t 1 ]; then
-  readonly RED='\033[0;31m'
-  readonly GREEN='\033[0;32m'
-  readonly YELLOW='\033[1;33m'
-  readonly BLUE='\033[0;34m'
-  readonly PURPLE='\033[0;35m'
-  readonly CYAN='\033[0;36m'
-  readonly BOLD='\033[1m'
-  readonly NC='\033[0m' # No Color
-else
-  readonly RED=''
-  readonly GREEN=''
-  readonly YELLOW=''
-  readonly BLUE=''
-  readonly PURPLE=''
-  readonly CYAN=''
-  readonly BOLD=''
-  readonly NC=''
-fi
+# Farben (immer aktiviert für Log-Dateien)
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly PURPLE='\033[0;35m'
+readonly CYAN='\033[0;36m'
+readonly BOLD='\033[1m'
+readonly NC='\033[0m' # No Color
 
 # Signal Handler für graceful shutdown
 cleanup() {
@@ -193,7 +182,10 @@ show_deployment_summary() {
 # === FUNKTIONEN ===
 log() {
   local msg="$1"
-  echo -e "[$(date +'%Y-%m-%d %H:%M:%S')] $msg" | tee -a "$LOG_FILE"
+  # Ausgabe auf Konsole mit Farben
+  echo -e "[$(date +'%Y-%m-%d %H:%M:%S')] $msg"
+  # Ausgabe in Log-Datei mit Farben (für colorized logs)
+  echo -e "[$(date +'%Y-%m-%d %H:%M:%S')] $msg" >> "$LOG_FILE" 2>/dev/null
 }
 
 error() {
@@ -211,6 +203,17 @@ info() {
 
 success() {
   log "${GREEN}ERFOLG:${NC} $1"
+}
+
+# Test-Funktion für Farben
+test_colors() {
+  log "${RED}🔴 ROT: Fehler-Test${NC}"
+  log "${GREEN}🟢 GRÜN: Erfolg-Test${NC}"
+  log "${YELLOW}🟡 GELB: Warnung-Test${NC}"
+  log "${BLUE}🔵 BLAU: Info-Test${NC}"
+  log "${PURPLE}🟣 PURPLE: Command-Test${NC}"
+  log "${CYAN}🔷 CYAN: Header-Test${NC}"
+  log "${BOLD}📝 BOLD: Hervorhebung-Test${NC}"
 }
 
 show_status() {
@@ -848,6 +851,10 @@ check_dependencies_silent
 
 # Zeige Skript-Status und Stopp-Anleitungen
 show_status
+
+# Farb-Test beim Start
+info "Teste Farbausgabe..."
+test_colors
 
 # Reduzierte Startmeldung - nur 1 Zeile
 success "Live Error Display Auto-Deploy gestartet (Repository: $REPO_URL)"
