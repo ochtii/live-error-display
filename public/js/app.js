@@ -79,11 +79,17 @@ async function checkServerHealth() {
  */
 function updateUIBasedOnSession() {
     const connectButton = document.getElementById('connectButton');
+    const demoModeInfo = document.getElementById('demoModeInfo');
     
     if (SessionManager.hasActiveSession()) {
         // Active session
         if (connectButton) {
             connectButton.querySelector('span').textContent = 'Live-Überwachung starten';
+        }
+        
+        // Hide demo mode info if visible
+        if (demoModeInfo && !demoModeInfo.classList.contains('hidden')) {
+            demoModeInfo.classList.add('hidden');
         }
     } else {
         // No active session

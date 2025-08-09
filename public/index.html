@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/status.css">
     <link rel="stylesheet" href="/css/components/errors.css">
+    <link rel="stylesheet" href="/css/components/info-box.css">
     <link rel="stylesheet" href="/css/dark-mode.css">
 </head>
 <body>
@@ -36,6 +37,12 @@
             <section class="card">
                 <h2>📡 Live Errors <span id="errorCount" class="count-badge">(0)</span></h2>
                 <p class="hint">Echtzeit-Fehler erscheinen hier, sobald eine Verbindung hergestellt ist.</p>
+                
+                <div id="demoModeInfo" class="info-box hidden">
+                    <h3>🔍 Demo-Modus aktiv</h3>
+                    <p>Der Demo-Modus zeigt Beispiel-Fehler, um die Funktionsweise der Anwendung zu demonstrieren. Es wird keine echte Verbindung hergestellt.</p>
+                    <p>Um die Live-Überwachung zu starten, erstellen oder stellen Sie zuerst eine Session her.</p>
+                </div>
                 
                 <div class="actions">
                     <button id="connectButton" class="btn-primary">

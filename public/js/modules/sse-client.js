@@ -64,6 +64,12 @@ export function disconnect() {
     // Also exit demo mode if active
     if (isDemoMode) {
         isDemoMode = false;
+        
+        // Hide demo mode explanation
+        const demoModeInfo = document.getElementById('demoModeInfo');
+        if (demoModeInfo) {
+            demoModeInfo.classList.add('hidden');
+        }
     }
 }
 
@@ -76,6 +82,12 @@ export function startDemoMode() {
     
     // Show demo mode status
     setStatus(STATUS.OK, 'Demo-Modus aktiv');
+    
+    // Show demo mode explanation
+    const demoModeInfo = document.getElementById('demoModeInfo');
+    if (demoModeInfo) {
+        demoModeInfo.classList.remove('hidden');
+    }
     
     // Add some sample errors
     setTimeout(() => {

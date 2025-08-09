@@ -1,0 +1,26 @@
+/* Info box for notifications and explanations */
+.info-box {
+    background-color: rgba(52, 152, 219, 0.1);
+    border-left: 4px solid var(--color-info);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    border-radius: var(--radius-sm);
+}
+
+.info-box h3 {
+    margin-top: 0;
+    font-size: 1.1rem;
+    color: var(--color-info-dark);
+}
+
+.info-box p {
+    margin-bottom: var(--spacing-sm);
+}
+
+.info-box p:last-child {
+    margin-bottom: 0;
+}
+
+.dark-mode .info-box {
+    background-color: rgba(52, 152, 219, 0.15);
+}
