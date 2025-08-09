@@ -26,6 +26,9 @@ class ErrorDisplay {
 
     // === INITIALIZATION === 
     async init() {
+        // Check for server restart and clear old data if needed
+        await this.checkServerRestartAndClearData();
+        
         this.setupEventListeners();
         this.updateStats();
         this.setupModal();
@@ -40,6 +43,78 @@ class ErrorDisplay {
         
         // Start auto-cleanup timer for deleted sessions
         this.startAutoCleanupTimer();
+    }
+
+    async checkServerRestartAndClearData() {
+        try {
+            // Get server start time
+            const response = await fetch(`${this.serverUrl}/api/server-info`);
+            if (!response.ok) return;
+            
+            const serverInfo = await response.json();
+            const serverStartTime = new Date(serverInfo.startTime).getTime();
+            
+            // Check if we have stored server start time
+            const storedServerStart = localStorage.getItem('serverStartTime');
+            
+            if (storedServerStart) {
+                const lastKnownStart = parseInt(storedServerStart);
+                
+                // If server was restarted (different start time), clear all data
+                if (serverStartTime !== lastKnownStart) {
+                    await this.clearAllBrowserDataWithNotification();
+                }
+            } else {
+                // First visit - check if there's any existing data
+                const hasExistingData = this.hasAnyLocalStorageData();
+                if (hasExistingData) {
+                    await this.clearAllBrowserDataWithNotification();
+                }
+            }
+            
+            // Store current server start time
+            localStorage.setItem('serverStartTime', serverStartTime.toString());
+            
+        } catch (error) {
+            console.warn('Could not check server restart status:', error);
+            // If we can't reach server but have old data, clear it anyway
+            const hasExistingData = this.hasAnyLocalStorageData();
+            if (hasExistingData) {
+                await this.clearAllBrowserDataWithNotification();
+            }
+        }
+    }
+
+    hasAnyLocalStorageData() {
+        const keys = ['currentSession', 'lastSessions', 'settings', 'serverStartTime'];
+        return keys.some(key => localStorage.getItem(key) !== null);
+    }
+
+    async clearAllBrowserDataWithNotification() {
+        this.showNotification('Bestehende Daten gefunden.. werden gelöscht', 'info');
+        
+        // Wait a moment for the notification to show
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Clear all localStorage data
+        const keysToKeep = []; // No keys to keep - clear everything
+        const allKeys = Object.keys(localStorage);
+        
+        for (const key of allKeys) {
+            if (!keysToKeep.includes(key)) {
+                localStorage.removeItem(key);
+            }
+        }
+        
+        // Clear current session state
+        this.currentSession = null;
+        this.lastSessions = [];
+        
+        // Show success notification
+        this.showNotification('Erfolgreich alle Browserdaten gelöscht', 'success');
+        
+        // Force UI update to ensure clean state
+        this.updateUIVisibility(false);
     }
 
     setupEventListeners() {
@@ -1220,28 +1295,91 @@ class ErrorDisplay {
     }
 
     showNotification(message, type = 'info') {
-        // Simple notification system
+        // Enhanced notification system with stacking
+        const notificationContainer = this.getOrCreateNotificationContainer();
+        
         const notification = document.createElement('div');
         notification.className = `notification ${type}`;
         notification.textContent = message;
+        
+        // Apply styles
+        this.applyNotificationStyles(notification);
+        
+        // Add to container (stacking automatically handled by container)
+        notificationContainer.appendChild(notification);
+        
+        // Auto-remove after 4 seconds
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+                // Remove container if empty
+                if (notificationContainer.children.length === 0) {
+                    notificationContainer.remove();
+                }
+            }
+        }, 4000);
+    }
+
+    getOrCreateNotificationContainer() {
+        let container = document.getElementById('notification-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'notification-container';
+            container.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 1002;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                pointer-events: none;
+            `;
+            document.body.appendChild(container);
+        }
+        return container;
+    }
+
+    applyNotificationStyles(notification) {
         notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
             padding: 1rem 1.5rem;
             background: var(--background-card);
             border: 1px solid var(--border-color);
             border-radius: 0.5rem;
             color: var(--text-primary);
-            z-index: 1001;
-            animation: slideIn 0.3s ease;
+            animation: slideInRight 0.3s ease;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            max-width: 350px;
+            word-wrap: break-word;
+            pointer-events: auto;
+            cursor: pointer;
         `;
         
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
+        // Click to dismiss
+        notification.addEventListener('click', () => {
             notification.remove();
-        }, 3000);
+        });
+        
+        // Type-specific styling
+        switch (notification.className.split(' ')[1]) {
+            case 'success':
+                notification.style.borderColor = 'var(--success)';
+                notification.style.background = 'rgba(34, 197, 94, 0.1)';
+                break;
+            case 'error':
+                notification.style.borderColor = 'var(--danger)';
+                notification.style.background = 'rgba(239, 68, 68, 0.1)';
+                break;
+            case 'warning':
+                notification.style.borderColor = 'var(--warning)';
+                notification.style.background = 'rgba(245, 158, 11, 0.1)';
+                break;
+            case 'info':
+                notification.style.borderColor = 'var(--primary)';
+                notification.style.background = 'rgba(59, 130, 246, 0.1)';
+                break;
+        }
     }
 
     escapeHtml(text) {

@@ -7,6 +7,9 @@ const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// Track server start time
+const SERVER_START_TIME = new Date();
+
 // Ses// Middleware für JSON body parsing
 app.use(express.json());
 
@@ -103,6 +106,16 @@ app.post('/api/session/:token', (req, res) => {
             error: 'Failed to restore session'
         });
     }
+});
+
+// Get server information
+app.get('/api/server-info', (req, res) => {
+    res.json({
+        success: true,
+        startTime: SERVER_START_TIME.toISOString(),
+        uptime: Date.now() - SERVER_START_TIME.getTime(),
+        version: '2.1'
+    });
 });
 
 // Get session expiry information
