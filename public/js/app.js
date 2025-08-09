@@ -33,17 +33,8 @@ class ErrorDisplay {
         this.initPushNotifications();
         this.updateSessionDisplay();
         
-        // Try to load last active session automatically
-        if (!this.currentSession) {
-            const loaded = await this.loadLastActiveSession();
-            if (!loaded) {
-                this.showSessionRequiredMessage();
-                return; // Don't connect SSE or display mode without session
-            }
-        }
-        
-        this.connectSSE();
-        this.displayMode(this.currentMode);
+        // Always show start page instead of auto-loading sessions
+        this.showStartPage();
     }
 
     setupEventListeners() {
@@ -2070,6 +2061,79 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         console.log('🧹 Cleared localStorage - session is now server-side only');
     }
 
+    async showStartPage() {
+        const errorsContainer = document.getElementById('errorsContainer');
+        if (!errorsContainer) return;
+
+        // Get last sessions for display
+        const lastSessions = this.getLastSessions();
+        const hasLastSessions = lastSessions.length > 0;
+        
+        let lastSessionsHtml = '';
+        if (hasLastSessions) {
+            lastSessionsHtml = `
+                <div class="start-page-section">
+                    <h3>🕒 Letzte Sessions</h3>
+                    <div class="start-last-sessions">
+                        ${lastSessions.slice(0, 5).map(session => {
+                            const lastAccessed = new Date(session.lastAccessed).toLocaleString('de-DE');
+                            return `
+                                <div class="start-session-item" onclick="errorDisplay.restoreFromLastSessions('${session.token}')">
+                                    <div class="start-session-info">
+                                        <span class="start-session-name">${this.escapeHtml(session.name)}</span>
+                                        ${session.hasPassword ? '<span class="password-indicator">🔒</span>' : ''}
+                                    </div>
+                                    <div class="start-session-date">${lastAccessed}</div>
+                                    <div class="start-session-action">
+                                        <span class="start-session-btn">🔄 Laden</span>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        errorsContainer.innerHTML = `
+            <div class="start-page">
+                <div class="start-page-hero">
+                    <div class="start-page-icon">
+                        <div class="error-icon-animated">🐛</div>
+                    </div>
+                    <h1 class="start-page-title">Live Error Display</h1>
+                    <p class="start-page-subtitle">v2.1 - Echtzeit Fehlerüberwachung & Session Management</p>
+                </div>
+
+                <div class="start-page-main">
+                    <div class="start-page-card">
+                        <div class="start-page-card-icon">🚀</div>
+                        <h2>Session Manager</h2>
+                        <p class="start-page-description">
+                            Verwalten Sie Ihre Sessions, erstellen Sie neue API-Tokens oder stellen Sie 
+                            bestehende Sessions wieder her. Der Session Manager bietet vollständige 
+                            Kontrolle über Ihre Verbindungen und gespeicherten Daten.
+                        </p>
+                        <button class="start-page-cta" onclick="errorDisplay.openSessionManager()">
+                            <span class="cta-text">Starten</span>
+                            <span class="cta-arrow">→</span>
+                        </button>
+                    </div>
+
+                    ${lastSessionsHtml}
+                </div>
+            </div>
+        `;
+
+        // Add animations
+        setTimeout(() => {
+            const startPage = document.querySelector('.start-page');
+            if (startPage) {
+                startPage.classList.add('start-page-loaded');
+            }
+        }, 100);
+    }
+
     showSessionRequiredMessage() {
         const errorsContainer = document.getElementById('errorsContainer');
         if (errorsContainer) {
@@ -2081,9 +2145,6 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                         <div class="session-actions-large">
                             <button class="btn btn-primary" onclick="window.errorDisplay.openSessionManager()">
                                 🔑 Session Manager öffnen
-                            </button>
-                            <button class="btn btn-secondary" onclick="window.errorDisplay.createNewSession().then(() => window.location.reload())">
-                                ✨ Neue Session erstellen
                             </button>
                         </div>
                         <div class="session-info-text">
@@ -2114,49 +2175,6 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         }
     }
 
-    // Override session methods to reload page after session changes
-    async createNewSession() {
-        const session = await super.createNewSession?.() || await this.createNewSessionInternal();
-        if (session) {
-            window.location.reload();
-        }
-        return session;
-    }
-
-    async createNewSessionInternal() {
-        try {
-            const response = await fetch(`${this.serverUrl}/api/token`);
-            if (response.ok) {
-                const data = await response.json();
-                this.currentSession = {
-                    name: data.sessionName,
-                    token: data.token,
-                    created: new Date().toISOString()
-                };
-                localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
-                this.updateSessionDisplay();
-                return this.currentSession;
-            }
-        } catch (error) {
-            console.error('Failed to create session:', error);
-        }
-        return null;
-    }
-
-    restoreSession(sessionData) {
-        this.currentSession = sessionData;
-        localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
-        this.updateSessionDisplay();
-        window.location.reload(); // Reload to reinitialize with session
-    }
-
-    clearSession() {
-        this.currentSession = null;
-        localStorage.removeItem('currentSession');
-        this.updateSessionDisplay();
-        window.location.reload(); // Reload to show session required message
-    }
-    
     onSessionLoaded() {
         // Called when a session is loaded (created or restored)
         // This unlocks all tabs and starts SSE connection
@@ -2477,8 +2495,6 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             lastActive: false // Will be set to true when loading
         };
         
-        console.log('💾 Debug: saveToLastSessions() called with:', {sessionData, lastSession, existingIndex});
-        
         if (existingIndex >= 0) {
             // Update existing session
             lastSessions[existingIndex] = lastSession;
@@ -2493,11 +2509,9 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         }
 
         localStorage.setItem('lastSessions', JSON.stringify(lastSessions));
-        console.log('✅ Debug: Saved to localStorage:', lastSessions);
     }    getLastSessions() {
         const stored = localStorage.getItem('lastSessions');
         const sessions = stored ? JSON.parse(stored) : [];
-        console.log('🔍 Debug: getLastSessions() returned:', sessions);
         return sessions;
     }
     
@@ -2611,14 +2625,11 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     }
     
     async loadLastSessionsInline() {
-        console.log('🔄 Debug: loadLastSessionsInline() called');
         try {
             // Validate and cleanup first
             const validSessions = await this.validateAndCleanupLastSessions();
-            console.log('✅ Debug: validSessions:', validSessions);
             
             const container = document.getElementById('inlineLastSessions');
-            console.log('📦 Debug: container found:', !!container);
             if (!container) return;
             
             if (validSessions.length === 0) {
