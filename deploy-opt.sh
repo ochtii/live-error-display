@@ -53,15 +53,26 @@ detect_pm2_home() {
 # PM2 Home beim Start erkennen
 detect_pm2_home
 
-# Farben (immer aktiviert für Log-Dateien)
+# Farben (erweiterte Palette für bessere Logs)
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
 readonly YELLOW='\033[1;33m'
 readonly BLUE='\033[0;34m'
 readonly PURPLE='\033[0;35m'
 readonly CYAN='\033[0;36m'
+readonly WHITE='\033[1;37m'
 readonly BOLD='\033[1m'
+readonly DIM='\033[2m'
+readonly UNDERLINE='\033[4m'
+readonly BLINK='\033[5m'
+readonly REVERSE='\033[7m'
 readonly NC='\033[0m' # No Color
+
+# Hintergrundfarben
+readonly BG_RED='\033[41m'
+readonly BG_GREEN='\033[42m'
+readonly BG_YELLOW='\033[43m'
+readonly BG_BLUE='\033[44m'
 
 # Signal Handler für graceful shutdown
 cleanup() {
@@ -208,15 +219,25 @@ success() {
   log "${GREEN}ERFOLG:${NC} $1"
 }
 
-# Test-Funktion für Farben
-test_colors() {
-  log "${RED}🔴 ROT: Fehler-Test${NC}"
-  log "${GREEN}🟢 GRÜN: Erfolg-Test${NC}"
-  log "${YELLOW}🟡 GELB: Warnung-Test${NC}"
-  log "${BLUE}🔵 BLAU: Info-Test${NC}"
-  log "${PURPLE}🟣 PURPLE: Command-Test${NC}"
-  log "${CYAN}🔷 CYAN: Header-Test${NC}"
-  log "${BOLD}📝 BOLD: Hervorhebung-Test${NC}"
+# Erweiterte Log-Funktionen mit mehr Farben
+debug() {
+  log "${DIM}${CYAN}DEBUG:${NC} $1"
+}
+
+step() {
+  log "${BOLD}${WHITE}SCHRITT:${NC} $1"
+}
+
+highlight() {
+  log "${REVERSE}${YELLOW} $1 ${NC}"
+}
+
+critical() {
+  log "${BG_RED}${WHITE}KRITISCH:${NC} $1"
+}
+
+process() {
+  log "${PURPLE}⚙️  PROZESS:${NC} $1"
 }
 
 show_status() {
@@ -361,17 +382,25 @@ handle_merge_conflicts() {
 }
 
 install_dependencies() {
-  info "Installiere Abhängigkeiten..."
+  step "Installiere Abhängigkeiten..."
   cd "$REPO_DIR"
+  debug "Arbeitsverzeichnis: $(pwd)"
   
   if [ -f "package.json" ]; then
+    success "✅ package.json gefunden"
+    debug "package.json Details: $(ls -la package.json)"
+    
     # Versuche zuerst npm ci, dann npm install bei Synchronisationsproblemen
+    process "Versuche npm ci (clean install)..."
     if npm ci 2>/dev/null; then
-      success "Abhängigkeiten erfolgreich installiert (npm ci)."
+      success "✅ Abhängigkeiten erfolgreich installiert (npm ci)"
+      debug "npm ci erfolgreich - verwende package-lock.json"
     else
-      warn "npm ci fehlgeschlagen - versuche npm install..."
+      warn "⚠️  npm ci fehlgeschlagen - versuche npm install..."
+      process "Führe npm install durch..."
       if npm install; then
-        success "Abhängigkeiten erfolgreich installiert (npm install)."
+        success "✅ Abhängigkeiten erfolgreich installiert (npm install)"
+        debug "npm install erfolgreich - package-lock.json aktualisiert"
       else
         error "Fehler beim Installieren der Abhängigkeiten!"
       fi
@@ -554,6 +583,11 @@ perform_detailed_deployment() {
   deployment_step "Health Check durchführen..."
   perform_health_check
   
+  # PM2 Status vor Ende anzeigen
+  step "Finale PM2 Status-Überprüfung..."
+  process "Ausführung: pm2 status"
+  pm2 status 2>/dev/null || warn "PM2 Status konnte nicht abgerufen werden"
+  
   # Deployment abgeschlossen - Zusammenfassung anzeigen
   echo ""
   show_deployment_summary
@@ -639,34 +673,55 @@ analyze_changed_files() {
 }
 
 manage_pm2_services() {
-  info "=== PM2 SERVICE MANAGEMENT ==="
+  highlight "=== PM2 SERVICE MANAGEMENT ==="
   
   cd "$REPO_DIR"
+  debug "Arbeitsverzeichnis: $(pwd)"
   
   # Schritt 1: PM2 Service stoppen
-  info "Stoppe live-error-display Service..."
-  pm2 stop live-error-display 2>/dev/null && success "✅ Service gestoppt" || warn "Service war nicht aktiv"
+  step "Stoppe live-error-display Service..."
+  process "Ausführung: pm2 stop live-error-display"
+  if pm2 stop live-error-display 2>/dev/null; then
+    success "✅ Service erfolgreich gestoppt"
+  else
+    warn "⚠️  Service war bereits gestoppt oder nicht gefunden"
+  fi
+  
+  # PM2 Logs für diesen Service leeren
+  step "Leere PM2 Logs für live-error-display-deploy..."
+  process "Ausführung: pm2 flush live-error-display-deploy"
+  if pm2 flush live-error-display-deploy 2>/dev/null; then
+    success "✅ PM2 Logs geleert"
+  else
+    warn "⚠️  Konnte Logs nicht leeren (Service möglicherweise nicht vorhanden)"
+  fi
   
   # Schritt 2: PM2 Ecosystem-Datei verwenden
+  step "Prüfe PM2 Konfigurationsdatei..."
   local config_file=""
   if [ -f "ecosystem.config.js" ]; then
     config_file="ecosystem.config.js"
-    info "Verwende ecosystem.config.js"
+    success "✅ Verwende ecosystem.config.js"
+    debug "Konfigurationsdatei gefunden: $(ls -la ecosystem.config.js)"
   elif [ -f "ecosystem.config.json" ]; then
     config_file="ecosystem.config.json"
-    info "Verwende ecosystem.config.json"
+    success "✅ Verwende ecosystem.config.json"
+    debug "Konfigurationsdatei gefunden: $(ls -la ecosystem.config.json)"
   else
-    warn "Keine PM2 Ecosystem-Datei gefunden. Erstelle Standard-Konfiguration..."
+    warn "⚠️  Keine PM2 Ecosystem-Datei gefunden. Erstelle Standard-Konfiguration..."
     create_default_ecosystem
     config_file="ecosystem.config.js"
+    success "✅ Standard-Konfiguration erstellt"
   fi
   
   # Schritt 3: PM2 Service starten
-  info "Starte live-error-display Service..."
+  step "Starte live-error-display Service..."
+  process "Ausführung: pm2 start $config_file"
   if pm2 start "$config_file" 2>/dev/null; then
     success "✅ Service erfolgreich gestartet"
   else
-    error "❌ Fehler beim Starten des Services!"
+    critical "❌ Fehler beim Starten des Services!"
+    error "PM2 Service konnte nicht gestartet werden!"
   fi
   
   # PM2 Konfiguration speichern
@@ -854,10 +909,6 @@ check_dependencies_silent
 
 # Zeige Skript-Status und Stopp-Anleitungen
 show_status
-
-# Farb-Test beim Start
-info "Teste Farbausgabe..."
-test_colors
 
 # Reduzierte Startmeldung - nur 1 Zeile
 success "Live Error Display Auto-Deploy gestartet (Repository: $REPO_URL)"
