@@ -87,7 +87,7 @@ class WebhookListener:
         
         # Stdout handler for INFO and DEBUG (normale Meldungen)
         stdout_handler = logging.StreamHandler(sys.stdout)
-        stdout_handler.setLevel(logging.DEBUG)
+        stdout_handler.setLevel(logging.INFO)  # Nur INFO und höher für saubere Logs
         stdout_handler.addFilter(lambda record: record.levelno <= logging.INFO)
         stdout_formatter = ColoredFormatter(
             f'{Fore.BLUE}%(asctime)s{Style.RESET_ALL} - '
@@ -327,16 +327,26 @@ class WebhookListener:
             )
             
             if result.returncode == 0:
-                self.logger.debug(f"Command succeeded: {command}")
-                if result.stdout:
-                    self.logger.debug(f"Command output: {result.stdout.strip()}")
+                # Only log debug info for certain commands that are useful
+                if any(cmd in command for cmd in ['git rev-parse', 'git log -1']):
+                    # Truncate very long outputs
+                    output = result.stdout.strip()
+                    if len(output) > 200:
+                        output = output[:200] + "... (truncated)"
+                    self.logger.debug(f"Command output: {output}")
                 return True, result.stdout
             else:
                 self.logger.warning(f"Command failed with code {result.returncode}: {command}")
                 if result.stderr:
-                    self.logger.error(f"Error output: {result.stderr.strip()}")
+                    stderr = result.stderr.strip()
+                    if len(stderr) > 500:
+                        stderr = stderr[:500] + "... (truncated)"
+                    self.logger.error(f"Error output: {stderr}")
                 if result.stdout:
-                    self.logger.info(f"Standard output: {result.stdout.strip()}")
+                    stdout = result.stdout.strip()
+                    if len(stdout) > 500:
+                        stdout = stdout[:500] + "... (truncated)"
+                    self.logger.info(f"Standard output: {stdout}")
                 return False, result.stderr or result.stdout
                 
         except subprocess.TimeoutExpired:
@@ -470,7 +480,11 @@ class WebhookListener:
                             'cpu': proc.get('monit', {}).get('cpu')
                         }
             except Exception as e:
-                self.logger.debug(f"Error parsing PM2 status: {e}")
+                self.logger.debug(f"Error parsing PM2 status (using fallback): {e}")
+                # Fallback: try pm2 show command for simpler output
+                success_show, show_output = self.run_command(f"pm2 show {self.pm2_app_name}")
+                if success_show and 'online' in show_output.lower():
+                    return {'status': 'online'}
         return {'status': 'unknown'}
     
     def show_pm2_status(self):

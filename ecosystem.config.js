@@ -54,7 +54,7 @@ module.exports = {
       instances: 1,
       exec_mode: 'fork',
       autorestart: true,
-      watch: false,
+      watch: true,
       max_memory_restart: '200M',
       
       // Environment for webhook listener
