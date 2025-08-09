@@ -95,20 +95,33 @@ class WebhookListener:
         console_handler.setFormatter(console_formatter)
         
         # File handler for persistent logging
-        log_file = "/var/log/webhook-listener.log"
+        log_file = "./logs/webhook-listener.log"
+        
+        # Create logs directory if it doesn't exist
+        import os
+        os.makedirs("./logs", exist_ok=True)
+        
+        # Create file formatter first
+        file_formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        
         try:
             file_handler = logging.FileHandler(log_file)
             file_handler.setLevel(logging.DEBUG)
-            file_formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            )
             file_handler.setFormatter(file_formatter)
             self.logger.addHandler(file_handler)
         except PermissionError:
-            self.logger.warning(f"Cannot write to {log_file}, using local file")
-            file_handler = logging.FileHandler("webhook-listener.log")
-            file_handler.setFormatter(file_formatter)
-            self.logger.addHandler(file_handler)
+            self.logger.warning(f"Cannot write to {log_file}, using current directory")
+            try:
+                file_handler = logging.FileHandler("webhook-listener.log")
+                file_handler.setLevel(logging.DEBUG)
+                file_handler.setFormatter(file_formatter)
+                self.logger.addHandler(file_handler)
+            except Exception as e:
+                self.logger.warning(f"Could not create log file: {e}")
+        except Exception as e:
+            self.logger.warning(f"Log file error: {e}")
         
         self.logger.addHandler(console_handler)
         
