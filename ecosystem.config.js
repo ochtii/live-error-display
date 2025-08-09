@@ -86,8 +86,8 @@ module.exports = {
   // Deployment configuration
   deploy: {
     production: {
-      user: 'root',
-      host: ['YOUR_SERVER_IP'],
+      user: 'ubuntu',
+      host: ['18.197.100.102'],
       ref: 'origin/main',
       repo: 'https://github.com/ochtii/live-error-display.git',
       path: '/opt/live-error-display',
