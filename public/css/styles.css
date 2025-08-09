@@ -2463,6 +2463,15 @@ body:has(.header:not([style*="display: none"])) .start-page {
     margin: 0;
 }
 
+/* Force header hiding when display is none */
+.header[style*="display: none"] {
+    display: none !important;
+    visibility: hidden !important;
+    position: absolute !important;
+    top: -9999px !important;
+    left: -9999px !important;
+}
+
 /* Session Expiry Styles */
 .session-expiry {
     margin-top: 0.5rem;
