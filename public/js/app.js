@@ -64,6 +64,7 @@ class ErrorDisplay {
         this.setupEventListeners();
         this.updateStats();
         this.setupModal();
+        this.hideModal(); // Ensure modal is hidden on init
         this.loadAndApplySettings();
         this.initPushNotifications();
         this.updateSessionDisplay();
@@ -770,6 +771,62 @@ class ErrorDisplay {
             }
         `;
         document.head.appendChild(style);
+        
+        // Setup modal event listeners
+        const modalOverlay = document.getElementById('modalOverlay');
+        const modalClose = document.getElementById('modalClose');
+        
+        // Close modal when clicking close button
+        if (modalClose) {
+            modalClose.addEventListener('click', () => this.hideModal());
+        }
+        
+        // Close modal when clicking outside (on overlay)
+        if (modalOverlay) {
+            modalOverlay.addEventListener('click', (e) => {
+                if (e.target === modalOverlay) {
+                    this.hideModal();
+                }
+            });
+        }
+        
+        // Close modal with ESC key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.hideModal();
+            }
+        });
+    }
+    
+    showModal(title, content, buttons = []) {
+        const modalOverlay = document.getElementById('modalOverlay');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalBody = document.getElementById('modalBody');
+        const modalFooter = document.getElementById('modalFooter');
+        
+        if (modalTitle) modalTitle.textContent = title;
+        if (modalBody) modalBody.innerHTML = content;
+        if (modalFooter) {
+            modalFooter.innerHTML = '';
+            buttons.forEach(btn => {
+                const button = document.createElement('button');
+                button.className = btn.class || 'btn btn-primary';
+                button.textContent = btn.text;
+                button.onclick = btn.onclick;
+                modalFooter.appendChild(button);
+            });
+        }
+        
+        if (modalOverlay) {
+            modalOverlay.style.display = 'flex';
+        }
+    }
+    
+    hideModal() {
+        const modalOverlay = document.getElementById('modalOverlay');
+        if (modalOverlay) {
+            modalOverlay.style.display = 'none';
+        }
     }
 
     showNotification(message, type = 'info') {
