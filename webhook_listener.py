@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """
-GitHub Webhook Listener for Live Error Display        # Health check URLs
-        self.health_check_url = "http://localhost:8080/api/health"
-        self.db_health_url = "http://localhost:8080/api/db/health"to-Deployment
+GitHub Webhook Listener for Live Error Display Auto-Deployment
 =============================================================
 
 This service listens for GitHub webhooks and automatically deploys
@@ -96,17 +94,23 @@ class WebhookListener:
         
         # File handler for persistent logging
         log_file = "/var/log/webhook-listener.log"
+        file_formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        
         try:
             file_handler = logging.FileHandler(log_file)
             file_handler.setLevel(logging.DEBUG)
-            file_formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            )
             file_handler.setFormatter(file_formatter)
             self.logger.addHandler(file_handler)
         except PermissionError:
             self.logger.warning(f"Cannot write to {log_file}, using local file")
-            file_handler = logging.FileHandler("webhook-listener.log")
+            # Use local logs directory instead
+            local_log_dir = "./logs"
+            os.makedirs(local_log_dir, exist_ok=True)
+            local_log_file = os.path.join(local_log_dir, "webhook-listener.log")
+            file_handler = logging.FileHandler(local_log_file)
+            file_handler.setLevel(logging.DEBUG)
             file_handler.setFormatter(file_formatter)
             self.logger.addHandler(file_handler)
         
