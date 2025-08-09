@@ -25,7 +25,7 @@ class ErrorDisplay {
     }
 
     // === INITIALIZATION === 
-    init() {
+    async init() {
         this.setupEventListeners();
         this.updateStats();
         this.setupModal();
@@ -33,10 +33,13 @@ class ErrorDisplay {
         this.initPushNotifications();
         this.updateSessionDisplay();
         
-        // Check for valid session before proceeding
+        // Try to load last active session automatically
         if (!this.currentSession) {
-            this.showSessionRequiredMessage();
-            return; // Don't connect SSE or display mode without session
+            const loaded = await this.loadLastActiveSession();
+            if (!loaded) {
+                this.showSessionRequiredMessage();
+                return; // Don't connect SSE or display mode without session
+            }
         }
         
         this.connectSSE();
@@ -72,11 +75,11 @@ class ErrorDisplay {
         // Session Manager inline controls
         const createNewSessionBtn = document.getElementById('createNewSessionBtn');
         const restoreSessionBtn = document.getElementById('restoreSessionBtn');
-        const refreshSavedSessionsBtn = document.getElementById('refreshSavedSessionsBtn');
+        const refreshLastSessionsBtn = document.getElementById('refreshLastSessionsBtn');
         
         if (createNewSessionBtn) createNewSessionBtn.addEventListener('click', () => this.createNewSessionInline());
         if (restoreSessionBtn) restoreSessionBtn.addEventListener('click', () => this.restoreSessionFromToken());
-        if (refreshSavedSessionsBtn) refreshSavedSessionsBtn.addEventListener('click', () => this.loadSavedSessionsInline());
+        if (refreshLastSessionsBtn) refreshLastSessionsBtn.addEventListener('click', () => this.loadLastSessionsInline());
         
         // Settings
         document.getElementById('saveSettings').addEventListener('click', () => this.saveSettings());
@@ -341,7 +344,7 @@ class ErrorDisplay {
                 sessionManagerContainer.style.display = 'block';
                 // Initialize session manager content
                 this.updateCurrentSessionCard();
-                this.loadSavedSessionsInline();
+                this.loadLastSessionsInline(); // Load last sessions instead of saved sessions
                 this.updateSessionManagerState();
             }
             this.disconnectSSE();
@@ -2212,12 +2215,14 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     async createNewSessionInline() {
         try {
             const name = document.getElementById('newSessionName').value.trim();
+            const password = document.getElementById('newSessionPassword').value.trim();
+            const saveLocally = document.getElementById('saveSessionLocally').checked;
             
             const requestData = {};
             if (name) requestData.name = name;
-            // No password field - sessions are created without password protection
+            if (password) requestData.password = password;
             
-            // Use POST for new API with name support
+            // Use POST for new API with name and password support
             const response = await fetch(`${this.serverUrl}/api/token`, {
                 method: 'POST',
                 headers: {
@@ -2239,13 +2244,20 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                     lastAccessed: new Date().toISOString()
                 };
                 
+                // Save to last sessions if checkbox is checked
+                if (saveLocally) {
+                    this.saveToLastSessions(this.currentSession, password);
+                    this.setLastActiveSession(this.currentSession.token);
+                }
+                
                 // Only save unsaved sessions to localStorage
                 this.saveCurrentSessionToStorage();
                 this.updateSessionDisplay();
-                this.showNotification('Unsaved Session erstellt (24h gültig)', 'success');
+                this.showNotification(saveLocally ? 'Session erstellt und gespeichert' : 'Session erstellt', 'success');
                 
-                // Clear input field
+                // Clear input fields
                 document.getElementById('newSessionName').value = '';
+                document.getElementById('newSessionPassword').value = '';
                 
                 // Update current session display in session manager
                 this.updateCurrentSessionCard();
@@ -2437,6 +2449,227 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             console.error('Error loading saved sessions:', error);
             container.innerHTML = '<p class="no-sessions">Verbindungsfehler beim Laden der Sessions</p>';
         }
+    }
+
+    // === LAST SESSIONS MANAGEMENT ===
+    saveToLastSessions(sessionData, password = '') {
+        const lastSessions = this.getLastSessions();
+        
+        // Check if session already exists
+        const existingIndex = lastSessions.findIndex(s => s.token === sessionData.token);
+        
+        const lastSession = {
+            token: sessionData.token,
+            name: sessionData.name,
+            password: password, // Store password for convenience
+            createdAt: sessionData.createdAt,
+            lastAccessed: new Date().toISOString(),
+            hasPassword: sessionData.hasPassword,
+            lastActive: false // Will be set to true when loading
+        };
+        
+        if (existingIndex >= 0) {
+            // Update existing session
+            lastSessions[existingIndex] = lastSession;
+        } else {
+            // Add new session
+            lastSessions.unshift(lastSession);
+        }
+        
+        // Keep only last 10 sessions
+        if (lastSessions.length > 10) {
+            lastSessions.splice(10);
+        }
+        
+        localStorage.setItem('lastSessions', JSON.stringify(lastSessions));
+    }
+    
+    getLastSessions() {
+        const stored = localStorage.getItem('lastSessions');
+        return stored ? JSON.parse(stored) : [];
+    }
+    
+    setLastActiveSession(token) {
+        const lastSessions = this.getLastSessions();
+        
+        // Set all to inactive
+        lastSessions.forEach(session => session.lastActive = false);
+        
+        // Set current session to active
+        const currentSession = lastSessions.find(s => s.token === token);
+        if (currentSession) {
+            currentSession.lastActive = true;
+            currentSession.lastAccessed = new Date().toISOString();
+        }
+        
+        localStorage.setItem('lastSessions', JSON.stringify(lastSessions));
+    }
+    
+    async validateAndCleanupLastSessions() {
+        const lastSessions = this.getLastSessions();
+        const validSessions = [];
+        
+        for (const session of lastSessions) {
+            try {
+                // Check if session still exists on server
+                const response = await fetch(`${this.serverUrl}/api/session/${session.token}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ password: session.password })
+                });
+                
+                if (response.ok) {
+                    validSessions.push(session);
+                } else {
+                    console.log(`🧹 Removing invalid session from last sessions: ${session.name}`);
+                }
+            } catch (error) {
+                console.log(`🧹 Removing session due to validation error: ${session.name}`);
+            }
+        }
+        
+        // Update storage with only valid sessions
+        localStorage.setItem('lastSessions', JSON.stringify(validSessions));
+        return validSessions;
+    }
+    
+    async loadLastActiveSession() {
+        const lastSessions = this.getLastSessions();
+        const activeSession = lastSessions.find(s => s.lastActive === true);
+        
+        if (activeSession) {
+            console.log(`🔄 Auto-loading last active session: ${activeSession.name}`);
+            try {
+                await this.restoreLastSession(activeSession.token, activeSession.password);
+                return true;
+            } catch (error) {
+                console.error('Failed to restore last active session:', error);
+                // Remove invalid session
+                this.removeFromLastSessions(activeSession.token);
+            }
+        }
+        
+        return false;
+    }
+    
+    async restoreLastSession(token, password = '') {
+        try {
+            const response = await fetch(`${this.serverUrl}/api/session/${token}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ password: password })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                this.currentSession = {
+                    name: data.session.name,
+                    token: data.session.token,
+                    createdAt: data.session.createdAt,
+                    lastModified: data.session.lastModified,
+                    modifiedBy: data.session.modifiedBy,
+                    hasPassword: data.session.hasPassword,
+                    isSaved: true,
+                    lastAccessed: new Date().toISOString()
+                };
+                
+                // Update last sessions
+                this.saveToLastSessions(this.currentSession, password);
+                this.setLastActiveSession(token);
+                
+                this.updateSessionDisplay();
+                return true;
+            } else {
+                throw new Error(`Server error: ${response.status}`);
+            }
+        } catch (error) {
+            console.error('Failed to restore session:', error);
+            throw error;
+        }
+    }
+    
+    removeFromLastSessions(token) {
+        const lastSessions = this.getLastSessions();
+        const filtered = lastSessions.filter(s => s.token !== token);
+        localStorage.setItem('lastSessions', JSON.stringify(filtered));
+    }
+    
+    async loadLastSessionsInline() {
+        try {
+            // Validate and cleanup first
+            const validSessions = await this.validateAndCleanupLastSessions();
+            
+            const container = document.getElementById('inlineLastSessions');
+            if (!container) return;
+            
+            if (validSessions.length === 0) {
+                container.innerHTML = '<p class="no-sessions">Keine letzten Sessions gefunden</p>';
+                return;
+            }
+            
+            let html = '';
+            validSessions.forEach(session => {
+                const isActive = session.lastActive === true;
+                const lastAccessed = new Date(session.lastAccessed).toLocaleString('de-DE');
+                
+                html += `
+                    <div class="session-item ${isActive ? 'active-session' : ''}">
+                        <div class="session-item-header">
+                            <span class="session-item-name">${this.escapeHtml(session.name)} ${isActive ? '(Aktiv)' : ''}</span>
+                            <span class="session-item-date">${lastAccessed}</span>
+                        </div>
+                        <div class="session-item-token">
+                            <code>${session.token.substring(0, 16)}...</code>
+                            ${session.hasPassword ? '<span class="password-indicator">🔒</span>' : ''}
+                        </div>
+                        <div class="session-item-actions">
+                            <button class="btn btn-small btn-primary" onclick="errorDisplay.restoreFromLastSessions('${session.token}')">
+                                🔄 Laden
+                            </button>
+                            <button class="btn btn-small btn-danger" onclick="errorDisplay.removeFromLastSessionsAndRefresh('${session.token}')">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        } catch (error) {
+            console.error('Error loading last sessions:', error);
+            const container = document.getElementById('inlineLastSessions');
+            if (container) {
+                container.innerHTML = '<p class="error-state">Fehler beim Laden der letzten Sessions</p>';
+            }
+        }
+    }
+    
+    async restoreFromLastSessions(token) {
+        const lastSessions = this.getLastSessions();
+        const session = lastSessions.find(s => s.token === token);
+        
+        if (session) {
+            try {
+                await this.restoreLastSession(token, session.password);
+                this.showNotification(`Session "${session.name}" wiederhergestellt`, 'success');
+                this.onSessionLoaded();
+                this.loadLastSessionsInline(); // Refresh display
+            } catch (error) {
+                this.showNotification('Fehler beim Wiederherstellen der Session', 'error');
+                this.removeFromLastSessions(token);
+                this.loadLastSessionsInline(); // Refresh display
+            }
+        }
+    }
+    
+    removeFromLastSessionsAndRefresh(token) {
+        this.removeFromLastSessions(token);
+        this.loadLastSessionsInline();
+        this.showNotification('Session aus letzten Sessions entfernt', 'info');
     }
 
     async restoreSessionFromSaved(token, requirePassword = true) {

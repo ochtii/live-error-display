@@ -12,14 +12,18 @@
 <body>
     <div class="container">
         <div class="header">
-            <div>
-                <h1>🚨 Live Error Display v2.0</h1>
+            <div class="header-main">
+                <div class="header-title">
+                    <h1>🚨 Live Error Display</h1>
+                    <span class="version-badge">v2.1</span>
+                </div>
                 <div class="status" id="connectionStatus">
                     <div class="status-indicator"></div>
                     <span class="status-icon" id="status-icon">📡</span>
                     <span id="status-text">Verbinde...</span>
                 </div>
             </div>
+            
             <!-- Session Info in Header -->
             <div class="header-session" id="headerSession" style="display: none;">
                 <div class="session-info-header">
@@ -47,14 +51,21 @@
                     <span class="session-end-link" id="sessionEndLink">Session beenden ✖</span>
                 </div>
             </div>
-            <div class="stats">
+            
+            <div class="header-stats">
                 <div class="stat-card">
-                    <div class="stat-value" id="totalErrors">0</div>
-                    <div class="stat-label">Fehler</div>
+                    <div class="stat-icon">🐛</div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="totalErrors">0</div>
+                        <div class="stat-label">Fehler</div>
+                    </div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value" id="connectedClients">0</div>
-                    <div class="stat-label">Verbundene Clients</div>
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="connectedClients">0</div>
+                        <div class="stat-label">Clients</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1114,6 +1125,19 @@ curl -s "$SERVER_URL/errors" | jq '.errors[] | .timestamp + ": " + .message'</pr
                         <input type="text" id="newSessionName" placeholder="Session Name (optional)" class="session-input">
                     </div>
                     
+                    <div class="input-group">
+                        <input type="password" id="newSessionPassword" placeholder="Passwort (optional)" class="session-input">
+                        <small class="input-hint">💡 Optional: Passwort zum Schutz der Session</small>
+                    </div>
+                    
+                    <div class="input-group checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="saveSessionLocally" checked>
+                            <span class="checkbox-text">Session im Browser speichern (Letzte Sessions)</span>
+                            <small class="checkbox-hint">Speichert Token und Passwort im Browser für schnellen Zugriff</small>
+                        </label>
+                    </div>
+                    
                     <div class="session-actions">
                         <button class="btn btn-primary" id="createNewSessionBtn">
                             ✨ Session erstellen
@@ -1146,14 +1170,14 @@ curl -s "$SERVER_URL/errors" | jq '.errors[] | .timestamp + ": " + .message'</pr
                 <div id="currentSessionCard" style="display: none;">
                 </div>
                 
-                <!-- Saved Sessions -->
+                <!-- Last Sessions -->
                 <div class="session-card">
-                    <h2>💾 Gespeicherte Sessions</h2>
-                    <div id="inlineSavedSessions" class="saved-sessions-list">
-                        <p class="no-sessions">Keine Sessions gespeichert</p>
+                    <h2>� Letzte Sessions</h2>
+                    <div id="inlineLastSessions" class="last-sessions-list">
+                        <p class="no-sessions">Keine letzten Sessions gefunden</p>
                     </div>
                     <div class="session-actions">
-                        <button class="btn btn-secondary" id="refreshSavedSessionsBtn">
+                        <button class="btn btn-secondary" id="refreshLastSessionsBtn">
                             🔄 Aktualisieren
                         </button>
                     </div>
