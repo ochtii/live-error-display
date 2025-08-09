@@ -85,6 +85,111 @@ cleanup() {
 # Signal Handler registrieren
 trap cleanup SIGTERM SIGINT SIGQUIT
 
+# Globale Variablen für Deployment-Tracking
+DEPLOYMENT_START_TIME=""
+DEPLOYMENT_STEPS_TOTAL=7
+DEPLOYMENT_STEP_CURRENT=0
+DEPLOYMENT_CHANGES_ADDED=0
+DEPLOYMENT_CHANGES_MODIFIED=0
+DEPLOYMENT_CHANGES_DELETED=0
+DEPLOYMENT_FILES_AFFECTED=""
+
+# Progressbar anzeigen
+show_progress() {
+  local current=$1
+  local total=$2
+  local description="$3"
+  
+  local width=50
+  local percentage=$((current * 100 / total))
+  local filled=$((current * width / total))
+  local empty=$((width - filled))
+  
+  # Progressbar zusammenbauen
+  local bar=""
+  for i in $(seq 1 $filled); do bar="${bar}█"; done
+  for i in $(seq 1 $empty); do bar="${bar}░"; done
+  
+  # Ausgabe mit Farben
+  printf "\r${CYAN}[${bar}]${NC} ${BOLD}%3d%%${NC} ${BLUE}%s${NC}" "$percentage" "$description"
+  
+  if [ "$current" -eq "$total" ]; then
+    echo ""  # Neue Zeile am Ende
+  fi
+}
+
+# Deployment-Schritt ausführen
+deployment_step() {
+  DEPLOYMENT_STEP_CURRENT=$((DEPLOYMENT_STEP_CURRENT + 1))
+  show_progress $DEPLOYMENT_STEP_CURRENT $DEPLOYMENT_STEPS_TOTAL "$1"
+}
+
+# Deployment-Zusammenfassung anzeigen
+show_deployment_summary() {
+  local end_time=$(date +%s)
+  local duration=$((end_time - DEPLOYMENT_START_TIME))
+  local minutes=$((duration / 60))
+  local seconds=$((duration % 60))
+  
+  echo ""
+  log "${CYAN}${BOLD}╔════════════════════════════════════════════════════════════════╗${NC}"
+  log "${CYAN}${BOLD}║                    🎉 DEPLOYMENT ZUSAMMENFASSUNG 🎉             ║${NC}"
+  log "${CYAN}${BOLD}╠════════════════════════════════════════════════════════════════╣${NC}"
+  
+  # Zeitinformationen
+  log "${CYAN}║${NC} ${BOLD}⏱️  Dauer:${NC} ${GREEN}${minutes}m ${seconds}s${NC}$(printf "%*s" $((45-${#minutes}-${#seconds})) "")${CYAN}║${NC}"
+  log "${CYAN}║${NC} ${BOLD}📅 Abgeschlossen:${NC} ${GREEN}$(date +'%Y-%m-%d %H:%M:%S')${NC}$(printf "%*s" $((28-$(date +'%Y-%m-%d %H:%M:%S' | wc -c))) "")${CYAN}║${NC}"
+  
+  # Dateiänderungen
+  log "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+  log "${CYAN}║${NC} ${BOLD}📁 DATEIÄNDERUNGEN:${NC}$(printf "%*s" 45 "")${CYAN}║${NC}"
+  
+  if [ "$DEPLOYMENT_CHANGES_ADDED" -gt 0 ]; then
+    log "${CYAN}║${NC}   ${GREEN}➕ Hinzugefügt: ${DEPLOYMENT_CHANGES_ADDED} Dateien${NC}$(printf "%*s" $((40-${#DEPLOYMENT_CHANGES_ADDED})) "")${CYAN}║${NC}"
+  fi
+  
+  if [ "$DEPLOYMENT_CHANGES_MODIFIED" -gt 0 ]; then
+    log "${CYAN}║${NC}   ${YELLOW}✏️  Geändert: ${DEPLOYMENT_CHANGES_MODIFIED} Dateien${NC}$(printf "%*s" $((42-${#DEPLOYMENT_CHANGES_MODIFIED})) "")${CYAN}║${NC}"
+  fi
+  
+  if [ "$DEPLOYMENT_CHANGES_DELETED" -gt 0 ]; then
+    log "${CYAN}║${NC}   ${RED}❌ Gelöscht: ${DEPLOYMENT_CHANGES_DELETED} Dateien${NC}$(printf "%*s" $((43-${#DEPLOYMENT_CHANGES_DELETED})) "")${CYAN}║${NC}"
+  fi
+  
+  # Git-Diff Statistiken (falls verfügbar)
+  if [ -f "/tmp/git_stats.txt" ]; then
+    local added_lines=$(grep "^+" /tmp/git_stats.txt | wc -l 2>/dev/null || echo "0")
+    local removed_lines=$(grep "^-" /tmp/git_stats.txt | wc -l 2>/dev/null || echo "0")
+    
+    log "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+    log "${CYAN}║${NC} ${BOLD}📊 CODE-ÄNDERUNGEN:${NC}$(printf "%*s" 43 "")${CYAN}║${NC}"
+    log "${CYAN}║${NC}   ${GREEN}++++ ${added_lines} Zeilen hinzugefügt${NC}$(printf "%*s" $((35-${#added_lines})) "")${CYAN}║${NC}"
+    log "${CYAN}║${NC}   ${RED}---- ${removed_lines} Zeilen entfernt${NC}$(printf "%*s" $((36-${#removed_lines})) "")${CYAN}║${NC}"
+  fi
+  
+  # Betroffene Dateien
+  if [ -n "$DEPLOYMENT_FILES_AFFECTED" ]; then
+    log "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+    log "${CYAN}║${NC} ${BOLD}📄 BETROFFENE DATEIEN:${NC}$(printf "%*s" 40 "")${CYAN}║${NC}"
+    
+    echo "$DEPLOYMENT_FILES_AFFECTED" | head -5 | while IFS= read -r file; do
+      if [ -n "$file" ]; then
+        local short_file=$(echo "$file" | cut -c1-50)
+        log "${CYAN}║${NC}   ${BLUE}• ${short_file}${NC}$(printf "%*s" $((55-${#short_file})) "")${CYAN}║${NC}"
+      fi
+    done
+    
+    local file_count=$(echo "$DEPLOYMENT_FILES_AFFECTED" | wc -l)
+    if [ "$file_count" -gt 5 ]; then
+      local remaining=$((file_count - 5))
+      log "${CYAN}║${NC}   ${PURPLE}... und ${remaining} weitere Dateien${NC}$(printf "%*s" $((35-${#remaining})) "")${CYAN}║${NC}"
+    fi
+  fi
+  
+  log "${CYAN}${BOLD}╚════════════════════════════════════════════════════════════════╝${NC}"
+  echo ""
+}
+
 # === FUNKTIONEN ===
 log() {
   local msg="$1"
@@ -409,31 +514,44 @@ setup_pm2_silent() {
 # Diese Funktionen geben umfassende Logs aus, wenn Änderungen erkannt werden
 
 perform_detailed_deployment() {
-  info "=== DETAILLIERTES DEPLOYMENT GESTARTET ==="
+  DEPLOYMENT_START_TIME=$(date +%s)
+  DEPLOYMENT_STEP_CURRENT=0
   
-  # Detaillierte Git-Informationen ausgeben
+  info "=== DETAILLIERTES DEPLOYMENT GESTARTET ==="
+  echo ""
+  
+  # Schritt 1: Git-Informationen ausgeben
+  deployment_step "Git-Informationen analysieren..."
   show_git_details
   
-  # Detaillierte Dateianalyse
+  # Schritt 2: Dateianalyse
+  deployment_step "Dateiänderungen analysieren..."
   analyze_changed_files
   
-  # Merge-Konflikte behandeln
+  # Schritt 3: Merge-Konflikte behandeln
+  deployment_step "Merge-Konflikte prüfen..."
   handle_merge_conflicts
   
-  # Dependencies installieren
+  # Schritt 4: Dependencies installieren
+  deployment_step "Dependencies installieren..."
   install_dependencies
   
-  # Anwendung bauen
+  # Schritt 5: Anwendung bauen
+  deployment_step "Anwendung bauen..."
   build_app
   
-  # PM2 Debug-Informationen anzeigen
+  # Schritt 6: PM2 Services verwalten
+  deployment_step "PM2 Services verwalten..."
   debug_pm2_setup
-  
-  # PM2 Services mit detailliertem Feedback verwalten
   manage_pm2_services
   
-  # API Health Check durchführen
+  # Schritt 7: Health Check
+  deployment_step "Health Check durchführen..."
   perform_health_check
+  
+  # Deployment abgeschlossen - Zusammenfassung anzeigen
+  echo ""
+  show_deployment_summary
   
   success "=== DETAILLIERTES DEPLOYMENT ABGESCHLOSSEN ==="
 }
@@ -475,6 +593,17 @@ analyze_changed_files() {
   if [ -f "/tmp/changed_files.txt" ]; then
     local file_count=$(wc -l < /tmp/changed_files.txt)
     info "Anzahl geänderter Dateien: $file_count"
+    
+    # Sammle Statistiken für Zusammenfassung
+    DEPLOYMENT_CHANGES_ADDED=$(grep "^A" /tmp/changed_files.txt | wc -l)
+    DEPLOYMENT_CHANGES_MODIFIED=$(grep "^M" /tmp/changed_files.txt | wc -l)
+    DEPLOYMENT_CHANGES_DELETED=$(grep "^D" /tmp/changed_files.txt | wc -l)
+    DEPLOYMENT_FILES_AFFECTED=$(cut -f2 /tmp/changed_files.txt)
+    
+    # Git-Diff Statistiken sammeln
+    if command -v git >/dev/null 2>&1; then
+      git diff HEAD~1 HEAD > /tmp/git_stats.txt 2>/dev/null || echo "" > /tmp/git_stats.txt
+    fi
     
     # Kategorisiere Dateien
     local js_files=$(grep -E '\.(js|ts|jsx|tsx)$' /tmp/changed_files.txt | wc -l)
@@ -757,7 +886,7 @@ deploy() {
   release_lock_silent
   
   # Temp-Dateien aufräumen
-  rm -f /tmp/pull_output.txt /tmp/changed_files.txt /tmp/commit_log.txt
+  rm -f /tmp/pull_output.txt /tmp/changed_files.txt /tmp/commit_log.txt /tmp/git_stats.txt
   
   if [ $deployment_result -eq 0 ]; then
     success "🎉 DEPLOYMENT ERFOLGREICH ABGESCHLOSSEN!"
