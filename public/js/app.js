@@ -785,7 +785,10 @@ class ErrorDisplay {
         
         card.innerHTML = `
             <div class="error-header" onclick="this.parentElement.querySelector('.error-content').classList.toggle('open'); this.querySelector('.expand-indicator').classList.toggle('expanded')">
-                <button class="delete-error-btn" onclick="event.stopPropagation(); errorDisplay.deleteError(${index}, ${isArchive})" title="Fehler löschen">🗑️</button>
+                <div class="error-actions-buttons">
+                    ${!isArchive ? `<button class="archive-error-btn" onclick="event.stopPropagation(); errorDisplay.archiveError(${index})" title="Fehler archivieren">📁</button>` : ''}
+                    <button class="delete-error-btn" onclick="event.stopPropagation(); errorDisplay.deleteError(${index}, ${isArchive})" title="Fehler löschen">🗑️</button>
+                </div>
                 <div class="error-info">
                     <div class="error-preview">${this.escapeHtml(firstLine)}${error.message.length > 100 ? '...' : ''}</div>
                     <div class="error-meta">
@@ -997,11 +1000,16 @@ class ErrorDisplay {
 
     performDeleteError(index, isArchive) {
         if (isArchive) {
-            // Fehler aus Archiv löschen (nur lokal)
-            this.archiveData.splice(index, 1);
-            this.saveArchive();
-            this.displayErrors(this.archiveData, true);
-            this.showNotification(`Fehler aus Archiv gelöscht`, 'success');
+            // Fehler aus Archiv löschen (Server-API für Sessions, lokal für Legacy)
+            if (this.currentSession && this.currentSession.token) {
+                this.deleteErrorFromArchive(index);
+            } else {
+                // Fallback für lokales Archiv
+                this.archiveData.splice(index, 1);
+                this.saveArchive();
+                this.displayErrors(this.archiveData, true);
+                this.showNotification(`Fehler aus Archiv gelöscht`, 'success');
+            }
         } else {
             // Fehler aus Live-Liste löschen (sowohl lokal als auch auf dem Server)
             this.deleteErrorFromServer(index);
@@ -1011,6 +1019,44 @@ class ErrorDisplay {
         
         // Sound für erfolgreiche Löschung
         this.playNotificationSound('errorDeleted');
+    }
+
+    async deleteErrorFromArchive(index) {
+        try {
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            // Session token ist für Archive-Löschung erforderlich
+            if (this.currentSession && this.currentSession.token) {
+                headers['x-session-token'] = this.currentSession.token;
+            } else {
+                throw new Error('Session token required for archive operations');
+            }
+            
+            const response = await fetch(`${this.serverUrl}/archive/${index}`, {
+                method: 'DELETE',
+                headers: headers
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                // Lokale Löschung
+                this.archiveData.splice(index, 1);
+                this.displayErrors(this.archiveData, true);
+                this.showNotification(`Archivierter Fehler gelöscht`, 'success');
+            } else {
+                throw new Error(`Server error: ${response.status}`);
+            }
+        } catch (error) {
+            console.error('Fehler beim Löschen des archivierten Fehlers:', error);
+            this.showNotification('Fehler beim Löschen vom Archiv-Server', 'error');
+            
+            // Fallback: Lokale Löschung wenn Server-Request fehlschlägt
+            this.archiveData.splice(index, 1);
+            this.saveArchive();
+            this.displayErrors(this.archiveData, true);
+        }
     }
 
     async deleteErrorFromServer(index) {
@@ -1043,6 +1089,67 @@ class ErrorDisplay {
             // Fallback: Lokale Löschung wenn Server-Request fehlschlägt
             this.errors.splice(index, 1);
             this.displayErrors(this.errors);
+        }
+    }
+
+    // === ERROR ARCHIVING ===
+    archiveError(index) {
+        if (index < 0 || index >= this.errors.length) {
+            this.showNotification('Fehler-Index ungültig', 'error');
+            return;
+        }
+
+        const error = this.errors[index];
+        
+        // Manuell archivieren (unabhängig von autoArchive Einstellung)
+        const archiveError = {
+            ...error,
+            archivedAt: new Date().toISOString(),
+            id: Date.now() + Math.random(),
+            isLive: error.isLive || false,
+            isServerBuffered: error.isServerBuffered || false,
+            sessionToken: this.currentSession?.token,
+            manuallyArchived: true // Kennzeichnung für manuelle Archivierung
+        };
+        
+        this.archiveData.unshift(archiveError);
+        this.saveArchive();
+        
+        // Entferne den Fehler aus der Live-Liste
+        this.errors.splice(index, 1);
+        this.displayErrors(this.errors);
+        this.updateStats();
+        
+        this.showNotification('Fehler archiviert', 'success');
+        this.playNotificationSound('errorDeleted'); // Verwende den gleichen Sound wie beim Löschen
+    }
+
+    archiveExistingErrors() {
+        // Archiviere alle aktuellen Live-Fehler beim Session-Load
+        if (this.errors.length > 0) {
+            console.log(`📁 Archiviere ${this.errors.length} bestehende Fehler bei Session-Load`);
+            
+            this.errors.forEach(error => {
+                const archiveError = {
+                    ...error,
+                    archivedAt: new Date().toISOString(),
+                    id: Date.now() + Math.random(),
+                    isLive: error.isLive || false,
+                    isServerBuffered: error.isServerBuffered || false,
+                    sessionToken: this.currentSession?.token,
+                    autoArchivedOnLoad: true // Kennzeichnung für automatische Archivierung beim Session-Load
+                };
+                
+                this.archiveData.unshift(archiveError);
+            });
+            
+            // Speichere das Archiv
+            this.saveArchive();
+            
+            // Leere die Live-Fehler-Liste
+            this.errors = [];
+            
+            this.showNotification(`${this.archiveData.length} bestehende Fehler archiviert`, 'info');
         }
     }
 
@@ -2051,6 +2158,9 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         if (errorsContainer && errorsContainer.querySelector('.session-required')) {
             errorsContainer.innerHTML = '';
         }
+        
+        // Archiviere alle aktuellen Live-Fehler beim Session-Load
+        this.archiveExistingErrors();
         
         // Load session-specific archive if available
         this.loadSessionArchive();

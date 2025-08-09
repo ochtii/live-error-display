@@ -1073,6 +1073,63 @@ app.delete('/error/:index', (req, res) => {
     });
 });
 
+// Delete single archived error by index (session-specific)
+app.delete('/archive/:index', (req, res) => {
+    const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+    const index = parseInt(req.params.index);
+    const sessionToken = req.headers['x-session-token'];
+    
+    if (isNaN(index) || index < 0) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid archive index'
+        });
+    }
+    
+    if (!sessionToken) {
+        return res.status(400).json({
+            success: false,
+            error: 'Session token required for archive operations'
+        });
+    }
+    
+    const session = SessionManager.getSession(sessionToken);
+    if (!session) {
+        console.log(`❌ Invalid session token in archive delete request: ${sessionToken}`);
+        return res.status(404).json({
+            success: false,
+            error: 'Session not found'
+        });
+    }
+    
+    if (!session.archive) {
+        session.archive = [];
+    }
+    
+    if (index >= session.archive.length) {
+        return res.status(404).json({
+            success: false,
+            error: 'Archived error not found'
+        });
+    }
+    
+    const deletedError = session.archive[index];
+    session.archive.splice(index, 1);
+    
+    // Save session
+    SessionManager.saveSessionToDisk(session);
+    
+    console.log(`🗑️ Deleted archived error ${index} from session ${sessionToken} by ${ip}`);
+    
+    res.json({ 
+        success: true, 
+        message: 'Archived error deleted',
+        deletedError: deletedError,
+        remainingCount: session.archive.length,
+        sessionToken: sessionToken
+    });
+});
+
 // Clear all errors
 app.delete('/errors', (req, res) => {
     const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
