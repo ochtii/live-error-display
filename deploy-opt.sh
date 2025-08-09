@@ -3,7 +3,8 @@
 # Live Error Display - Auto-Deploy Script für /opt (root user)
 # Prüft jede Sekunde auf Git-Änderungen und deployed automatisch
 
-set -euo pipefail
+# Entferne -e flag um zu verhindern, dass Script bei return 1 beendet wird
+set -uo pipefail
 
 # === KONFIGURATION ===
 REPO_DIR="/opt/live-error-display"
