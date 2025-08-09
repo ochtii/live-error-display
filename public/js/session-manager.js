@@ -484,6 +484,134 @@ class SessionManager {
         }
     }
 
+    async validateAndPreserveSessions() {
+        try {
+            // Get existing lastSessions from localStorage
+            const lastSessionsData = localStorage.getItem('lastSessions');
+            if (!lastSessionsData) {
+                return 0; // No sessions to validate
+            }
+            
+            const lastSessions = JSON.parse(lastSessionsData);
+            if (!Array.isArray(lastSessions) || lastSessions.length === 0) {
+                return 0; // No sessions to validate
+            }
+            
+            console.log(`🔍 Validating ${lastSessions.length} stored sessions against server...`);
+            
+            const validSessions = [];
+            
+            // Check each session against server
+            for (const sessionData of lastSessions) {
+                if (!sessionData.token) continue;
+                
+                try {
+                    // Try to validate session on server (without loading it)
+                    const response = await fetch(`${this.errorDisplay.serverUrl}/api/session/${sessionData.token}/validate`, {
+                        method: 'GET'
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.exists) {
+                            validSessions.push(sessionData);
+                            console.log(`✅ Session valid: ${sessionData.name} (${sessionData.token.substring(0, 8)}...)`);
+                        }
+                    }
+                } catch (error) {
+                    console.log(`❌ Failed to validate session: ${sessionData.token.substring(0, 8)}...`);
+                }
+            }
+            
+            // Update lastSessions with only valid sessions
+            if (validSessions.length > 0) {
+                localStorage.setItem('lastSessions', JSON.stringify(validSessions));
+                console.log(`💾 Preserved ${validSessions.length} valid sessions in localStorage`);
+            } else {
+                localStorage.removeItem('lastSessions');
+            }
+            
+            return validSessions.length;
+            
+        } catch (error) {
+            console.error('Error validating sessions:', error);
+            return 0; // On error, don't preserve any sessions
+        }
+    }
+
+    async validateAndUpdateUIState() {
+        // Validate current session if exists
+        if (this.currentSession && this.currentSession.token) {
+            try {
+                const response = await fetch(`${this.errorDisplay.serverUrl}/api/session/${this.currentSession.token}`);
+                if (!response.ok) {
+                    console.warn('❌ Current session token validation failed, clearing session');
+                    this.errorDisplay.showNotification('Session ungültig - neue Session wird erstellt', 'warning');
+                    this.clearSession();
+                    return;
+                } else {
+                    console.log('✅ Current session token validated successfully');
+                    this.errorDisplay.updateNavigationState(true);
+                    return;
+                }
+            } catch (error) {
+                console.warn('⚠️ Could not validate current session token:', error);
+                this.errorDisplay.showNotification('Verbindung zum Server nicht möglich - Session-Status unbekannt', 'warning');
+            }
+        }
+        
+        // No valid current session - check for recoverable sessions
+        this.checkForRecoverableSessions();
+        this.errorDisplay.updateNavigationState(false);
+    }
+
+    checkForRecoverableSessions() {
+        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
+        if (savedSessions.length > 0) {
+            console.log(`🔍 Found ${savedSessions.length} saved sessions that could be restored`);
+            setTimeout(() => {
+                this.errorDisplay.showNotification(`${savedSessions.length} gespeicherte Session(s) verfügbar - Session Manager öffnen zum Wiederherstellen`, 'info');
+            }, 2000);
+        }
+    }
+
+    startAutoCleanupTimer() {
+        // Clean up expired sessions every hour
+        setInterval(() => {
+            this.cleanupExpiredSessions();
+        }, 60 * 60 * 1000); // 1 hour
+        
+        // Initial cleanup
+        this.cleanupExpiredSessions();
+    }
+
+    cleanupExpiredSessions() {
+        const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+        const now = Date.now();
+        
+        // Clean up current session if expired
+        if (this.currentSession && this.currentSession.lastAccessed) {
+            const lastAccessed = new Date(this.currentSession.lastAccessed).getTime();
+            if (now - lastAccessed > maxAge) {
+                console.log('🧹 Cleaning up expired current session');
+                this.clearSession();
+            }
+        }
+        
+        // Clean up saved sessions
+        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
+        const activeSessions = savedSessions.filter(session => {
+            if (!session.lastAccessed) return true; // Keep sessions without timestamp
+            const lastAccessed = new Date(session.lastAccessed).getTime();
+            return now - lastAccessed <= maxAge;
+        });
+        
+        if (activeSessions.length !== savedSessions.length) {
+            localStorage.setItem('savedSessions', JSON.stringify(activeSessions));
+            console.log(`🧹 Cleaned up ${savedSessions.length - activeSessions.length} expired saved sessions`);
+        }
+    }
+
     // Additional methods would continue here with the remaining session-related functions...
     // This includes all the inline session management functions from the original app.js
 }
