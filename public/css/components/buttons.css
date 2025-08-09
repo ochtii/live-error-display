@@ -1,47 +1,63 @@
-/* Button styles */
-button {
-    cursor: pointer;
-    padding: var(--space-sm) var(--space-md);
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.btn-icon {
+    border: none;
     border-radius: var(--radius-sm);
-    font-weight: 500;
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-family: var(--font-family);
     font-size: var(--font-size-sm);
-    transition: all 0.2s;
-    display: flex;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
     align-items: center;
-    gap: var(--space-sm);
+    justify-content: center;
+    gap: var(--spacing-sm);
+    transition: background-color 0.2s, transform 0.1s;
 }
 
 .btn-primary {
-    background: var(--primary);
+    background-color: var(--color-primary);
     color: white;
-    border: none;
 }
 
 .btn-primary:hover {
-    background: var(--primary-dark);
+    background-color: var(--color-primary-dark);
 }
 
 .btn-secondary {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text);
-    border: 1px solid var(--border);
+    background-color: #f1f1f1;
+    color: var(--color-text);
 }
 
 .btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.15);
+    background-color: #e5e5e5;
 }
 
 .btn-danger {
-    background: var(--danger);
+    background-color: var(--color-danger);
     color: white;
-    border: none;
 }
 
 .btn-danger:hover {
-    background: #dc2626; /* Slightly darker red */
+    background-color: var(--color-danger-dark);
 }
 
-.btn-full {
-    width: 100%;
-    justify-content: center;
+.btn-icon {
+    background: transparent;
+    padding: var(--spacing-xs);
+    font-size: var(--font-size-md);
+}
+
+.btn-icon:hover {
+    background-color: #f1f1f1;
+}
+
+button:active {
+    transform: translateY(1px);
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Error Display v5.0</title>
+    <title>Session Manager - Live Error Display v5.0</title>
     <!-- CSS -->
     <link rel="stylesheet" href="/css/variables.css">
     <link rel="stylesheet" href="/css/base.css">
@@ -12,16 +12,15 @@
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/status.css">
-    <link rel="stylesheet" href="/css/components/errors.css">
 </head>
 <body>
     <div class="container">
         <header>
             <div class="logo-container">
-                <div class="logo">🚨</div>
+                <div class="logo">🔑</div>
                 <div>
-                    <h1>Live Error Display</h1>
-                    <div class="subtitle">v5.0 • Modern, modular, effizient</div>
+                    <h1>Session Manager</h1>
+                    <div class="subtitle">Live Error Display v5.0</div>
                 </div>
             </div>
             <div class="status-badge">
@@ -31,32 +30,9 @@
         </header>
 
         <main>
-            <!-- Live Errors Panel -->
+            <!-- Session Management -->
             <section class="card">
-                <h2>📡 Live Errors <span id="errorCount" class="count-badge">(0)</span></h2>
-                <p class="hint">Echtzeit-Fehler erscheinen hier, sobald eine Verbindung hergestellt ist.</p>
-                
-                <div class="actions">
-                    <button id="connectButton" class="btn-primary">
-                        <span>Live-Überwachung starten</span>
-                    </button>
-                    <button id="clearButton" class="btn-secondary">
-                        <span>Fehler löschen</span>
-                    </button>
-                </div>
-                
-                <div id="noErrors" class="no-errors">
-                    Keine Fehler – System bereit.
-                </div>
-                
-                <div id="errorsList" class="error-list">
-                    <!-- Errors will be inserted here dynamically -->
-                </div>
-            </section>
-            
-            <!-- Session Management Panel -->
-            <section class="card">
-                <h2>🔑 Session</h2>
+                <h2>🔑 Session-Verwaltung</h2>
                 
                 <!-- Active Session Info -->
                 <div id="activeSession" class="hidden">
@@ -69,9 +45,13 @@
                                 <span>📋</span>
                             </button>
                         </div>
+                        <p>Session erstellt: <span id="sessionCreated">-</span></p>
                     </div>
                     
                     <div class="actions">
+                        <button id="goToMonitorButton" class="btn-primary">
+                            <span>Zur Fehler-Überwachung</span>
+                        </button>
                         <button id="endSessionButton" class="btn-danger">
                             <span>Session beenden</span>
                         </button>
@@ -104,6 +84,10 @@
                                 <label for="restoreToken">Token:</label>
                                 <input type="text" id="restoreToken" placeholder="Session-Token eingeben">
                             </div>
+                            <div class="form-group">
+                                <label for="restorePassword">Passwort (falls vorhanden):</label>
+                                <input type="password" id="restorePassword" placeholder="Passwort, falls gesetzt">
+                            </div>
                             <button id="restoreSessionButton" class="btn-primary">
                                 <span>Session wiederherstellen</span>
                             </button>
@@ -111,19 +95,32 @@
                     </div>
                 </div>
             </section>
+            
+            <!-- Session List -->
+            <section class="card">
+                <h2>📝 Aktive Sessions <span id="sessionCount" class="count-badge">(0)</span></h2>
+                <p class="hint">Hier werden alle aktiven Sessions angezeigt.</p>
+                
+                <div id="noSessions" class="no-errors">
+                    Keine aktiven Sessions.
+                </div>
+                
+                <div id="sessionsList" class="error-list">
+                    <!-- Sessions will be inserted here dynamically -->
+                </div>
+            </section>
         </main>
         
         <footer>
             <p>&copy; 2025 Live Error Display</p>
+            <p><a href="index.html">Zurück zur Fehler-Überwachung</a></p>
         </footer>
     </div>
 
     <!-- JS -->
     <script src="/js/modules/dom-utils.js" type="module"></script>
     <script src="/js/modules/status-manager.js" type="module"></script>
-    <script src="/js/modules/error-manager.js" type="module"></script>
     <script src="/js/modules/session-manager.js" type="module"></script>
-    <script src="/js/modules/sse-client.js" type="module"></script>
-    <script src="/js/app.js" type="module"></script>
+    <script src="/js/session-admin.js" type="module"></script>
 </body>
 </html>

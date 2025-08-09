@@ -1,16 +1,23 @@
-# Backup files
-server.js.backup
+# Node.js dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+package-lock.json
 
-# Session data
-sessions/
-*.session
-
-# Environment variables
+# Environment variables and configuration
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.development
+.env.test
+.env.production
+config.js
+config.json
+
+# Sessions
+sessions/
+*.session
+*.token
 
 # Logs
 logs/
@@ -19,18 +26,40 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Node modules
-node_modules/
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
 
-# Build outputs
+# Coverage and test data
+coverage/
+.nyc_output
+.jest
+.mocha
+
+# Build output
 dist/
 build/
+out/
+.next/
 
-# IDE files
-.vscode/
+# IDE and editor folders
 .idea/
+.vscode/
 *.swp
 *.swo
+.DS_Store
+.directory
+.Trash-*
+.nfs*
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.sublime-project
 
 # OS generated files
 .DS_Store
@@ -41,10 +70,24 @@ build/
 ehthumbs.db
 Thumbs.db
 
-# Sensitive data
-secrets/
-keys/
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+
+# Deploy-specific files
+deploy-creds.json
+private-key.pem
 *.key
 *.pem
+*.cert
 *.crt
-server.js.backup3
+
+# Application specific
+# Uncomment if you want to exclude audio files from git
+# public/sounds/*.mp3
+# public/sounds/*.wav
+# public/sounds/*.ogg

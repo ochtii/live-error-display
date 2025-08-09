@@ -3,7 +3,8 @@
  * Handles error list management and UI updates
  */
 
-import { getElement, clearChildren, createElement, setVisible } from './dom-utils.js';
+import { getElement, clearChildren, createElement, setVisible, createElementWithClass, appendChildren } from './dom-utils.js';
+import * as SoundPlayer from '../../sounds/sounds.js';
 
 // Error list data
 let errors = [];
@@ -31,6 +32,9 @@ export function addError(error) {
     if (errors.length > 200) {
         errors.length = 200; // Keep only last 200 errors
     }
+    
+    // Play sound based on error level
+    SoundPlayer.playForErrorLevel(error.level);
     
     // Update the UI
     updateErrorsUI();
