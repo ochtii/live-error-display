@@ -105,6 +105,31 @@ app.post('/api/session/:token', (req, res) => {
     }
 });
 
+// Get session expiry information
+app.get('/api/session/:token/expiry', (req, res) => {
+    try {
+        const { token } = req.params;
+        const expiryInfo = SessionManager.getSessionExpiryInfo(token);
+        
+        if (!expiryInfo) {
+            return res.status(404).json({
+                success: false,
+                error: 'Session not found'
+            });
+        }
+        
+        res.json({
+            success: true,
+            expiry: expiryInfo
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get session expiry info'
+        });
+    }
+});
+
 // Restore session with token (GET for backwards compatibility, no password support)
 app.get('/api/session/:token', (req, res) => {
     try {
@@ -462,6 +487,62 @@ class SessionManager {
         } catch (error) {
             console.error('❌ Failed to delete session file:', error.message);
         }
+    }
+    
+    static cleanupExpiredSessions() {
+        const now = new Date();
+        const expiryDays = 31;
+        const expiredSessions = [];
+        
+        console.log(`🧹 Starting cleanup of sessions older than ${expiryDays} days...`);
+        
+        sessions.forEach((session, token) => {
+            const lastAccessed = new Date(session.lastAccessed);
+            const daysSinceAccess = Math.floor((now - lastAccessed) / (1000 * 60 * 60 * 24));
+            
+            if (daysSinceAccess >= expiryDays) {
+                expiredSessions.push({
+                    token,
+                    name: session.name,
+                    daysSinceAccess,
+                    lastAccessed: session.lastAccessed
+                });
+            }
+        });
+        
+        // Delete expired sessions
+        expiredSessions.forEach(({ token, name, daysSinceAccess }) => {
+            this.deleteSession(token);
+            console.log(`🗑️ Expired session deleted: ${name} (${daysSinceAccess} days old)`);
+        });
+        
+        if (expiredSessions.length > 0) {
+            console.log(`✅ Cleanup completed: ${expiredSessions.length} expired sessions removed`);
+        } else {
+            console.log('✅ Cleanup completed: No expired sessions found');
+        }
+        
+        return expiredSessions.length;
+    }
+    
+    static getSessionExpiryInfo(token) {
+        const session = this.getSession(token);
+        if (!session) return null;
+        
+        const now = new Date();
+        const lastAccessed = new Date(session.lastAccessed);
+        const daysSinceAccess = Math.floor((now - lastAccessed) / (1000 * 60 * 60 * 24));
+        const daysUntilExpiry = 31 - daysSinceAccess;
+        const expiryDate = new Date(lastAccessed);
+        expiryDate.setDate(expiryDate.getDate() + 31);
+        
+        return {
+            daysSinceAccess,
+            daysUntilExpiry,
+            expiryDate: expiryDate.toISOString(),
+            isExpiringSoon: daysUntilExpiry <= 7,
+            isExpired: daysUntilExpiry <= 0
+        };
     }
     
     static getSavedSessions() {
@@ -1166,6 +1247,17 @@ app.delete('/errors', (req, res) => {
 
 // Clean up stale connections every 5 minutes
 setInterval(cleanupStaleConnections, 5 * 60 * 1000);
+
+// Clean up expired sessions daily at 3 AM
+setInterval(() => {
+    const now = new Date();
+    if (now.getHours() === 3 && now.getMinutes() === 0) {
+        SessionManager.cleanupExpiredSessions();
+    }
+}, 60 * 1000); // Check every minute for 3 AM
+
+// Initial cleanup on startup
+SessionManager.cleanupExpiredSessions();
 
 // Load existing sessions on startup
 console.log('🔄 Starting session loading process...');

@@ -35,6 +35,7 @@ class ErrorDisplay {
         
         // Always show start page instead of auto-loading sessions
         this.showStartPage();
+        this.updateHeaderForStartPage();
     }
 
     setupEventListeners() {
@@ -270,6 +271,14 @@ class ErrorDisplay {
 
     // === MODE SWITCHING ===
     switchMode(mode) {
+        // Redirect to start page if no session for certain modes
+        if (!this.currentSession && ['live', 'archive', 'api'].includes(mode)) {
+            console.log(`🚫 Access to ${mode} blocked: No active session`);
+            this.showStartPage();
+            this.updateHeaderForStartPage();
+            return;
+        }
+        
         this.currentMode = mode;
         
         // Update session activity
@@ -557,13 +566,18 @@ class ErrorDisplay {
 
     // === SSE CONNECTION ===
     connectSSE() {
+        // Prevent SSE connection without active session
+        if (!this.currentSession || !this.currentSession.token) {
+            console.log('🚫 SSE connection blocked: No active session');
+            this.showStartPage();
+            return;
+        }
+        
         if (this.eventSource) return;
         
-        // Include session token in SSE connection if available
+        // Include session token in SSE connection
         let sseUrl = '/live';
-        if (this.currentSession && this.currentSession.token) {
-            sseUrl += `?session=${encodeURIComponent(this.currentSession.token)}`;
-        }
+        sseUrl += `?session=${encodeURIComponent(this.currentSession.token)}`;
         
         console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔌 Attempting SSE connection to ${sseUrl}...`);
         this.eventSource = new EventSource(sseUrl);
@@ -2134,6 +2148,92 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         }, 100);
     }
 
+    updateHeaderForStartPage() {
+        // Show simplified header for start page
+        const header = document.querySelector('.header');
+        const controls = document.querySelector('.controls');
+        const sessionInfo = document.querySelector('.session-info');
+        
+        if (header) {
+            header.classList.add('start-page-header');
+        }
+        
+        // Hide navigation controls
+        if (controls) {
+            controls.style.display = 'none';
+        }
+        
+        // Update session info to show welcome message
+        if (sessionInfo) {
+            sessionInfo.innerHTML = `
+                <div class="start-session-info">
+                    <span class="start-welcome-text">Willkommen bei Live Error Display</span>
+                    <small class="start-version-text">Version 2.1 - Bereit für neue Sessions</small>
+                </div>
+            `;
+        }
+    }
+
+    updateHeaderForActiveSession() {
+        // Restore normal header for active sessions
+        const header = document.querySelector('.header');
+        const controls = document.querySelector('.controls');
+        
+        if (header) {
+            header.classList.remove('start-page-header');
+        }
+        
+        // Show navigation controls
+        if (controls) {
+            controls.style.display = 'flex';
+        }
+        
+        // Update session display will be handled by existing functions
+        this.updateSessionDisplay();
+        
+        // Load and display session expiry info
+        this.updateSessionExpiryInfo();
+    }
+
+    async updateSessionExpiryInfo() {
+        if (!this.currentSession || !this.currentSession.token) return;
+        
+        try {
+            const response = await fetch(`${this.serverUrl}/api/session/${this.currentSession.token}/expiry`);
+            if (response.ok) {
+                const data = await response.json();
+                const expiryInfo = data.expiry;
+                
+                // Update session display with expiry info
+                const sessionInfo = document.querySelector('.session-info');
+                if (sessionInfo && expiryInfo) {
+                    let expiryHtml = '';
+                    
+                    if (expiryInfo.isExpired) {
+                        expiryHtml = '<span class="expiry-warning expired">⚠️ Session abgelaufen</span>';
+                    } else if (expiryInfo.isExpiringSoon) {
+                        const expiryDate = new Date(expiryInfo.expiryDate).toLocaleDateString('de-DE');
+                        expiryHtml = `<span class="expiry-warning soon">⏰ Läuft ab: ${expiryDate}</span>`;
+                    } else if (expiryInfo.daysUntilExpiry <= 14) {
+                        expiryHtml = `<span class="expiry-info">📅 Läuft ab in ${expiryInfo.daysUntilExpiry} Tagen</span>`;
+                    }
+                    
+                    // Find existing session name display and add expiry info
+                    const existingExpiry = sessionInfo.querySelector('.expiry-warning, .expiry-info');
+                    if (existingExpiry) {
+                        existingExpiry.remove();
+                    }
+                    
+                    if (expiryHtml) {
+                        sessionInfo.insertAdjacentHTML('beforeend', `<div class="session-expiry">${expiryHtml}</div>`);
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to load session expiry info:', error);
+        }
+    }
+
     showSessionRequiredMessage() {
         const errorsContainer = document.getElementById('errorsContainer');
         if (errorsContainer) {
@@ -2179,6 +2279,9 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         // Called when a session is loaded (created or restored)
         // This unlocks all tabs and starts SSE connection
         console.log('🎯 Session loaded globally, enabling full app functionality');
+        
+        // Update header back to normal mode
+        this.updateHeaderForActiveSession();
         
         // Hide session required message if visible
         const errorsContainer = document.getElementById('errorsContainer');

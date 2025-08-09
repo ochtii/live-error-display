@@ -2421,6 +2421,48 @@ input:checked + .toggle-slider:before {
 }
 
 /* === START PAGE STYLES === */
+.start-page-header {
+    background: linear-gradient(135deg, var(--background-card), rgba(59, 130, 246, 0.1));
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.start-session-info {
+    text-align: center;
+}
+
+.start-welcome-text {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.start-version-text {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* Session Expiry Styles */
+.session-expiry {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.expiry-warning.expired {
+    color: var(--danger);
+    font-weight: 600;
+}
+
+.expiry-warning.soon {
+    color: var(--warning);
+    font-weight: 600;
+}
+
+.expiry-info {
+    color: var(--text-secondary);
+}
+
 .start-page {
     display: flex;
     flex-direction: column;
