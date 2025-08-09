@@ -160,14 +160,68 @@ show_deployment_summary() {
   fi
   
   # Git-Diff Statistiken (falls verfügbar)
-  if [ -f "/tmp/git_stats.txt" ]; then
-    local added_lines=$(grep "^+" /tmp/git_stats.txt | wc -l 2>/dev/null || echo "0")
-    local removed_lines=$(grep "^-" /tmp/git_stats.txt | wc -l 2>/dev/null || echo "0")
+  if [ -f "/tmp/git_stats_summary.txt" ]; then
+    local total_added=0
+    local total_removed=0
+    
+    # Berechne Gesamtstatistiken
+    if [ -f "/tmp/git_numstat.txt" ]; then
+      while IFS=$'\t' read -r added removed file; do
+        if [[ "$added" =~ ^[0-9]+$ ]]; then
+          total_added=$((total_added + added))
+        fi
+        if [[ "$removed" =~ ^[0-9]+$ ]]; then
+          total_removed=$((total_removed + removed))
+        fi
+      done < /tmp/git_numstat.txt
+    fi
     
     log "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
     log "${CYAN}║${NC} ${BOLD}📊 CODE-ÄNDERUNGEN:${NC}$(printf "%*s" 43 "")${CYAN}║${NC}"
-    log "${CYAN}║${NC}   ${GREEN}++++ ${added_lines} Zeilen hinzugefügt${NC}$(printf "%*s" $((35-${#added_lines})) "")${CYAN}║${NC}"
-    log "${CYAN}║${NC}   ${RED}---- ${removed_lines} Zeilen entfernt${NC}$(printf "%*s" $((36-${#removed_lines})) "")${CYAN}║${NC}"
+    
+    if [ "$total_added" -gt 0 ]; then
+      log "${CYAN}║${NC}   ${GREEN}++++ ${total_added} Zeilen hinzugefügt${NC}$(printf "%*s" $((35-${#total_added})) "")${CYAN}║${NC}"
+    fi
+    
+    if [ "$total_removed" -gt 0 ]; then
+      log "${CYAN}║${NC}   ${RED}---- ${total_removed} Zeilen entfernt${NC}$(printf "%*s" $((36-${#total_removed})) "")${CYAN}║${NC}"
+    fi
+    
+    local net_change=$((total_added - total_removed))
+    if [ "$net_change" -ne 0 ]; then
+      if [ "$net_change" -gt 0 ]; then
+        log "${CYAN}║${NC}   ${BLUE}📈 Netto: +${net_change} Zeilen${NC}$(printf "%*s" $((39-${#net_change})) "")${CYAN}║${NC}"
+      else
+        log "${CYAN}║${NC}   ${BLUE}📉 Netto: ${net_change} Zeilen${NC}$(printf "%*s" $((40-${#net_change})) "")${CYAN}║${NC}"
+      fi
+    fi
+    
+    # Zeige visuelle Darstellung für die wichtigsten Dateien
+    log "${CYAN}║${NC}   ${GRAY}Visuelle Darstellung:${NC}$(printf "%*s" 34 "")${CYAN}║${NC}"
+    
+    grep "|" /tmp/git_stats_summary.txt | head -3 | while IFS= read -r line; do
+      local file=$(echo "$line" | cut -d'|' -f1 | sed 's/^ *//;s/ *$//')
+      local visual=$(echo "$line" | grep -o '[+]*[-]*' || echo "")
+      
+      # Kürze Dateinamen für die Box
+      if [ ${#file} -gt 35 ]; then
+        file="...${file: -32}"
+      fi
+      
+      if [ -n "$visual" ]; then
+        # Kürze visuelle Darstellung wenn zu lang
+        if [ ${#visual} -gt 20 ]; then
+          visual="${visual:0:17}..."
+        fi
+        
+        local plus_part=$(echo "$visual" | grep -o '+*' || echo "")
+        local minus_part=$(echo "$visual" | grep -o '\-*' || echo "")
+        
+        printf "${CYAN}║${NC}   ${WHITE}%-35s${NC} " "$file"
+        printf "${GREEN}%s${RED}%s${NC}" "$plus_part" "$minus_part"
+        printf "%*s${CYAN}║${NC}\n" $((20-${#visual})) ""
+      fi
+    done
   fi
   
   # Betroffene Dateien
@@ -361,6 +415,9 @@ pull_changes() {
     git diff --name-status $old_commit $new_commit > /tmp/changed_files.txt
     # Speichere den Commit-Log
     git log --pretty=format:"%h - %an, %ar : %s" $old_commit..$new_commit > /tmp/commit_log.txt
+    # Sammle detaillierte Git-Statistiken mit visueller Darstellung
+    git diff --stat $old_commit..$new_commit > /tmp/git_stats_summary.txt 2>/dev/null
+    git diff --numstat $old_commit..$new_commit > /tmp/git_numstat.txt 2>/dev/null
     return 0
   fi
 }
@@ -616,6 +673,72 @@ show_git_details() {
     cat /tmp/commit_log.txt | while IFS= read -r line; do
       info "  📝 $line"
     done
+  fi
+  
+  # Zeige detaillierte Git-Statistiken mit visueller Darstellung
+  if [ -f "/tmp/git_stats_summary.txt" ]; then
+    info ""
+    info "📊 Detaillierte Änderungsstatistiken:"
+    info ""
+    
+    while IFS= read -r line; do
+      if [[ "$line" == *"|"* ]]; then
+        # Extrahiere Dateiname und Statistiken
+        local file=$(echo "$line" | cut -d'|' -f1 | sed 's/^ *//;s/ *$//')
+        local stats_part=$(echo "$line" | cut -d'|' -f2)
+        local visual=$(echo "$line" | grep -o '[+]*[-]*' || echo "")
+        
+        # Kürze langen Dateinamen für bessere Darstellung
+        if [ ${#file} -gt 50 ]; then
+          file="...${file: -47}"
+        fi
+        
+        # Farbige Ausgabe der visuellen Statistiken
+        if [ -n "$visual" ]; then
+          # Teile visual in + und - auf
+          local plus_part=$(echo "$visual" | grep -o '+*' || echo "")
+          local minus_part=$(echo "$visual" | grep -o '\-*' || echo "")
+          
+          info "  ${BOLD}${file}${NC}"
+          if [ -n "$plus_part" ] && [ -n "$minus_part" ]; then
+            info "    ${GREEN}${plus_part}${RED}${minus_part}${NC}"
+          elif [ -n "$plus_part" ]; then
+            info "    ${GREEN}${plus_part}${NC}"
+          elif [ -n "$minus_part" ]; then
+            info "    ${RED}${minus_part}${NC}"
+          fi
+        else
+          info "  ${BOLD}${file}${NC} ${GRAY}${stats_part}${NC}"
+        fi
+      elif [[ "$line" == *"file"* && "$line" == *"changed"* ]]; then
+        info ""
+        info "  ${BLUE}${BOLD}📈 $line${NC}"
+        info ""
+      fi
+    done < /tmp/git_stats_summary.txt
+  fi
+  
+  # Zeige numerische Statistiken falls verfügbar
+  if [ -f "/tmp/git_numstat.txt" ]; then
+    local total_added=0
+    local total_removed=0
+    
+    while IFS=$'\t' read -r added removed file; do
+      if [[ "$added" =~ ^[0-9]+$ ]]; then
+        total_added=$((total_added + added))
+      fi
+      if [[ "$removed" =~ ^[0-9]+$ ]]; then
+        total_removed=$((total_removed + removed))
+      fi
+    done < /tmp/git_numstat.txt
+    
+    if [ "$total_added" -gt 0 ] || [ "$total_removed" -gt 0 ]; then
+      info ""
+      info "🔢 Gesamtstatistik:"
+      info "  ${GREEN}++++ ${total_added} Zeilen hinzugefügt${NC}"
+      info "  ${RED}---- ${total_removed} Zeilen entfernt${NC}"
+      info "  ${BLUE}Netto: $((total_added - total_removed)) Zeilen${NC}"
+    fi
   fi
   
   # Aktuelle Branch und Remote Info
