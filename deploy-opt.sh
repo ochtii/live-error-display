@@ -542,7 +542,6 @@ perform_detailed_deployment() {
   
   # Schritt 6: PM2 Services verwalten
   deployment_step "PM2 Services verwalten..."
-  debug_pm2_setup
   manage_pm2_services
   
   # Schritt 7: Health Check
@@ -638,18 +637,11 @@ manage_pm2_services() {
   
   cd "$REPO_DIR"
   
-  # Aktuelle PM2 Prozesse auflisten
-  info "Aktuelle PM2 Prozesse vor Deployment:"
-  info "PM2_HOME: ${PM2_HOME:-'(using default)'}"
-  if pm2 list 2>/dev/null; then
-    pm2 list --no-color | head -20 | while IFS= read -r line; do
-      info "  $line"
-    done
-  else
-    warn "Keine PM2 Prozesse gefunden oder PM2 nicht verfügbar"
-  fi
+  # Schritt 1: PM2 Service stoppen
+  info "Stoppe live-error-display Service..."
+  pm2 stop live-error-display 2>/dev/null && success "✅ Service gestoppt" || warn "Service war nicht aktiv"
   
-  # PM2 Ecosystem-Datei verwalten
+  # Schritt 2: PM2 Ecosystem-Datei verwenden
   local config_file=""
   if [ -f "ecosystem.config.js" ]; then
     config_file="ecosystem.config.js"
@@ -663,20 +655,16 @@ manage_pm2_services() {
     config_file="ecosystem.config.js"
   fi
   
-  # Prozesse neu starten/starten
-  restart_pm2_processes "$config_file"
+  # Schritt 3: PM2 Service starten
+  info "Starte live-error-display Service..."
+  if pm2 start "$config_file" 2>/dev/null; then
+    success "✅ Service erfolgreich gestartet"
+  else
+    error "❌ Fehler beim Starten des Services!"
+  fi
   
-  # PM2 Status nach Neustart
-  info "PM2 Prozesse nach Deployment:"
-  sudo -u $PM2_USER pm2 list --no-color | while IFS= read -r line; do
-    info "  $line"
-  done
-  
-  # PM2 Logs der letzten Minuten anzeigen
-  info "Aktuelle PM2 Logs (letzte 10 Zeilen):"
-  sudo -u $PM2_USER pm2 logs --lines 10 --no-color | while IFS= read -r line; do
-    info "  $line"
-  done
+  # PM2 Konfiguration speichern
+  pm2 save 2>/dev/null
 }
 
 create_default_ecosystem() {
@@ -706,48 +694,6 @@ module.exports = {
 };
 EOL
   success "Standard PM2 Ecosystem-Konfiguration erstellt"
-}
-
-restart_pm2_processes() {
-  local config_file="$1"
-  
-  info "Verwende Konfigurationsdatei: $config_file"
-  
-  # Prüfe, ob Service bereits läuft
-  if sudo -u $PM2_USER pm2 list | grep -q "$SERVICE_NAME"; then
-    info "Service '$SERVICE_NAME' läuft bereits. Führe Reload durch..."
-    
-    # Graceful reload für Zero-Downtime
-    if sudo -u $PM2_USER pm2 reload "$config_file" --update-env; then
-      success "✅ Service '$SERVICE_NAME' erfolgreich neu geladen"
-    else
-      warn "Reload fehlgeschlagen. Versuche Restart..."
-      if sudo -u $PM2_USER pm2 restart "$config_file"; then
-        success "✅ Service '$SERVICE_NAME' erfolgreich neu gestartet"
-      else
-        error "❌ Fehler beim Neustarten des Services '$SERVICE_NAME'!"
-      fi
-    fi
-  else
-    info "Service '$SERVICE_NAME' läuft nicht. Starte neu..."
-    if sudo -u $PM2_USER pm2 start "$config_file"; then
-      success "✅ Service '$SERVICE_NAME' erfolgreich gestartet"
-    else
-      error "❌ Fehler beim Starten des Services '$SERVICE_NAME'!"
-    fi
-  fi
-  
-  # Warte kurz, damit der Service hochfahren kann
-  info "Warte 3 Sekunden auf Service-Start..."
-  sleep 3
-  
-  # PM2 Konfiguration speichern
-  info "Speichere PM2-Konfiguration für Autostart..."
-  if sudo -u $PM2_USER pm2 save; then
-    success "✅ PM2-Konfiguration gespeichert"
-  else
-    warn "⚠️  Warnung: PM2-Konfiguration konnte nicht gespeichert werden"
-  fi
 }
 
 perform_health_check() {
