@@ -14,30 +14,37 @@ SERVICE_NAME="live-error-display"
 LOG_FILE="/var/log/live-error-display-deploy.log"
 LOCK_FILE="/tmp/live-error-display-deploy.lock"
 CHECK_INTERVAL=1
-PM2_USER="root"
+PM2_USER="ubuntu"
 
 # PM2 Home-Verzeichnis automatisch erkennen
 detect_pm2_home() {
-  # Prüfe, ob PM2_HOME bereits gesetzt ist
-  if [ -n "$PM2_HOME" ]; then
+  # Wenn PM2_HOME bereits gesetzt ist, verwende es
+  if [ -n "$PM2_HOME" ] && [ -d "$PM2_HOME" ]; then
     return 0
   fi
   
-  # Versuche bestehende PM2-Instanz zu finden
-  if command -v pm2 >/dev/null 2>&1; then
-    local existing_pm2_home=$(pm2 info 2>/dev/null | grep "PM2 home" | cut -d: -f2 | tr -d ' ' 2>/dev/null || echo "")
-    if [ -n "$existing_pm2_home" ] && [ -d "$existing_pm2_home" ]; then
-      export PM2_HOME="$existing_pm2_home"
+  # Versuche bestehende PM2-Instanz über ps zu finden
+  local pm2_daemon_proc=$(ps aux | grep "PM2 v" | grep -v grep | head -1)
+  if [ -n "$pm2_daemon_proc" ]; then
+    # Extrahiere PM2_HOME aus dem Prozess
+    local pm2_home_from_ps=$(echo "$pm2_daemon_proc" | grep -o "PM2_HOME=[^ ]*" | cut -d= -f2 2>/dev/null || echo "")
+    if [ -n "$pm2_home_from_ps" ] && [ -d "$pm2_home_from_ps" ]; then
+      export PM2_HOME="$pm2_home_from_ps"
       return 0
     fi
   fi
   
-  # Fallback zu Standard-Verzeichnissen
-  if [ "$EUID" -eq 0 ]; then
-    export PM2_HOME="/root/.pm2"
-  else
-    export PM2_HOME="$HOME/.pm2"
-  fi
+  # Versuche PM2-Daemon Socket-Dateien zu finden
+  for possible_home in /root/.pm2 $HOME/.pm2 /home/*/.pm2; do
+    if [ -d "$possible_home" ] && [ -S "$possible_home/rpc.sock" ]; then
+      export PM2_HOME="$possible_home"
+      return 0
+    fi
+  done
+  
+  # Letzter Fallback: Standard PM2_HOME NICHT setzen um bestehende Instanz zu verwenden
+  # PM2 wird automatisch die aktuelle Instanz verwenden
+  unset PM2_HOME
 }
 
 # PM2 Home beim Start erkennen
@@ -120,13 +127,27 @@ show_status() {
 
 debug_pm2_setup() {
   info "=== PM2 DEBUG INFORMATION ==="
-  info "PM2_HOME: $PM2_HOME"
+  info "PM2_HOME: ${PM2_HOME:-'(unset - using default)'}"
   info "Current User: $(whoami)"
   info "PM2 Version: $(pm2 -v 2>/dev/null || echo 'Not found')"
+  
+  # Zeige PM2-Daemon Informationen
+  local pm2_daemon=$(ps aux | grep "PM2 v" | grep -v grep | head -1)
+  if [ -n "$pm2_daemon" ]; then
+    info "PM2 Daemon: AKTIV"
+    info "Daemon Process: $pm2_daemon"
+  else
+    warn "PM2 Daemon: NICHT GEFUNDEN"
+  fi
+  
+  # Zeige Socket-Dateien
+  if [ -n "$PM2_HOME" ] && [ -d "$PM2_HOME" ]; then
+    info "PM2 Socket Dateien:"
+    ls -la "$PM2_HOME"/*.sock 2>/dev/null | while read line; do info "  $line"; done || warn "  Keine Socket-Dateien gefunden"
+  fi
+  
   info "PM2 List Output:"
   pm2 list 2>/dev/null || warn "PM2 list command failed"
-  info "PM2 Status Output:"
-  pm2 status 2>/dev/null || warn "PM2 status command failed"
   info "=========================="
 }
 
@@ -490,7 +511,7 @@ manage_pm2_services() {
   
   # Aktuelle PM2 Prozesse auflisten
   info "Aktuelle PM2 Prozesse vor Deployment:"
-  info "PM2_HOME: $PM2_HOME"
+  info "PM2_HOME: ${PM2_HOME:-'(using default)'}"
   if pm2 list 2>/dev/null; then
     pm2 list --no-color | head -20 | while IFS= read -r line; do
       info "  $line"

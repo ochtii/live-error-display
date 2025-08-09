@@ -41,10 +41,10 @@ module.exports = {
       listen_timeout: 3000,
       
       // Source map support for better error tracking
-      source_map_support: true,
+      source_map_support: true
       
       // Instance variables
-      instance_var: 'INSTANCE_ID'
+    //   instance_var: 'INSTANCE_ID'
     },
     
     {
