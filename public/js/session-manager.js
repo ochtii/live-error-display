@@ -514,7 +514,7 @@ class SessionManager {
         this.errorDisplay.updateNavigationState(false);
     }
 
-    startAutoCleanupTimer() {
+    startSessionAutoCleanupTimer() {
         // Clean up expired sessions every hour
         setInterval(() => {
             this.cleanupExpiredSessions();
@@ -551,7 +551,7 @@ class SessionManager {
         }
     }
 
-    setupEventListeners() {
+    setupSessionEventListeners() {
         // Session Management Event Listeners
         const sessionBtn = document.getElementById('sessionBtn');
         const copyToken = document.getElementById('copyToken');

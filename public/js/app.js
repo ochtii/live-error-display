@@ -198,7 +198,7 @@ class ErrorDisplay {
         if (apiBtn) apiBtn.addEventListener('click', () => this.switchMode('api'));
         
         // Session Management Event Listeners - delegiert an SessionManager
-        this.sessionManager.setupEventListeners();
+        this.sessionManager.setupSessionEventListeners();
         
         // Settings - with null checks
         const saveSettings = document.getElementById('saveSettings');
@@ -434,7 +434,7 @@ class ErrorDisplay {
 
     startAutoCleanupTimer() {
         // Session cleanup wird von SessionManager übernommen
-        this.sessionManager.startAutoCleanupTimer();
+        this.sessionManager.startSessionAutoCleanupTimer();
     }
 
     // === SSE CONNECTION ===
