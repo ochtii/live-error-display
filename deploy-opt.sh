@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Live Error Display - Auto-Deploy Script für /opt (root user)
+# Live Error Display - Auto-Deploy Script für /opt (root)
 # Prüft jede Sekunde auf Git-Änderungen und deployed automatisch
 # Test-Kommentar für PowerShell Commit & Push Test
 
