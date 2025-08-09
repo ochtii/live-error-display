@@ -592,6 +592,12 @@ perform_detailed_deployment() {
   echo ""
   show_deployment_summary
   
+  # Finale PM2 Status nach Zusammenfassung
+  echo ""
+  highlight "=== FINALE PM2 STATUS ÜBERSICHT ==="
+  process "Ausführung: pm2 status"
+  pm2 status 2>/dev/null || warn "PM2 Status konnte nicht abgerufen werden"
+  
   success "=== DETAILLIERTES DEPLOYMENT ABGESCHLOSSEN ==="
 }
 
