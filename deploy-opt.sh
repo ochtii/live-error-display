@@ -434,7 +434,12 @@ module.exports = {
     log_date_format: "YYYY-MM-DD HH:mm:ss Z",
     error_file: "/var/log/${SERVICE_NAME}-error.log",
     out_file: "/var/log/${SERVICE_NAME}-out.log",
-    log_file: "/var/log/${SERVICE_NAME}-combined.log"
+    log_file: "/var/log/${SERVICE_NAME}-combined.log",
+    health_check_url: "http://localhost:8080/api/health",
+    health_check_grace_period: 3000,
+    min_uptime: "10s",
+    max_restarts: 10,
+    restart_delay: 1000
   }]
 };
 EOL

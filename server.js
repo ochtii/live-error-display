@@ -3,6 +3,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const os = require('os');
 const SSE = require('express-sse');
 
 // Initialize express and SSE
@@ -23,7 +24,56 @@ app.use(express.static('public'));
 
 // Routes
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: Date.now() });
+    const health = {
+        status: 'ok',
+        timestamp: Date.now(),
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        version: process.version,
+        environment: process.env.NODE_ENV || 'development',
+        port: PORT,
+        sessions: {
+            directory: SESSIONS_DIR,
+            count: fs.existsSync(SESSIONS_DIR) ? fs.readdirSync(SESSIONS_DIR).length : 0
+        }
+    };
+    res.json(health);
+});
+
+// Enhanced status endpoint for monitoring
+app.get('/api/status', (req, res) => {
+    try {
+        const stats = {
+            server: {
+                status: 'running',
+                pid: process.pid,
+                uptime: process.uptime(),
+                timestamp: Date.now()
+            },
+            memory: {
+                ...process.memoryUsage(),
+                freemem: require('os').freemem(),
+                totalmem: require('os').totalmem()
+            },
+            system: {
+                platform: process.platform,
+                arch: process.arch,
+                loadavg: require('os').loadavg(),
+                cpus: require('os').cpus().length
+            },
+            sessions: {
+                active: fs.existsSync(SESSIONS_DIR) ? fs.readdirSync(SESSIONS_DIR).length : 0,
+                directory: SESSIONS_DIR
+            }
+        };
+        res.json(stats);
+    } catch (error) {
+        res.status(500).json({ 
+            status: 'error', 
+            message: error.message,
+            timestamp: Date.now()
+        });
+    }
 });
 
 // SSE endpoint
