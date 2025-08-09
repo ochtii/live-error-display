@@ -1,12 +1,5 @@
-module.expor      // Environment variables
-      env: {
-        NODE_ENV: 'development',
-        PORT: 8088
-      },
-      env_production: {
-        NODE_ENV: 'production',
-        PORT: 8088
-      }, apps: [
+module.exports = {
+  apps: [
     {
       // Main Live Error Display Application
       name: 'live-error-display',
@@ -48,10 +41,10 @@ module.expor      // Environment variables
       listen_timeout: 3000,
       
       // Source map support for better error tracking
-      source_map_support: true
+      source_map_support: true,
       
       // Instance variables
-    //   instance_var: 'INSTANCE_ID'
+      // instance_var: 'INSTANCE_ID'
     },
     
     {
