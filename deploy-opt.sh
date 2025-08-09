@@ -16,6 +16,33 @@ LOCK_FILE="/tmp/live-error-display-deploy.lock"
 CHECK_INTERVAL=1
 PM2_USER="root"
 
+# PM2 Home-Verzeichnis automatisch erkennen
+detect_pm2_home() {
+  # Prüfe, ob PM2_HOME bereits gesetzt ist
+  if [ -n "$PM2_HOME" ]; then
+    return 0
+  fi
+  
+  # Versuche bestehende PM2-Instanz zu finden
+  if command -v pm2 >/dev/null 2>&1; then
+    local existing_pm2_home=$(pm2 info 2>/dev/null | grep "PM2 home" | cut -d: -f2 | tr -d ' ' 2>/dev/null || echo "")
+    if [ -n "$existing_pm2_home" ] && [ -d "$existing_pm2_home" ]; then
+      export PM2_HOME="$existing_pm2_home"
+      return 0
+    fi
+  fi
+  
+  # Fallback zu Standard-Verzeichnissen
+  if [ "$EUID" -eq 0 ]; then
+    export PM2_HOME="/root/.pm2"
+  else
+    export PM2_HOME="$HOME/.pm2"
+  fi
+}
+
+# PM2 Home beim Start erkennen
+detect_pm2_home
+
 # Farben
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
@@ -44,6 +71,18 @@ info() {
 
 success() {
   log "${GREEN}ERFOLG:${NC} $1"
+}
+
+debug_pm2_setup() {
+  info "=== PM2 DEBUG INFORMATION ==="
+  info "PM2_HOME: $PM2_HOME"
+  info "Current User: $(whoami)"
+  info "PM2 Version: $(pm2 -v 2>/dev/null || echo 'Not found')"
+  info "PM2 List Output:"
+  pm2 list 2>/dev/null || warn "PM2 list command failed"
+  info "PM2 Status Output:"
+  pm2 status 2>/dev/null || warn "PM2 status command failed"
+  info "=========================="
 }
 
 check_dependencies_silent() {
@@ -279,9 +318,6 @@ build_app_silent() {
 setup_pm2_silent() {
   cd "$REPO_DIR"
   
-  # PM2 als root ausführen (da das Script bereits als root läuft)
-  export PM2_HOME="/root/.pm2"
-  
   # Pfad zur Konfigurationsdatei
   local config_file="$REPO_DIR/ecosystem.config.js"
   
@@ -323,6 +359,9 @@ perform_detailed_deployment() {
   
   # Anwendung bauen
   build_app
+  
+  # PM2 Debug-Informationen anzeigen
+  debug_pm2_setup
   
   # PM2 Services mit detailliertem Feedback verwalten
   manage_pm2_services
@@ -404,11 +443,9 @@ manage_pm2_services() {
   
   cd "$REPO_DIR"
   
-  # PM2 als root ausführen (da das Script bereits als root läuft)
-  export PM2_HOME="/root/.pm2"
-  
   # Aktuelle PM2 Prozesse auflisten
   info "Aktuelle PM2 Prozesse vor Deployment:"
+  info "PM2_HOME: $PM2_HOME"
   if pm2 list 2>/dev/null; then
     pm2 list --no-color | head -20 | while IFS= read -r line; do
       info "  $line"
