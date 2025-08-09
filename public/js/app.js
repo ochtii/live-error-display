@@ -2990,6 +2990,69 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 container.innerHTML = '<p class="error-state">Fehler beim Laden der letzten Sessions</p>';
             }
         }
+    }
+
+    loadLastSessionsInlineSimple() {
+        try {
+            // Get sessions without server validation - for simple UI updates
+            const lastSessions = this.getLastSessions();
+            
+            const container = document.getElementById('inlineLastSessions');
+            if (!container) return;
+
+            if (lastSessions.length === 0) {
+                container.innerHTML = '<p class="no-sessions">Keine letzten Sessions gefunden</p>';
+                return;
+            }
+
+            let html = '';
+            
+            for (const session of lastSessions) {
+                const isActive = session.lastActive === true;
+                const lastAccessed = new Date(session.lastAccessed).toLocaleString('de-DE');
+                const isDeleted = session.serverDeleted === true;
+                
+                html += `
+                    <div class="session-item ${isActive ? 'active-session' : ''} ${isDeleted ? 'deleted-session' : ''}">
+                        <div class="session-item-header">
+                            <span class="session-item-name">
+                                ${this.escapeHtml(session.name)} 
+                                ${isActive ? '(Aktiv)' : ''} 
+                                ${isDeleted ? '<span class="deleted-indicator">🗑️ GELÖSCHT</span>' : ''}
+                            </span>
+                            <span class="session-item-date">${lastAccessed}</span>
+                        </div>
+                        <div class="session-item-token">
+                            <code>${session.token.substring(0, 16)}...</code>
+                            ${session.hasPassword ? '<span class="password-indicator">🔒</span>' : ''}
+                        </div>
+                        <div class="session-item-actions">
+                            ${isDeleted ? `
+                                <button class="btn btn-small btn-danger" onclick="errorDisplay.removeFromLastSessionsAndRefresh('${session.token}')">
+                                    🗑️ Entfernen
+                                </button>
+                                <span class="auto-cleanup-hint">Wird automatisch in ${Math.max(0, Math.ceil((session.autoDeleteAt - Date.now()) / 60000))} Min entfernt</span>
+                            ` : `
+                                <button class="btn btn-small btn-primary" onclick="errorDisplay.restoreFromLastSessions('${session.token}')">
+                                    🔄 Laden
+                                </button>
+                                <button class="btn btn-small btn-danger" onclick="errorDisplay.removeFromLastSessionsAndRefresh('${session.token}')">
+                                    🗑️
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        } catch (error) {
+            console.error('Error loading last sessions simple:', error);
+            const container = document.getElementById('inlineLastSessions');
+            if (container) {
+                container.innerHTML = '<p class="error-state">Fehler beim Laden der letzten Sessions</p>';
+            }
+        }
     }    async restoreFromLastSessions(token) {
         const lastSessions = this.getLastSessions();
         const session = lastSessions.find(s => s.token === token);
