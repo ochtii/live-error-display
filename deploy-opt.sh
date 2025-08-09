@@ -45,18 +45,19 @@ success() {
 }
 
 check_dependencies_silent() {
-  for cmd in git npm node pm2; do
-    if ! command -v $cmd &> /dev/null; then
-      error "$cmd nicht gefunden. Bitte installieren."
-    fi
-  done
+  # Prüfe nur auf PM2 - andere Dependencies sind optional für den stillen Modus
+  if ! command -v pm2 &> /dev/null; then
+    # Statt error() zu verwenden, geben wir eine stille Warnung aus und fahren fort
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] WARNUNG: PM2 nicht gefunden" >> "$LOG_FILE" 2>/dev/null
+    return 1
+  fi
   
   # PM2 Version prüfen (still) - ohne bc dependency
   local pm2_version=$(pm2 -v 2>/dev/null || echo "0")
   # Einfache Versionsprüfung ohne bc
-  local major_version=$(echo "$pm2_version" | cut -d. -f1)
+  local major_version=$(echo "$pm2_version" | cut -d. -f1 2>/dev/null || echo "0")
   if [ "$major_version" -lt 5 ] 2>/dev/null; then
-    return 1
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] WARNUNG: PM2 Version $pm2_version gefunden. Version 5.0+ empfohlen." >> "$LOG_FILE" 2>/dev/null
   fi
   return 0
 }
@@ -338,7 +339,11 @@ success "Live Error Display Auto-Deploy gestartet (Repository: $REPO_URL)"
 
 # Logdatei ohne Ausgabe initialisieren
 if [ ! -f "$LOG_FILE" ]; then
-  touch "$LOG_FILE" 2>/dev/null || error "Konnte Logdatei nicht erstellen: $LOG_FILE"
+  touch "$LOG_FILE" 2>/dev/null || {
+    # Fallback: Verwende /tmp wenn /var/log nicht verfügbar ist
+    LOG_FILE="/tmp/live-error-display-deploy.log"
+    touch "$LOG_FILE" 2>/dev/null
+  }
 fi
 
 # Initialer Deploy beim Start - still ausführen
