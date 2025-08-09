@@ -1,0 +1,3832 @@
+// Live Error Display - Main JavaScript
+
+class ErrorDisplay {
+    constructor() {
+        // Server läuft auf demselben Host und Port wie das Frontend
+        this.serverUrl = `${window.location.protocol}//${window.location.host}`;
+        
+        console.log(`🔗 Server URL: ${this.serverUrl}`);
+        
+        this.errors = [];
+        this.bufferedErrors = []; // Errors received while not in live mode
+        this.clients = 0;
+        this.currentMode = 'live';
+        this.eventSource = null;
+        this.settings = this.loadSettings();
+        this.archiveData = this.loadArchive();
+        this.autoSaveEnabled = false; // Auto-save is disabled by default
+        this.hasUnsavedChanges = false; // Track unsaved changes
+        
+        // Session Management
+        this.currentSession = null;
+        this.loadCurrentSession();
+        
+        // Random session names
+        this.randomSessionNames = [
+            'Aurora', 'Nebula', 'Phoenix', 'Cosmos', 'Thunder', 'Glacier', 'Summit', 'Horizon', 
+            'Eclipse', 'Comet', 'Zenith', 'Vortex', 'Prism', 'Stellar', 'Quantum', 'Matrix',
+            'Fusion', 'Titan', 'Nova', 'Omega', 'Alpha', 'Delta', 'Sigma', 'Lambda', 'Theta',
+            'Crystal', 'Mystic', 'Spirit', 'Energy', 'Force', 'Power', 'Speed', 'Light', 'Shadow',
+            'Storm', 'Wave', 'Flow', 'Stream', 'River', 'Ocean', 'Mountain', 'Valley', 'Peak',
+            'Stone', 'Marble', 'Diamond', 'Silver', 'Golden', 'Bright', 'Clear'
+        ];
+        
+        this.init();
+    }
+
+    // === UTILITY FUNCTIONS ===
+    getRandomSessionName() {
+        const randomIndex = Math.floor(Math.random() * this.randomSessionNames.length);
+        return this.randomSessionNames[randomIndex];
+    }
+
+    // === INITIALIZATION === 
+    async init() {
+        // Always start with clean UI state
+        this.forceCleanUIState();
+        
+        // Check for server restart and clear old data if needed
+        await this.checkServerRestartAndClearData();
+        
+        this.setupEventListeners();
+        this.updateStats();
+        this.setupModal();
+        this.loadAndApplySettings();
+        this.initPushNotifications();
+        this.updateSessionDisplay();
+        
+        // Always show start page first
+        this.enforceStartPageState();
+        
+        // Validate session state after UI is clean
+        await this.validateAndUpdateUIState();
+        
+        // Start auto-cleanup timer for deleted sessions
+        this.startAutoCleanupTimer();
+    }
+
+    async checkServerRestartAndClearData() {
+        try {
+            // Get server start time
+            const response = await fetch(`${this.serverUrl}/api/server-info`);
+            if (!response.ok) return;
+            
+            const serverInfo = await response.json();
+            const serverStartTime = new Date(serverInfo.startTime).getTime();
+            
+            // Check if we have stored server start time
+            const storedServerStart = localStorage.getItem('serverStartTime');
+            
+            if (storedServerStart) {
+                const lastKnownStart = parseInt(storedServerStart);
+                
+                // If server was restarted (different start time), clear all data
+                if (serverStartTime !== lastKnownStart) {
+                    await this.clearAllBrowserDataWithNotification();
+                }
+            } else {
+                // First visit - check if there's any existing data
+                const hasExistingData = this.hasAnyLocalStorageData();
+                if (hasExistingData) {
+                    await this.clearAllBrowserDataWithNotification();
+                }
+            }
+            
+            // Store current server start time
+            localStorage.setItem('serverStartTime', serverStartTime.toString());
+            
+        } catch (error) {
+            console.warn('Could not check server restart status:', error);
+            // If we can't reach server but have old data, clear it anyway
+            const hasExistingData = this.hasAnyLocalStorageData();
+            if (hasExistingData) {
+                await this.clearAllBrowserDataWithNotification();
+            }
+        }
+    }
+
+    hasAnyLocalStorageData() {
+        const keys = ['currentSession', 'lastSessions', 'settings', 'serverStartTime'];
+        return keys.some(key => localStorage.getItem(key) !== null);
+    }
+
+    async clearAllBrowserDataWithNotification() {
+        this.showNotification('Bestehende Daten gefunden... werden überprüft', 'info');
+        
+        // Wait a moment for the notification to show
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Check which sessions exist on server before clearing
+        const validSessionsCount = await this.validateAndPreserveSessions();
+        
+        // Clear all localStorage data except valid sessions
+        const keysToKeep = validSessionsCount > 0 ? ['lastSessions'] : []; // Keep lastSessions if valid sessions found
+        const allKeys = Object.keys(localStorage);
+        
+        for (const key of allKeys) {
+            if (!keysToKeep.includes(key)) {
+                localStorage.removeItem(key);
+            }
+        }
+        
+        // Clear current session state (but preserve lastSessions if valid)
+        this.currentSession = null;
+        if (validSessionsCount === 0) {
+            this.lastSessions = [];
+        }
+        
+        // Show appropriate notification
+        if (validSessionsCount > 0) {
+            this.showNotification(`${validSessionsCount} gültige Sessions gefunden. ${validSessionsCount} Sessions werden im Local Storage behalten`, 'success');
+        } else {
+            this.showNotification('Erfolgreich alle Browserdaten gelöscht', 'success');
+        }
+        
+        // Force UI update to ensure clean state
+        this.enforceStartPageState();
+    }
+
+    async validateAndPreserveSessions() {
+        try {
+            // Get existing lastSessions from localStorage
+            const lastSessionsData = localStorage.getItem('lastSessions');
+            if (!lastSessionsData) {
+                return 0; // No sessions to validate
+            }
+            
+            const lastSessions = JSON.parse(lastSessionsData);
+            if (!Array.isArray(lastSessions) || lastSessions.length === 0) {
+                return 0; // No sessions to validate
+            }
+            
+            console.log(`🔍 Validating ${lastSessions.length} stored sessions against server...`);
+            
+            const validSessions = [];
+            
+            // Check each session against server
+            for (const sessionData of lastSessions) {
+                if (!sessionData.token) continue;
+                
+                try {
+                    // Try to validate session on server (without loading it)
+                    const response = await fetch(`${this.serverUrl}/api/session/${sessionData.token}/validate`, {
+                        method: 'GET'
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.exists) {
+                            validSessions.push(sessionData);
+                            console.log(`✅ Session valid: ${sessionData.name} (${sessionData.token.substring(0, 8)}...)`);
+                        }
+                    }
+                } catch (error) {
+                    console.log(`❌ Failed to validate session: ${sessionData.token.substring(0, 8)}...`);
+                }
+            }
+            
+            // Update lastSessions with only valid sessions
+            if (validSessions.length > 0) {
+                localStorage.setItem('lastSessions', JSON.stringify(validSessions));
+                this.lastSessions = validSessions;
+                console.log(`💾 Preserved ${validSessions.length} valid sessions in localStorage`);
+            } else {
+                localStorage.removeItem('lastSessions');
+                this.lastSessions = [];
+            }
+            
+            return validSessions.length;
+            
+        } catch (error) {
+            console.error('Error validating sessions:', error);
+            return 0; // On error, don't preserve any sessions
+        }
+    }
+
+    setupEventListeners() {
+        // Mode switching - with null checks
+        const liveBtn = document.getElementById('liveBtn');
+        const archiveBtn = document.getElementById('archiveBtn');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const apiBtn = document.getElementById('apiBtn');
+        
+        if (liveBtn) liveBtn.addEventListener('click', () => this.switchMode('live'));
+        if (archiveBtn) archiveBtn.addEventListener('click', () => this.switchMode('archive'));
+        if (settingsBtn) settingsBtn.addEventListener('click', () => this.switchMode('settings'));
+        if (apiBtn) apiBtn.addEventListener('click', () => this.switchMode('api'));
+        
+        // Session Management (with null checks)
+        const sessionBtn = document.getElementById('sessionBtn');
+        const copyToken = document.getElementById('copyToken');
+        const sessionManager = document.getElementById('sessionManager');
+        const saveSession = document.getElementById('saveSession');
+        const endSession = document.getElementById('endSession');
+        const copyTokenHeader = document.getElementById('copyTokenHeader');
+        const sessionEndLink = document.getElementById('sessionEndLink');
+        const autoSaveCheckbox = document.getElementById('autoSaveCheckbox');
+        
+        if (sessionBtn) sessionBtn.addEventListener('click', () => this.openSessionManager());
+        if (copyToken) copyToken.addEventListener('click', () => this.copySessionToken());
+        if (sessionManager) sessionManager.addEventListener('click', () => this.openSessionManager());
+        if (saveSession) saveSession.addEventListener('click', () => this.saveCurrentSession());
+        if (endSession) endSession.addEventListener('click', () => this.clearSession());
+        if (copyTokenHeader) copyTokenHeader.addEventListener('click', () => this.copySessionToken());
+        if (sessionEndLink) sessionEndLink.addEventListener('click', () => this.endCurrentSession());
+        if (autoSaveCheckbox) autoSaveCheckbox.addEventListener('change', (e) => this.toggleAutoSave(e.target.checked));
+        
+        // Session Manager inline controls
+        const createNewSessionBtn = document.getElementById('createNewSessionBtn');
+        const restoreSessionBtn = document.getElementById('restoreSessionBtn');
+        const refreshLastSessionsBtn = document.getElementById('refreshLastSessionsBtn');
+        
+        if (createNewSessionBtn) createNewSessionBtn.addEventListener('click', () => this.createNewSessionInline());
+        if (restoreSessionBtn) restoreSessionBtn.addEventListener('click', () => this.restoreSessionFromToken());
+        if (refreshLastSessionsBtn) refreshLastSessionsBtn.addEventListener('click', () => this.loadLastSessionsInline());
+        
+        // Settings - with null checks
+        const saveSettings = document.getElementById('saveSettings');
+        const clearStorage = document.getElementById('clearStorage');
+        const showAllData = document.getElementById('showAllData');
+        const deleteAllData = document.getElementById('deleteAllData');
+        const archiveRetentionDays = document.getElementById('archiveRetentionDays');
+        const maxArchiveItems = document.getElementById('maxArchiveItems');
+        
+        if (saveSettings) saveSettings.addEventListener('click', () => this.saveSettings());
+        if (clearStorage) clearStorage.addEventListener('click', () => this.clearArchive());
+        if (showAllData) showAllData.addEventListener('click', () => this.showAllLocalStorageData());
+        if (deleteAllData) deleteAllData.addEventListener('click', () => this.deleteAllData());
+        
+        // Push-Permission Button wird später in initPushNotifications hinzugefügt
+        
+        // Range slider updates - with null checks
+        if (archiveRetentionDays) {
+            archiveRetentionDays.addEventListener('input', (e) => {
+                const retentionValue = document.getElementById('retentionValue');
+                if (retentionValue) retentionValue.textContent = e.target.value;
+            });
+        }
+        
+        if (maxArchiveItems) {
+            maxArchiveItems.addEventListener('input', (e) => {
+                const maxItemsValue = document.getElementById('maxItemsValue');
+                if (maxItemsValue) maxItemsValue.textContent = e.target.value;
+            });
+        }
+    }
+
+    // === SETTINGS MANAGEMENT ===
+    loadSettings() {
+        const defaults = {
+            archiveRetentionDays: 7,
+            maxArchiveItems: 1000,
+            autoArchive: true,
+            bufferOfflineErrors: true,
+            enableSounds: true,
+            notifyNewError: true,
+            soundNewError: true,
+            pushNewError: true,
+            notifyConnectionSuccess: true,
+            soundConnectionSuccess: true,
+            pushConnectionSuccess: true,
+            notifyConnectionClosed: true,
+            soundConnectionClosed: true,
+            pushConnectionClosed: true,
+            notifyBufferedErrors: true,
+            soundBufferedErrors: true,
+            pushBufferedErrors: true,
+            soundErrorDeleted: true, // Neuer Sound für gelöschte Fehler
+            showDeleteConfirmation: true // Neue Einstellung für Lösch-Bestätigung
+        };
+        
+        const saved = localStorage.getItem('errorDisplaySettings');
+        return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
+    }
+
+    saveSettings() {
+        const formData = new FormData(document.getElementById('settingsForm'));
+        
+        this.settings = {
+            archiveRetentionDays: parseInt(formData.get('archiveRetentionDays')),
+            maxArchiveItems: parseInt(formData.get('maxArchiveItems')),
+            autoArchive: formData.get('autoArchive') === 'on',
+            bufferOfflineErrors: formData.get('bufferOfflineErrors') === 'on',
+            enableSounds: formData.get('enableSounds') === 'on',
+            notifyNewError: formData.get('notifyNewError') === 'on',
+            soundNewError: formData.get('soundNewError') === 'on',
+            pushNewError: formData.get('pushNewError') === 'on',
+            notifyConnectionSuccess: formData.get('notifyConnectionSuccess') === 'on',
+            soundConnectionSuccess: formData.get('soundConnectionSuccess') === 'on',
+            pushConnectionSuccess: formData.get('pushConnectionSuccess') === 'on',
+            notifyConnectionClosed: formData.get('notifyConnectionClosed') === 'on',
+            soundConnectionClosed: formData.get('soundConnectionClosed') === 'on',
+            pushConnectionClosed: formData.get('pushConnectionClosed') === 'on',
+            notifyBufferedErrors: formData.get('notifyBufferedErrors') === 'on',
+            soundBufferedErrors: formData.get('soundBufferedErrors') === 'on',
+            pushBufferedErrors: formData.get('pushBufferedErrors') === 'on',
+            soundErrorDeleted: formData.get('soundErrorDeleted') === 'on',
+            showDeleteConfirmation: formData.get('showDeleteConfirmation') === 'on'
+        };
+        
+        localStorage.setItem('errorDisplaySettings', JSON.stringify(this.settings));
+        this.cleanupArchive();
+        
+        // Sound-Manager konfigurieren
+        if (window.soundManager) {
+            window.soundManager.setEnabled(this.settings.enableSounds);
+        }
+        
+        this.showNotification('Einstellungen gespeichert', 'success');
+    }
+
+    updateStorageInfo() {
+        const archiveSize = this.getArchiveSize();
+        const storageUsed = this.getStorageUsed();
+        
+        document.getElementById('archiveCount').textContent = this.archiveData.length;
+        document.getElementById('storageSize').textContent = this.formatBytes(storageUsed);
+    }
+
+    // === ARCHIVE MANAGEMENT ===
+    loadArchive() {
+        // Load session-specific archive if session exists
+        if (this.currentSession) {
+            const sessionArchiveKey = `archive_${this.currentSession.token}`;
+            const stored = localStorage.getItem(sessionArchiveKey);
+            return stored ? JSON.parse(stored) : [];
+        }
+        
+        // Fallback to global archive for backwards compatibility
+        const stored = localStorage.getItem('errorDisplayArchive');
+        return stored ? JSON.parse(stored) : [];
+    }
+
+    saveToArchive(error, isLive = false) {
+        if (!this.settings.autoArchive) return;
+        
+        const archiveError = {
+            ...error,
+            archivedAt: new Date().toISOString(),
+            id: Date.now() + Math.random(),
+            isLive: isLive,
+            isServerBuffered: error.isServerBuffered || false,
+            sessionToken: this.currentSession?.token // Track which session the error belongs to
+        };
+        
+        this.archiveData.unshift(archiveError);
+        this.cleanupArchive();
+        this.saveArchive();
+        
+        // Auto-save if enabled and session is saved
+        if (this.autoSaveEnabled && this.isSessionSaved()) {
+            this.saveToServer();
+        }
+    }
+
+    saveArchive() {
+        if (this.currentSession) {
+            // Save to session-specific archive
+            const sessionArchiveKey = `archive_${this.currentSession.token}`;
+            localStorage.setItem(sessionArchiveKey, JSON.stringify(this.archiveData));
+            
+            // Update session's archive property for server sync
+            this.currentSession.archive = this.archiveData;
+        } else {
+            // Fallback to global archive
+            localStorage.setItem('errorDisplayArchive', JSON.stringify(this.archiveData));
+        }
+    }
+
+    cleanupArchive() {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - this.settings.archiveRetentionDays);
+        
+        // Remove old items
+        this.archiveData = this.archiveData.filter(error => 
+            new Date(error.archivedAt) > cutoffDate
+        );
+        
+        // Limit max items
+        if (this.archiveData.length > this.settings.maxArchiveItems) {
+            this.archiveData = this.archiveData.slice(0, this.settings.maxArchiveItems);
+        }
+        
+        this.saveArchive();
+    }
+
+    clearArchive() {
+        if (confirm('Sind Sie sicher, dass Sie das gesamte Archiv löschen möchten?')) {
+            this.archiveData = [];
+            
+            // Clear session-specific archive
+            if (this.currentSession) {
+                localStorage.removeItem(`archive_${this.currentSession.token}`);
+            } else {
+                // Fallback to global archive
+                localStorage.removeItem('errorDisplayArchive');
+            }
+            
+            this.updateStorageInfo();
+            this.showNotification('Archiv geleert', 'success');
+            
+            if (this.currentMode === 'archive') {
+                this.displayArchive();
+            }
+        }
+    }
+
+    getArchiveSize() {
+        return this.archiveData.length;
+    }
+
+    getStorageUsed() {
+        const archive = localStorage.getItem('errorDisplayArchive') || '';
+        const settings = localStorage.getItem('errorDisplaySettings') || '';
+        return new Blob([archive + settings]).size;
+    }
+
+    formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // === MODE SWITCHING ===
+    switchMode(mode) {
+        // Redirect to start page if no session for certain modes
+        if (!this.currentSession && ['live', 'archive', 'api'].includes(mode)) {
+            console.log(`🚫 Access to ${mode} blocked: No active session`);
+            this.showStartPage();
+            this.enforceStartPageState();
+            return;
+        }
+        
+        this.currentMode = mode;
+        
+        // Update session activity
+        this.updateSessionActivity();
+        
+        // Update button states
+        document.getElementById('liveBtn').classList.toggle('active', mode === 'live');
+        document.getElementById('archiveBtn').classList.toggle('active', mode === 'archive');
+        document.getElementById('settingsBtn').classList.toggle('active', mode === 'settings');
+        document.getElementById('apiBtn').classList.toggle('active', mode === 'api');
+        
+        this.displayMode(mode);
+    }
+
+    displayMode(mode) {
+        // Hide all containers
+        document.getElementById('errorsContainer').style.display = 'none';
+        document.getElementById('settingsContainer').style.display = 'none';
+        document.getElementById('apiPanel').style.display = 'none';
+        
+        // Hide session manager container
+        const sessionManagerContainer = document.getElementById('sessionManagerContainer');
+        if (sessionManagerContainer) {
+            sessionManagerContainer.style.display = 'none';
+        }
+        
+        if (mode === 'live') {
+            document.getElementById('errorsContainer').style.display = 'flex';
+            this.connectSSE();
+            this.updateStatus('online');
+            
+            // Load session-specific errors from server
+            this.loadSessionErrors();
+            
+            // Add buffered errors to live view and archive them
+            if (this.bufferedErrors.length > 0 && this.settings.bufferOfflineErrors) {
+                // Add to live errors and archive each buffered error
+                for (const bufferedError of this.bufferedErrors) {
+                    this.errors.unshift(bufferedError);
+                    this.saveToArchive(bufferedError, false); // Archive the buffered error
+                }
+                this.bufferedErrors = [];
+                
+                // Limit live errors to 100
+                if (this.errors.length > 100) {
+                    this.errors = this.errors.slice(0, 100);
+                }
+            }
+            
+            this.displayErrors(this.errors);
+        } else if (mode === 'archive') {
+            document.getElementById('errorsContainer').style.display = 'flex';
+            this.disconnectSSE();
+            this.updateStatus('archive');
+            this.displayArchive();
+        } else if (mode === 'settings') {
+            document.getElementById('settingsContainer').style.display = 'block';
+            this.disconnectSSE();
+            this.updateStatus('settings');
+            this.displaySettings();
+        } else if (mode === 'api') {
+            document.getElementById('apiPanel').style.display = 'block';
+            this.disconnectSSE();
+            this.updateStatus('📋 API');
+            this.displayAPI();
+        } else if (mode === 'session-manager') {
+            const sessionManagerContainer = document.getElementById('sessionManagerContainer');
+            if (sessionManagerContainer) {
+                sessionManagerContainer.style.display = 'block';
+                // Initialize session manager content
+                this.updateCurrentSessionCard();
+                this.loadLastSessionsInline(); // Load last sessions instead of saved sessions
+                this.updateSessionManagerState();
+                this.setRandomPlaceholder(); // Set random placeholder for session name
+            }
+            this.disconnectSSE();
+            this.updateStatus('🔑 Session Manager');
+        }
+    }
+
+    displaySettings() {
+        // Populate form with current settings
+        const retentionSlider = document.getElementById('archiveRetentionDays');
+        const maxItemsSlider = document.getElementById('maxArchiveItems');
+        
+        retentionSlider.value = this.settings.archiveRetentionDays;
+        maxItemsSlider.value = this.settings.maxArchiveItems;
+        
+        document.getElementById('retentionValue').textContent = this.settings.archiveRetentionDays;
+        document.getElementById('maxItemsValue').textContent = this.settings.maxArchiveItems;
+        
+        document.getElementById('autoArchive').checked = this.settings.autoArchive;
+        document.getElementById('bufferOfflineErrors').checked = this.settings.bufferOfflineErrors;
+        
+        this.updateStorageInfo();
+    }
+
+    displayArchive() {
+        this.displayErrors(this.archiveData, true);
+        this.updateStats();
+    }
+    
+    async loadSessionErrors() {
+        if (!this.currentSession) return;
+        
+        try {
+            const headers = {
+                'x-session-token': this.currentSession.token
+            };
+            
+            const response = await fetch(`${this.serverUrl}/errors`, { headers });
+            
+            if (response.ok) {
+                const data = await response.json();
+                this.errors = data.errors || [];
+                console.log(`📊 Loaded ${this.errors.length} session-specific errors`);
+            } else if (response.status === 401) {
+                console.error('❌ Invalid session token for loading errors');
+                this.showNotification('Session ungültig - bitte neue Session erstellen', 'error');
+            }
+        } catch (error) {
+            console.error('❌ Failed to load session errors:', error);
+        }
+    }
+    
+    updateSessionManagerState() {
+        // Update session manager based on current session state
+        const hasActiveSession = !!this.currentSession;
+        
+        // Get session creation and restoration cards
+        const createCard = document.querySelector('.session-card:has(#createNewSessionBtn)');
+        const restoreCard = document.querySelector('.session-card:has(#restoreSessionBtn)');
+        
+        if (hasActiveSession) {
+            // Disable session creation and restoration when session is active
+            this.disableSessionCard(createCard, 'Neue Session erstellen', 'aktuelle Session beenden');
+            this.disableSessionCard(restoreCard, 'Session wiederherstellen', 'aktuelle Session beenden');
+            
+            // For saved sessions, also disable the saved sessions list
+            const savedSessionsCard = document.querySelector('.session-card:has(#inlineSavedSessions)');
+            if (this.isSessionSaved()) {
+                this.disableSessionCard(savedSessionsCard, 'Gespeicherte Sessions verwenden', 'aktuelle Session beenden', false);
+            } else {
+                // For unsaved sessions, enable the saved sessions card
+                this.enableSessionCard(savedSessionsCard);
+            }
+        } else {
+            // Enable session creation and restoration when no session is active
+            const savedSessionsCard = document.querySelector('.session-card:has(#inlineSavedSessions)');
+            this.enableSessionCard(createCard);
+            this.enableSessionCard(restoreCard);
+            this.enableSessionCard(savedSessionsCard);
+        }
+    }
+    
+    disableSessionCard(card, action, requirement, grayOut = true) {
+        if (!card) return;
+        
+        // Add disabled class only if graying out
+        if (grayOut) {
+            card.classList.add('session-card-disabled');
+        }
+        
+        // Disable all inputs and buttons
+        const inputs = card.querySelectorAll('input, button');
+        inputs.forEach(input => {
+            input.disabled = true;
+        });
+        
+        // Add warning message if not already present and if graying out
+        if (grayOut) {
+            let warningDiv = card.querySelector('.session-warning');
+            if (!warningDiv) {
+                warningDiv = document.createElement('div');
+                warningDiv.className = 'session-warning';
+                warningDiv.innerHTML = `
+                    <div class="warning-content">
+                        <span class="warning-icon">⚠️</span>
+                        <span class="warning-text">Um ${action} zu können, müssen Sie zuerst die ${requirement}.</span>
+                        <span class="session-end-text" onclick="window.errorDisplay.clearSession()">
+                            Session beenden ✖
+                        </span>
+                    </div>
+                `;
+                card.appendChild(warningDiv);
+            }
+        }
+    }
+    
+    enableSessionCard(card) {
+        if (!card) return;
+        
+        // Remove disabled class
+        card.classList.remove('session-card-disabled');
+        
+        // Enable all inputs and buttons
+        const inputs = card.querySelectorAll('input, button');
+        inputs.forEach(input => {
+            input.disabled = false;
+        });
+        
+        // Remove warning message
+        const warningDiv = card.querySelector('.session-warning');
+        if (warningDiv) {
+            warningDiv.remove();
+        }
+    }
+
+    displayAPI() {
+        // Update server URL with current location
+        const serverUrl = `${window.location.protocol}//${window.location.host}`;
+        document.getElementById('serverUrl').value = serverUrl;
+        
+        // Update session token display
+        const sessionTokenInfo = document.getElementById('sessionTokenInfo');
+        const apiSessionToken = document.getElementById('apiSessionToken');
+        
+        if (this.currentSession && this.currentSession.token) {
+            sessionTokenInfo.style.display = 'block';
+            apiSessionToken.value = this.currentSession.token;
+        } else {
+            sessionTokenInfo.style.display = 'none';
+        }
+        
+        // Update all code examples with the actual server URL
+        this.updateCodeExamples(serverUrl);
+        
+        // Initialize syntax highlighting after a brief delay to ensure DOM is ready
+        setTimeout(() => {
+            if (typeof Prism !== 'undefined') {
+                Prism.highlightAll();
+            }
+        }, 100);
+    }
+
+    updateCodeExamples(serverUrl) {
+        const codeBlocks = [
+            // JavaScript
+            'js-send', 'js-get', 'js-live', 'js-clear',
+            // Python
+            'py-send', 'py-get', 'py-monitor', 'py-clear',
+            // PHP
+            'php-send', 'php-get', 'php-clear',
+            // Andere Sprachen (werden später hinzugefügt)
+            'java-example', 'csharp-example', 'kotlin-example', 
+            'curl-example', 'powershell-example', 'cmd-example', 'macos-example', 'linux-example'
+        ];
+        
+        codeBlocks.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = element.textContent.replace(/SERVER_URL/g, serverUrl);
+                element.textContent = element.textContent.replace(/http:\/\/localhost:3000/g, serverUrl);
+            }
+        });
+    }
+
+    copyServerUrl() {
+        const serverUrlInput = document.getElementById('serverUrl');
+        this.copyTextToClipboard(serverUrlInput.value, 'Server-URL kopiert!');
+    }
+
+    copyCode(codeId) {
+        const codeElement = document.getElementById(codeId);
+        this.copyTextToClipboard(codeElement.textContent, 'Code kopiert!');
+    }
+
+    async copyTextToClipboard(text, successMessage) {
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                this.fallbackCopyToClipboard(text);
+            }
+            this.showNotification(successMessage, 'success');
+        } catch (err) {
+            console.error('Copy failed:', err);
+            try {
+                this.fallbackCopyToClipboard(text);
+                this.showNotification(successMessage, 'success');
+            } catch (fallbackErr) {
+                this.showNotification('Kopieren nicht verfügbar - Text manuell markieren und Strg+C drücken', 'warning');
+            }
+        }
+    }
+
+    // === SSE CONNECTION ===
+    connectSSE() {
+        // Prevent SSE connection without active session
+        if (!this.currentSession || !this.currentSession.token) {
+            console.log('🚫 SSE connection blocked: No active session');
+            this.showStartPage();
+            return;
+        }
+        
+        if (this.eventSource) return;
+        
+        // Include session token in SSE connection
+        let sseUrl = '/live';
+        sseUrl += `?session=${encodeURIComponent(this.currentSession.token)}`;
+        
+        console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔌 Attempting SSE connection to ${sseUrl}...`);
+        this.eventSource = new EventSource(sseUrl);
+        
+        this.eventSource.onopen = () => {
+            console.log(`[${new Date().toLocaleTimeString('de-DE')}] ✅ SSE connected successfully`);
+            this.updateStatus('online');
+            // Sound und Benachrichtigung für erfolgreiche Verbindung
+            this.playNotificationSound('connectionSuccess');
+            this.showEventNotification('connectionSuccess', 'Verbindung zum Server hergestellt');
+        };
+        
+        this.eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'error') {
+                if (this.currentMode === 'live') {
+                    // Korrekte Kennzeichnung: isServerBuffered = data.error.isBuffered (vom Server)
+                    this.addError(data.error, true, data.error.isBuffered);
+                    // Sound und Benachrichtigung für neue Fehler
+                    this.playNotificationSound('newError');
+                } else if (this.settings.bufferOfflineErrors) {
+                    // Buffer the error for later display - diese sind lokal gepuffert, nicht server-gepuffert
+                    this.bufferedErrors.unshift({...data.error, isLive: false, buffered: true, isServerBuffered: data.error.isBuffered});
+                }
+                // Note: Archiving is now handled automatically in addError()
+            } else if (data.type === 'clients') {
+                this.clients = data.count;
+                this.updateStats();
+            } else if (data.type === 'buffered_notification') {
+                this.showBufferedNotification(data.count, data.oldestError);
+            } else if (data.type === 'delete') {
+                // Handle server-side error deletion
+                if (this.currentMode === 'live') {
+                    // Check if this deletion is for the current session or global
+                    const isForCurrentSession = !data.sessionToken || 
+                        (this.currentSession && data.sessionToken === this.currentSession.token);
+                    
+                    if (isForCurrentSession) {
+                        // Remove the error from the live errors array
+                        if (data.index >= 0 && data.index < this.errors.length) {
+                            this.errors.splice(data.index, 1);
+                            this.displayErrors(this.errors);
+                            this.updateStats();
+                            this.showNotification('Fehler vom Server gelöscht', 'info');
+                        }
+                    }
+                }
+            } else if (data.type === 'clear') {
+                // Handle server-side clear all errors
+                if (this.currentMode === 'live') {
+                    this.errors = [];
+                    this.displayErrors(this.errors);
+                    this.updateStats();
+                    this.showNotification('Alle Fehler vom Server gelöscht', 'info');
+                }
+            }
+        };
+        
+        this.eventSource.onerror = () => {
+            console.log(`[${new Date().toLocaleTimeString('de-DE')}] ❌ SSE connection error`);
+            this.updateStatus('offline');
+            
+            // Sound und Benachrichtigung für getrennte Verbindung
+            this.playNotificationSound('connectionClosed');
+            this.showEventNotification('connectionClosed', 'Verbindung zum Server getrennt');
+            
+            this.eventSource = null;
+            
+            // NO AUTOMATIC RECONNECT - only reconnect when switching to live mode
+            console.log('🔌 SSE disconnected - manual reconnection required via Live tab');
+        };
+    }
+
+    disconnectSSE() {
+        if (this.eventSource) {
+            console.log(`[${new Date().toLocaleTimeString('de-DE')}] 🔌 SSE connection manually closed`);
+            this.eventSource.close();
+            this.eventSource = null;
+            
+            // Update status und Benachrichtigung auch bei manueller Trennung
+            this.updateStatus('offline');
+            this.playNotificationSound('connectionClosed');
+            this.showEventNotification('connectionClosed', 'Verbindung manuell getrennt');
+        }
+    }
+
+    // === ERROR HANDLING ===
+    addError(error, isLive = false, isServerBuffered = false) {
+        if (this.currentMode !== 'live') return;
+        
+        const errorWithMeta = {
+            ...error, 
+            isLive: isLive,
+            isServerBuffered: isServerBuffered
+        };
+        
+        // Add to live errors array (for current display)
+        this.errors.unshift(errorWithMeta);
+        if (this.errors.length > 100) this.errors.pop();
+        
+        // Also save to archive automatically (persistent storage)
+        this.saveToArchive(errorWithMeta, isLive);
+        
+        this.displayErrors(this.errors);
+        this.updateStats();
+        
+        // Update session activity
+        this.updateSessionActivity();
+        
+        // Auto-save if enabled and session is saved
+        if (this.autoSaveEnabled && this.isSessionSaved()) {
+            this.saveToServer();
+        } else {
+            // Mark as having unsaved changes if auto-save is disabled
+            this.markAsUnsaved();
+        }
+    }
+
+    // === UNSAVED CHANGES TRACKING ===
+    markAsUnsaved() {
+        if (!this.autoSaveEnabled && this.currentSession && this.isSessionSaved()) {
+            this.hasUnsavedChanges = true;
+            this.updateUnsavedChangesIndicator();
+        }
+    }
+
+    markAsSaved() {
+        this.hasUnsavedChanges = false;
+        this.updateUnsavedChangesIndicator();
+    }
+
+    updateUnsavedChangesIndicator() {
+        const indicator = document.getElementById('unsavedChangesIndicator');
+        if (!indicator) return;
+
+        const shouldShow = !this.autoSaveEnabled && 
+                          this.hasUnsavedChanges && 
+                          this.currentSession && 
+                          this.isSessionSaved();
+
+        indicator.style.display = shouldShow ? 'flex' : 'none';
+    }
+
+    async saveCurrentSessionDirect() {
+        if (!this.currentSession || !this.isSessionSaved()) {
+            this.showNotification('Keine gespeicherte Session zum Aktualisieren', 'error');
+            return;
+        }
+
+        // Get the stored password for this session
+        const sessionData = this.getStoredSavedSession(this.currentSession.token);
+        if (!sessionData || !sessionData.password) {
+            this.showNotification('Session-Passwort nicht gefunden. Bitte Session erneut speichern.', 'error');
+            return;
+        }
+
+        try {
+            const success = await this.saveSessionToServer(sessionData.password);
+            if (success) {
+                this.markAsSaved();
+                this.showNotification('Session erfolgreich aktualisiert!', 'success');
+            }
+        } catch (error) {
+            console.error('Fehler beim direkten Speichern:', error);
+            this.showNotification('Fehler beim Speichern der Session', 'error');
+        }
+    }
+
+    displayErrors(errors, isArchive = false) {
+        const container = document.getElementById('errorsContainer');
+        container.innerHTML = '';
+        
+        if (errors.length === 0) {
+            container.innerHTML = `
+                <div class="error-card">
+                    <div class="error-header">
+                        <div class="error-info">
+                            <div class="error-preview">
+                                ${isArchive ? '📂 Keine archivierten Fehler vorhanden' : '🎉 Keine aktuellen Fehler'}
+                            </div>
+                            <div class="error-meta">
+                                <span>${isArchive ? 'Archiv ist leer' : 'System läuft stabil'}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        errors.forEach((error, index) => {
+            const card = this.createErrorCard(error, index, isArchive);
+            container.appendChild(card);
+        });
+    }
+
+    createErrorCard(error, index, isArchive = false) {
+        const card = document.createElement('div');
+        card.className = 'error-card fade-in';
+        
+        const id = `error-${Date.now()}-${index}`;
+        const firstLine = error.message.split('\n')[0].substring(0, 100);
+        const timestamp = isArchive ? 
+            `🕒 ${new Date(error.archivedAt).toLocaleString('de-DE')} (archiviert)` :
+            `🕒 ${error.timestamp}`;
+        
+        // Einfache Kennzeichnung ohne Badge
+        let receivedIndicator = '';
+        let indicatorClass = '';
+        
+        if (error.isServerBuffered === true || error.isServerBuffered === 'true') {
+            receivedIndicator = 'Gepuffert empfangen';
+            indicatorClass = 'buffered';
+        } else {
+            receivedIndicator = 'Live empfangen';
+            indicatorClass = 'live';
+        }
+        
+        card.innerHTML = `
+            <div class="error-header" onclick="this.parentElement.querySelector('.error-content').classList.toggle('open'); this.querySelector('.expand-indicator').classList.toggle('expanded')">
+                <div class="error-actions-buttons">
+                    ${!isArchive ? `<button class="archive-error-btn" onclick="event.stopPropagation(); errorDisplay.archiveError(${index})" title="Fehler archivieren">📁</button>` : ''}
+                    <button class="delete-error-btn" onclick="event.stopPropagation(); errorDisplay.deleteError(${index}, ${isArchive})" title="Fehler löschen">🗑️</button>
+                </div>
+                <div class="error-info">
+                    <div class="error-preview">${this.escapeHtml(firstLine)}${error.message.length > 100 ? '...' : ''}</div>
+                    <div class="error-meta">
+                        <span>${timestamp}</span>
+                        <span>🌐 ${this.cleanIP(error.ip)}</span>
+                        <span class="live-indicator ${indicatorClass}">${receivedIndicator}</span>
+                        ${isArchive ? '<span>📂 Archiviert</span>' : ''}
+                    </div>
+                </div>
+                <div class="expand-indicator">
+                    <div class="expand-line expand-line-1"></div>
+                    <div class="expand-line expand-line-2"></div>
+                </div>
+            </div>
+            <div class="error-content">
+                <div class="error-body">
+                    <div class="error-text" id="text-${id}">${this.escapeHtml(error.message)}</div>
+                    <div class="error-actions">
+                        <button class="action-btn" onclick="errorDisplay.formatText('${id}', 'original')">Original</button>
+                        <button class="action-btn" onclick="errorDisplay.formatText('${id}', 'indent')">Einrücken</button>
+                        <button class="action-btn" onclick="errorDisplay.formatText('${id}', 'quote')">Zitat</button>
+                        <button class="action-btn" onclick="errorDisplay.formatText('${id}', 'code')">Code-Block</button>
+                    </div>
+                </div>
+                <button class="copy-btn action-btn" onclick="window.errorDisplay.copyToClipboard('${id}', this)">📋 Kopieren</button>
+            </div>
+        `;
+        
+        return card;
+    }
+
+    // === UI UPDATES ===
+    updateStatus(status) {
+        const statusElement = document.getElementById('connectionStatus');
+        const statusText = document.getElementById('status-text');
+        const statusIcon = document.getElementById('status-icon');
+        
+        statusElement.className = `status ${status}`;
+        
+        const statusConfig = {
+            online: { text: 'Live', icon: '📡' },
+            offline: { text: 'Offline', icon: '🔴' },
+            archive: { text: 'Archiv', icon: '📂' },
+            settings: { text: 'Einstellungen', icon: '⚙️' }
+        };
+        
+        const config = statusConfig[status] || { text: status, icon: '❓' };
+        statusText.textContent = config.text;
+        statusIcon.textContent = config.icon;
+    }
+
+    updateStats() {
+        document.getElementById('totalErrors').textContent = 
+            this.currentMode === 'live' ? this.errors.length : this.archiveData.length;
+        document.getElementById('connectedClients').textContent = this.clients;
+    }
+
+    // === UTILITY FUNCTIONS ===
+    formatText(id, format) {
+        const element = document.getElementById(`text-${id}`);
+        const originalText = element.dataset.original || element.textContent;
+        
+        if (!element.dataset.original) {
+            element.dataset.original = originalText;
+        }
+        
+        let formattedText;
+        switch (format) {
+            case 'original':
+                formattedText = originalText;
+                break;
+            case 'indent':
+                formattedText = originalText.split('\n').map(line => '    ' + line).join('\n');
+                break;
+            case 'quote':
+                formattedText = originalText.split('\n').map(line => '> ' + line).join('\n');
+                break;
+            case 'code':
+                formattedText = '```\n' + originalText + '\n```';
+                break;
+            default:
+                formattedText = originalText;
+        }
+        
+        element.textContent = formattedText;
+    }
+
+    async copyToClipboard(id, button) {
+        const element = document.getElementById(`text-${id}`);
+        const text = element.textContent;
+        
+        try {
+            // Moderne Clipboard API versuchen
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                // Fallback für ältere Browser oder HTTP-Verbindungen
+                this.fallbackCopyToClipboard(text);
+            }
+            
+            const originalText = button.textContent;
+            button.textContent = '✅ Kopiert!';
+            button.style.background = 'rgba(16, 185, 129, 0.3)';
+            
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.style.background = '';
+            }, 2000);
+            
+        } catch (err) {
+            console.error('Copy failed:', err);
+            // Fallback versuchen wenn moderne API fehlschlägt
+            try {
+                this.fallbackCopyToClipboard(text);
+                const originalText = button.textContent;
+                button.textContent = '✅ Kopiert!';
+                button.style.background = 'rgba(16, 185, 129, 0.3)';
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = '';
+                }, 2000);
+            } catch (fallbackErr) {
+                this.showNotification('Kopieren nicht verfügbar - Text manuell markieren und Strg+C drücken', 'warning');
+            }
+        }
+    }
+    
+    // Fallback für ältere Browser
+    fallbackCopyToClipboard(text) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            const successful = document.execCommand('copy');
+            if (!successful) {
+                throw new Error('execCommand failed');
+            }
+        } finally {
+            document.body.removeChild(textArea);
+        }
+    }
+
+    // === ERROR DELETION ===
+    deleteError(index, isArchive = false) {
+        if (this.settings.showDeleteConfirmation) {
+            this.showDeleteConfirmation(index, isArchive);
+        } else {
+            this.performDeleteError(index, isArchive);
+        }
+    }
+
+    showDeleteConfirmation(index, isArchive) {
+        const errorData = isArchive ? this.archiveData[index] : this.errors[index];
+        const errorPreview = errorData.message.substring(0, 100) + (errorData.message.length > 100 ? '...' : '');
+        
+        const modal = document.createElement('div');
+        modal.className = 'delete-confirmation-modal';
+        modal.innerHTML = `
+            <div class="delete-confirmation-content">
+                <div class="delete-confirmation-header">
+                    <span class="delete-icon">🗑️</span>
+                    <h3>Fehler löschen</h3>
+                </div>
+                <div class="delete-confirmation-body">
+                    <p>Möchten Sie diesen Fehler wirklich löschen?</p>
+                    <div class="error-preview-box">
+                        <strong>Zeitstempel:</strong> ${errorData.timestamp}<br>
+                        <strong>IP:</strong> ${this.cleanIP(errorData.ip)}<br>
+                        <strong>Nachricht:</strong> ${this.escapeHtml(errorPreview)}
+                    </div>
+                    <label class="dont-ask-again">
+                        <input type="checkbox" id="dontAskAgain">
+                        Nicht erneut fragen
+                    </label>
+                </div>
+                <div class="delete-confirmation-actions">
+                    <button class="cancel-btn" onclick="this.closest('.delete-confirmation-modal').remove()">Abbrechen</button>
+                    <button class="delete-btn" onclick="errorDisplay.confirmDelete(${index}, ${isArchive}, document.getElementById('dontAskAgain').checked); this.closest('.delete-confirmation-modal').remove()">Löschen</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Modal mit Escape-Taste schließen
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                modal.remove();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+    }
+
+    confirmDelete(index, isArchive, dontAskAgain) {
+        if (dontAskAgain) {
+            this.settings.showDeleteConfirmation = false;
+            localStorage.setItem('errorDisplaySettings', JSON.stringify(this.settings));
+        }
+        this.performDeleteError(index, isArchive);
+    }
+
+    performDeleteError(index, isArchive) {
+        if (isArchive) {
+            // Fehler aus Archiv löschen (Server-API für Sessions, lokal für Legacy)
+            if (this.currentSession && this.currentSession.token) {
+                this.deleteErrorFromArchive(index);
+            } else {
+                // Fallback für lokales Archiv
+                this.archiveData.splice(index, 1);
+                this.saveArchive();
+                this.displayErrors(this.archiveData, true);
+                this.showNotification(`Fehler aus Archiv gelöscht`, 'success');
+            }
+        } else {
+            // Fehler aus Live-Liste löschen (sowohl lokal als auch auf dem Server)
+            this.deleteErrorFromServer(index);
+        }
+        
+        this.updateStats();
+        
+        // Sound für erfolgreiche Löschung
+        this.playNotificationSound('errorDeleted');
+    }
+
+    async deleteErrorFromArchive(index) {
+        try {
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            // Session token ist für Archive-Löschung erforderlich
+            if (this.currentSession && this.currentSession.token) {
+                headers['x-session-token'] = this.currentSession.token;
+            } else {
+                throw new Error('Session token required for archive operations');
+            }
+            
+            const response = await fetch(`${this.serverUrl}/archive/${index}`, {
+                method: 'DELETE',
+                headers: headers
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                // Lokale Löschung
+                this.archiveData.splice(index, 1);
+                this.displayErrors(this.archiveData, true);
+                this.showNotification(`Archivierter Fehler gelöscht`, 'success');
+            } else {
+                throw new Error(`Server error: ${response.status}`);
+            }
+        } catch (error) {
+            console.error('Fehler beim Löschen des archivierten Fehlers:', error);
+            this.showNotification('Fehler beim Löschen vom Archiv-Server', 'error');
+            
+            // Fallback: Lokale Löschung wenn Server-Request fehlschlägt
+            this.archiveData.splice(index, 1);
+            this.saveArchive();
+            this.displayErrors(this.archiveData, true);
+        }
+    }
+
+    async deleteErrorFromServer(index) {
+        try {
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            // Add session token if available
+            if (this.currentSession && this.currentSession.token) {
+                headers['x-session-token'] = this.currentSession.token;
+            }
+            
+            const response = await fetch(`${this.serverUrl}/error/${index}`, {
+                method: 'DELETE',
+                headers: headers
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                // Lokale Löschung wird durch SSE-Nachricht vom Server ausgelöst
+                this.showNotification(`Live-Fehler gelöscht`, 'success');
+            } else {
+                throw new Error(`Server error: ${response.status}`);
+            }
+        } catch (error) {
+            console.error('Fehler beim Löschen des Fehlers:', error);
+            this.showNotification('Fehler beim Löschen vom Server', 'error');
+            
+            // Fallback: Lokale Löschung wenn Server-Request fehlschlägt
+            this.errors.splice(index, 1);
+            this.displayErrors(this.errors);
+        }
+    }
+
+    // === ERROR ARCHIVING ===
+    archiveError(index) {
+        if (index < 0 || index >= this.errors.length) {
+            this.showNotification('Fehler-Index ungültig', 'error');
+            return;
+        }
+
+        const error = this.errors[index];
+        
+        // Manuell archivieren (unabhängig von autoArchive Einstellung)
+        const archiveError = {
+            ...error,
+            archivedAt: new Date().toISOString(),
+            id: Date.now() + Math.random(),
+            isLive: error.isLive || false,
+            isServerBuffered: error.isServerBuffered || false,
+            sessionToken: this.currentSession?.token,
+            manuallyArchived: true // Kennzeichnung für manuelle Archivierung
+        };
+        
+        this.archiveData.unshift(archiveError);
+        this.saveArchive();
+        
+        // Entferne den Fehler aus der Live-Liste
+        this.errors.splice(index, 1);
+        this.displayErrors(this.errors);
+        this.updateStats();
+        
+        this.showNotification('Fehler archiviert', 'success');
+        this.playNotificationSound('errorDeleted'); // Verwende den gleichen Sound wie beim Löschen
+    }
+
+    archiveExistingErrors() {
+        // Archiviere alle aktuellen Live-Fehler beim Session-Load
+        if (this.errors.length > 0) {
+            console.log(`📁 Archiviere ${this.errors.length} bestehende Fehler bei Session-Load`);
+            
+            this.errors.forEach(error => {
+                const archiveError = {
+                    ...error,
+                    archivedAt: new Date().toISOString(),
+                    id: Date.now() + Math.random(),
+                    isLive: error.isLive || false,
+                    isServerBuffered: error.isServerBuffered || false,
+                    sessionToken: this.currentSession?.token,
+                    autoArchivedOnLoad: true // Kennzeichnung für automatische Archivierung beim Session-Load
+                };
+                
+                this.archiveData.unshift(archiveError);
+            });
+            
+            // Speichere das Archiv
+            this.saveArchive();
+            
+            // Leere die Live-Fehler-Liste
+            this.errors = [];
+            
+            this.showNotification(`${this.archiveData.length} bestehende Fehler archiviert`, 'info');
+        }
+    }
+
+    showBufferedNotification(count, oldestErrorTime) {
+        // Sound und Benachrichtigung für gepufferte Fehler
+        this.playNotificationSound('bufferedErrors');
+        this.showEventNotification('bufferedErrors', `${count} Fehler in Abwesenheit empfangen`);
+        
+        const oldestTime = oldestErrorTime ? 
+            new Date(oldestErrorTime).toLocaleString('de-DE') : 
+            'unbekannt';
+            
+        const notification = document.createElement('div');
+        notification.className = 'buffered-notification';
+        notification.innerHTML = `
+            <div class="notification-header">
+                <span class="notification-icon">📦</span>
+                <strong>Fehler in Abwesenheit empfangen!</strong>
+                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">&times;</button>
+            </div>
+            <div class="notification-body">
+                <p>${count} Fehler wurden empfangen während kein Client verbunden war.</p>
+                <small>Ältester Fehler: ${oldestTime}</small>
+            </div>
+        `;
+        
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            max-width: 400px;
+            background: var(--background-card);
+            border: 2px solid var(--warning);
+            border-radius: 1rem;
+            padding: 1rem;
+            color: var(--text-primary);
+            z-index: 1001;
+            animation: slideInRight 0.3s ease;
+            backdrop-filter: blur(20px);
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Auto-remove after 10 seconds
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+            }
+        }, 10000);
+    }
+
+    showNotification(message, type = 'info') {
+        // Enhanced notification system with stacking
+        const notificationContainer = this.getOrCreateNotificationContainer();
+        
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+        
+        // Apply styles
+        this.applyNotificationStyles(notification);
+        
+        // Add to container (stacking automatically handled by container)
+        notificationContainer.appendChild(notification);
+        
+        // Auto-remove after 4 seconds
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+                // Remove container if empty
+                if (notificationContainer.children.length === 0) {
+                    notificationContainer.remove();
+                }
+            }
+        }, 4000);
+    }
+
+    getOrCreateNotificationContainer() {
+        let container = document.getElementById('notification-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'notification-container';
+            container.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 1002;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                pointer-events: none;
+            `;
+            document.body.appendChild(container);
+        }
+        return container;
+    }
+
+    applyNotificationStyles(notification) {
+        notification.style.cssText = `
+            padding: 1rem 1.5rem;
+            background: var(--background-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            color: var(--text-primary);
+            animation: slideInRight 0.3s ease;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            max-width: 350px;
+            word-wrap: break-word;
+            pointer-events: auto;
+            cursor: pointer;
+        `;
+        
+        // Click to dismiss
+        notification.addEventListener('click', () => {
+            notification.remove();
+        });
+        
+        // Type-specific styling
+        switch (notification.className.split(' ')[1]) {
+            case 'success':
+                notification.style.borderColor = 'var(--success)';
+                notification.style.background = 'rgba(34, 197, 94, 0.1)';
+                break;
+            case 'error':
+                notification.style.borderColor = 'var(--danger)';
+                notification.style.background = 'rgba(239, 68, 68, 0.1)';
+                break;
+            case 'warning':
+                notification.style.borderColor = 'var(--warning)';
+                notification.style.background = 'rgba(245, 158, 11, 0.1)';
+                break;
+            case 'info':
+                notification.style.borderColor = 'var(--primary)';
+                notification.style.background = 'rgba(59, 130, 246, 0.1)';
+                break;
+        }
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    cleanIP(ip) {
+        return ip === 'unknown' ? 'Unbekannt' : ip.replace('::ffff:', '');
+    }
+
+    setupModal() {
+        // Add CSS for slide-in animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // === NEUE FUNKTIONEN ===
+    
+    // Push-Benachrichtigungen initialisieren
+    initPushNotifications() {
+        // Kurz warten bis DOM vollständig geladen ist
+        setTimeout(() => {
+            this.updatePushPermissionStatus();
+        }, 500);
+    }
+    
+    // Push-Berechtigung prüfen und Status aktualisieren
+    updatePushPermissionStatus() {
+        const statusElement = document.getElementById('pushStatus');
+        const buttonElement = document.getElementById('requestPushPermission');
+        
+        if (!statusElement || !buttonElement) {
+            console.log('Push-Elemente noch nicht im DOM verfügbar, überspringe Update');
+            return;
+        }
+        
+        if (!('Notification' in window)) {
+            statusElement.textContent = 'Browser unterstützt keine Push-Benachrichtigungen';
+            statusElement.className = 'push-status denied';
+            return;
+        }
+        
+        const permission = Notification.permission;
+        
+        switch (permission) {
+            case 'granted':
+                statusElement.textContent = '✅ Berechtigung erteilt';
+                statusElement.className = 'push-status granted';
+                buttonElement.style.display = 'none';
+                break;
+            case 'denied':
+                statusElement.textContent = '❌ Berechtigung verweigert';
+                statusElement.className = 'push-status denied';
+                buttonElement.textContent = '🔧 Berechtigung zurücksetzen';
+                buttonElement.style.display = 'inline-block';
+                buttonElement.onclick = () => this.showPermissionResetInstructions();
+                
+                // Zusätzlichen Button für erneuten Versuch hinzufügen
+                let retryButton = document.getElementById('retryPushPermission');
+                if (!retryButton) {
+                    retryButton = document.createElement('button');
+                    retryButton.id = 'retryPushPermission';
+                    retryButton.className = 'btn btn-outline';
+                    retryButton.style.marginLeft = '0.5rem';
+                    retryButton.textContent = '🔔 Berechtigung anfordern';
+                    retryButton.onclick = () => this.requestPushPermission();
+                    buttonElement.parentNode.appendChild(retryButton);
+                }
+                break;
+            case 'default':
+                statusElement.textContent = '⚠️ Berechtigung erforderlich';
+                statusElement.className = 'push-status default';
+                buttonElement.textContent = '🔔 Berechtigung anfordern';
+                buttonElement.style.display = 'inline-block';
+                buttonElement.onclick = () => this.requestPushPermission();
+                break;
+        }
+    }
+    
+    // Push-Berechtigung anfordern
+    async requestPushPermission() {
+        try {
+            const permission = await Notification.requestPermission();
+            this.updatePushPermissionStatus();
+            
+            if (permission === 'granted') {
+                this.showNotification('Push-Benachrichtigungen aktiviert!', 'success');
+            } else if (permission === 'denied') {
+                this.showNotification('Push-Benachrichtigungen wurden abgelehnt', 'warning');
+            }
+        } catch (error) {
+            console.error('Fehler beim Anfordern der Push-Berechtigung:', error);
+            this.showNotification('Fehler beim Anfordern der Berechtigung', 'error');
+        }
+    }
+    
+    // Anleitung zum Zurücksetzen der Berechtigung
+    showPermissionResetInstructions() {
+        const instructions = `
+So können Sie Push-Benachrichtigungen aktivieren:
+
+🔧 Chrome/Edge:
+METHODE 1 - Über die Adressleiste:
+1. Klicken Sie auf das Schloss-Symbol (🔒) in der Adressleiste
+2. Klicken Sie bei "Benachrichtigungen" auf "Blockiert"
+3. Wählen Sie "Zulassen" aus
+4. Laden Sie die Seite neu (F5)
+
+METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
+1. Öffnen Sie Chrome-Einstellungen (chrome://settings/)
+2. Gehen Sie zu "Datenschutz und Sicherheit" > "Website-Einstellungen"
+3. Klicken Sie auf "Benachrichtigungen" 
+4. Fügen Sie diese Website zu "Zulassen" hinzu
+5. Laden Sie die Seite neu (F5)
+
+🦊 Firefox:
+1. Klicken Sie auf das Schild-Symbol in der Adressleiste
+2. Klicken Sie auf "Berechtigung entfernen"
+3. Laden Sie die Seite neu und erlauben Sie Benachrichtigungen
+
+🍎 Safari:
+1. Safari > Einstellungen > Websites > Benachrichtigungen
+2. Entfernen Sie diese Website aus der Liste
+3. Laden Sie die Seite neu
+
+💡 TIPP: Nach dem Zurücksetzen laden Sie die Seite neu und klicken Sie auf "Zulassen" wenn die Berechtigung angefragt wird.
+        `;
+        
+        this.showInstructionModal('Push-Benachrichtigungen aktivieren', instructions);
+    }
+    
+    // Modal speziell für Anleitungen (ohne Kopieren-Button)
+    showInstructionModal(title, content) {
+        const modal = document.createElement('div');
+        modal.className = 'data-modal';
+        modal.innerHTML = `
+            <div class="data-modal-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3>${this.escapeHtml(title)}</h3>
+                    <button class="btn btn-outline" onclick="this.closest('.data-modal').remove()">✕ Schließen</button>
+                </div>
+                <div class="data-display" style="white-space: pre-wrap;">${this.escapeHtml(content)}</div>
+            </div>
+        `;
+        
+        // Schließen bei Klick außerhalb
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+        
+        document.body.appendChild(modal);
+    }
+    
+    // Push-Benachrichtigung senden
+    sendPushNotification(title, body, icon = '/favicon.ico') {
+        if (Notification.permission !== 'granted') return;
+        
+        try {
+            const notification = new Notification(title, {
+                body: body,
+                icon: icon,
+                badge: '/favicon.ico',
+                tag: 'error-display',
+                requireInteraction: false,
+                silent: false
+            });
+            
+            // Benachrichtigung nach 5 Sekunden automatisch schließen
+            setTimeout(() => {
+                notification.close();
+            }, 5000);
+            
+            // Klick-Handler für Fokus auf Fenster
+            notification.onclick = () => {
+                window.focus();
+                notification.close();
+            };
+            
+        } catch (error) {
+            console.error('Fehler beim Senden der Push-Benachrichtigung:', error);
+        }
+    }
+    
+    // Einstellungen laden und anwenden
+    loadAndApplySettings() {
+        // Form-Felder mit aktuellen Einstellungen befüllen - with null checks
+        const archiveRetentionDays = document.getElementById('archiveRetentionDays');
+        const retentionValue = document.getElementById('retentionValue');
+        const maxArchiveItems = document.getElementById('maxArchiveItems');
+        const maxItemsValue = document.getElementById('maxItemsValue');
+        const autoArchive = document.getElementById('autoArchive');
+        const bufferOfflineErrors = document.getElementById('bufferOfflineErrors');
+        const showDeleteConfirmation = document.getElementById('showDeleteConfirmation');
+        
+        if (archiveRetentionDays) archiveRetentionDays.value = this.settings.archiveRetentionDays;
+        if (retentionValue) retentionValue.textContent = this.settings.archiveRetentionDays;
+        if (maxArchiveItems) maxArchiveItems.value = this.settings.maxArchiveItems;
+        if (maxItemsValue) maxItemsValue.textContent = this.settings.maxArchiveItems;
+        if (autoArchive) autoArchive.checked = this.settings.autoArchive;
+        if (bufferOfflineErrors) bufferOfflineErrors.checked = this.settings.bufferOfflineErrors;
+        if (showDeleteConfirmation) showDeleteConfirmation.checked = this.settings.showDeleteConfirmation;
+        
+        // Sound-Einstellungen - with null checks
+        const enableSounds = document.getElementById('enableSounds');
+        const notifyNewError = document.getElementById('notifyNewError');
+        const soundNewError = document.getElementById('soundNewError');
+        const pushNewError = document.getElementById('pushNewError');
+        const notifyConnectionSuccess = document.getElementById('notifyConnectionSuccess');
+        const soundConnectionSuccess = document.getElementById('soundConnectionSuccess');
+        const pushConnectionSuccess = document.getElementById('pushConnectionSuccess');
+        const notifyConnectionClosed = document.getElementById('notifyConnectionClosed');
+        const soundConnectionClosed = document.getElementById('soundConnectionClosed');
+        const pushConnectionClosed = document.getElementById('pushConnectionClosed');
+        const notifyBufferedErrors = document.getElementById('notifyBufferedErrors');
+        const soundBufferedErrors = document.getElementById('soundBufferedErrors');
+        const pushBufferedErrors = document.getElementById('pushBufferedErrors');
+        const soundErrorDeleted = document.getElementById('soundErrorDeleted');
+        
+        if (enableSounds) enableSounds.checked = this.settings.enableSounds;
+        if (notifyNewError) notifyNewError.checked = this.settings.notifyNewError;
+        if (soundNewError) soundNewError.checked = this.settings.soundNewError;
+        if (pushNewError) pushNewError.checked = this.settings.pushNewError;
+        if (notifyConnectionSuccess) notifyConnectionSuccess.checked = this.settings.notifyConnectionSuccess;
+        if (soundConnectionSuccess) soundConnectionSuccess.checked = this.settings.soundConnectionSuccess;
+        if (pushConnectionSuccess) pushConnectionSuccess.checked = this.settings.pushConnectionSuccess;
+        if (notifyConnectionClosed) notifyConnectionClosed.checked = this.settings.notifyConnectionClosed;
+        if (soundConnectionClosed) soundConnectionClosed.checked = this.settings.soundConnectionClosed;
+        if (pushConnectionClosed) pushConnectionClosed.checked = this.settings.pushConnectionClosed;
+        if (notifyBufferedErrors) notifyBufferedErrors.checked = this.settings.notifyBufferedErrors;
+        if (soundBufferedErrors) soundBufferedErrors.checked = this.settings.soundBufferedErrors;
+        if (pushBufferedErrors) pushBufferedErrors.checked = this.settings.pushBufferedErrors;
+        if (soundErrorDeleted) soundErrorDeleted.checked = this.settings.soundErrorDeleted;
+        
+        // Sound-Manager konfigurieren
+        if (window.soundManager) {
+            window.soundManager.setEnabled(this.settings.enableSounds);
+        }
+    }
+    
+    // Alle LocalStorage Daten anzeigen
+    showAllLocalStorageData() {
+        const allData = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith('errorDisplay')) {
+                try {
+                    allData[key] = JSON.parse(localStorage.getItem(key));
+                } catch (e) {
+                    allData[key] = localStorage.getItem(key);
+                }
+            }
+        }
+        
+        this.showDataModal('Alle gespeicherten Daten', JSON.stringify(allData, null, 2));
+    }
+    
+    // Alle Daten löschen mit Sicherheitsabfrage
+    deleteAllData() {
+        const confirmText = 'ALLE DATEN LÖSCHEN';
+        const userInput = prompt(`Warnung: Diese Aktion löscht ALLE gespeicherten Daten unwiderruflich!\n\nGeben Sie "${confirmText}" ein, um fortzufahren:`);
+        
+        if (userInput === confirmText) {
+            // Alle errorDisplay-bezogenen Daten löschen
+            const keysToDelete = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('errorDisplay')) {
+                    keysToDelete.push(key);
+                }
+            }
+            
+            keysToDelete.forEach(key => localStorage.removeItem(key));
+            
+            // UI zurücksetzen
+            this.archiveData = [];
+            this.errors = [];
+            this.settings = this.loadSettings();
+            this.updateStorageStats();
+            this.displayErrors([]);
+            
+            this.showNotification('Alle Daten wurden gelöscht', 'success');
+        } else if (userInput !== null) {
+            this.showNotification('Löschvorgang abgebrochen', 'warning');
+        }
+    }
+    
+    // Modal für Datenanzeige
+    showDataModal(title, content) {
+        const modal = document.createElement('div');
+        modal.className = 'data-modal';
+        modal.innerHTML = `
+            <div class="data-modal-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3>${title}</h3>
+                    <button class="btn btn-outline" onclick="this.closest('.data-modal').remove()">✕ Schließen</button>
+                </div>
+                <div class="data-display">${content}</div>
+                <div style="margin-top: 1rem;">
+                    <button class="btn btn-outline" onclick="navigator.clipboard.writeText(\`${content.replace(/`/g, '\\`')}\`).then(() => window.errorDisplay.showNotification('In Zwischenablage kopiert', 'success'))">📋 Kopieren</button>
+                </div>
+            </div>
+        `;
+        
+        // Schließen bei Klick außerhalb
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+        
+        document.body.appendChild(modal);
+    }
+    
+    // Sound-Test-Funktion
+    testSound(eventType) {
+        if (!window.soundManager) return;
+        
+        // Standard-Sound-Typen verwenden
+        const soundTypes = {
+            newError: 'notification',
+            connectionSuccess: 'success',
+            connectionClosed: 'disconnect',
+            bufferedErrors: 'chime',
+            errorDeleted: 'delete'
+        };
+        
+        const soundType = soundTypes[eventType];
+        if (soundType) {
+            window.soundManager.playSound(soundType);
+        }
+    }
+    
+    // Sound-Events
+    playNotificationSound(eventType) {
+        console.log(`🔊 playNotificationSound called with: ${eventType}`);
+        console.log(`🔊 enableSounds: ${this.settings.enableSounds}`);
+        console.log(`🔊 soundManager exists: ${!!window.soundManager}`);
+        
+        if (!this.settings.enableSounds || !window.soundManager) {
+            console.log(`🔊 Sound blocked - enableSounds: ${this.settings.enableSounds}, soundManager: ${!!window.soundManager}`);
+            return;
+        }
+        
+        const eventSettings = {
+            newError: { enabled: this.settings.soundNewError },
+            connectionSuccess: { enabled: this.settings.soundConnectionSuccess },
+            connectionClosed: { enabled: this.settings.soundConnectionClosed },
+            bufferedErrors: { enabled: this.settings.soundBufferedErrors },
+            errorDeleted: { enabled: this.settings.soundErrorDeleted }
+        };
+        
+        const setting = eventSettings[eventType];
+        console.log(`🔊 Event setting for ${eventType}:`, setting);
+        
+        if (setting && setting.enabled) {
+            const soundTypes = {
+                newError: 'notification',
+                connectionSuccess: 'success',
+                connectionClosed: 'disconnect',
+                bufferedErrors: 'chime',
+                errorDeleted: 'delete'
+            };
+            
+            const soundType = soundTypes[eventType];
+            console.log(`🔊 Playing sound: ${soundType}`);
+            window.soundManager.playSound(soundType);
+        } else {
+            console.log(`🔊 Sound not enabled for event: ${eventType}`);
+        }
+    }
+    
+    // Benachrichtigungen anzeigen
+    showEventNotification(eventType, message) {
+        const eventSettings = {
+            newError: { enabled: this.settings.notifyNewError, pushEnabled: this.settings.pushNewError },
+            connectionSuccess: { enabled: this.settings.notifyConnectionSuccess, pushEnabled: this.settings.pushConnectionSuccess },
+            connectionClosed: { enabled: this.settings.notifyConnectionClosed, pushEnabled: this.settings.pushConnectionClosed },
+            bufferedErrors: { enabled: this.settings.notifyBufferedErrors, pushEnabled: false } // Keine Push-Benachrichtigung für gepufferte Fehler
+        };
+        
+        const setting = eventSettings[eventType];
+        if (setting) {
+            // Website-Benachrichtigung
+            if (setting.enabled) {
+                this.showNotification(message, eventType === 'connectionClosed' ? 'warning' : 'success');
+            }
+            
+            // Push-Benachrichtigung nur wenn Browser nicht aktiv ist (außer bei gepufferten Fehlern)
+            if (setting.pushEnabled && (eventType === 'newError' || document.hidden)) {
+                const titles = {
+                    newError: 'Neuer Fehler',
+                    connectionSuccess: 'Verbindung hergestellt',
+                    connectionClosed: 'Verbindung getrennt',
+                    bufferedErrors: 'Gepufferte Fehler'
+                };
+                
+                this.sendPushNotification(titles[eventType], message);
+            }
+        }
+    }
+
+    // === SESSION MANAGEMENT ===
+    loadCurrentSession() {
+        const sessionData = localStorage.getItem('currentSession');
+        if (sessionData) {
+            try {
+                const session = JSON.parse(sessionData);
+                
+                // Update lastAccessed for session persistence
+                const now = Date.now();
+                const lastAccessed = new Date(session.lastAccessed || session.createdAt || now);
+                const timeSinceLastAccess = now - lastAccessed.getTime();
+                const maxAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+                
+                // Only check age if session hasn't been accessed recently
+                if (timeSinceLastAccess > maxAge && session.createdAt) {
+                    console.log('🕐 Session older than 24 hours since last access, removing from localStorage');
+                    localStorage.removeItem('currentSession');
+                    this.showNotification('Session abgelaufen (24h inaktiv) - neue Session erforderlich', 'warning');
+                    return;
+                }
+                
+                // Only load unsaved sessions from localStorage
+                if (!session.isSaved) {
+                    // Update lastAccessed timestamp
+                    session.lastAccessed = new Date().toISOString();
+                    this.currentSession = session;
+                    
+                    // Save updated session back to localStorage
+                    localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+                    
+                    console.log('📂 Loaded unsaved session from localStorage:', {
+                        name: this.currentSession.name,
+                        tokenPreview: this.currentSession.token?.substring(0, 16) + '...',
+                        lastAccessed: this.currentSession.lastAccessed
+                    });
+                    this.updateSessionDisplay();
+                    
+                    // Validate session token with server
+                    this.validateSessionToken();
+                } else {
+                    // Saved sessions should not be in localStorage
+                    console.log('🧹 Removing saved session from localStorage (should be server-side only)');
+                    localStorage.removeItem('currentSession');
+                }
+            } catch (error) {
+                console.error('Failed to load session data:', error);
+                localStorage.removeItem('currentSession');
+                this.showNotification('Fehlerhafte Session-Daten entfernt', 'warning');
+            }
+        } else {
+            console.log('📂 No session found in localStorage');
+        }
+    }
+    
+    getStoredSavedSession(token) {
+        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
+        return savedSessions.find(session => session.token === token);
+    }
+    
+    checkForRecoverableSessions() {
+        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
+        if (savedSessions.length > 0) {
+            console.log(`🔍 Found ${savedSessions.length} saved sessions that could be restored`);
+            setTimeout(() => {
+                this.showNotification(`${savedSessions.length} gespeicherte Session(s) verfügbar - Session Manager öffnen zum Wiederherstellen`, 'info');
+            }, 2000);
+        }
+    }
+    
+    async validateSessionToken() {
+        if (!this.currentSession?.token) return;
+        
+        try {
+            const response = await fetch(`${this.serverUrl}/api/session/${this.currentSession.token}`);
+            if (!response.ok) {
+                console.warn('❌ Session token validation failed, clearing session');
+                this.showNotification('Session ungültig - neue Session wird erstellt', 'warning');
+                this.clearSession();
+                
+                // Automatically create a new session
+                setTimeout(() => {
+                    this.createNewSessionInline();
+                }, 1000);
+            } else {
+                console.log('✅ Session token validated successfully');
+            }
+        } catch (error) {
+            console.warn('⚠️ Could not validate session token:', error);
+            // Don't clear session if server is unreachable, but show warning
+            this.showNotification('Verbindung zum Server nicht möglich - Session-Status unbekannt', 'warning');
+        }
+    }
+
+    async createNewSession() {
+        try {
+            const response = await fetch(`${this.serverUrl}/api/token`);
+            if (response.ok) {
+                const data = await response.json();
+                this.currentSession = {
+                    name: data.session.name,
+                    token: data.token,
+                    createdAt: data.session.createdAt,
+                    lastModified: data.session.lastModified,
+                    modifiedBy: data.session.modifiedBy,
+                    errorCount: data.session.errorCount,
+                    hasPassword: data.session.hasPassword,
+                    isSaved: false // New sessions are not saved initially
+                };
+                localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+                this.updateSessionDisplay();
+                
+                // Connect to SSE with new session token
+                this.disconnectSSE();
+                this.connectSSE();
+                
+                console.log('✅ New session created:', {
+                    name: this.currentSession.name,
+                    token: this.currentSession.token.substring(0, 16) + '...'
+                });
+                return this.currentSession;
+            } else {
+                console.error('Failed to create session:', response.status);
+                this.showNotification('Fehler beim Erstellen der Session', 'error');
+            }
+        } catch (error) {
+            console.error('Failed to create session:', error);
+            this.showNotification('Verbindungsfehler beim Erstellen der Session', 'error');
+        }
+        return null;
+    }
+
+    restoreSession(sessionData) {
+        this.currentSession = sessionData;
+        localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+        this.updateSessionDisplay();
+    }
+
+    clearSession() {
+        this.currentSession = null;
+        localStorage.removeItem('currentSession');
+        this.updateSessionDisplay();
+        
+        // Force UI to clean state and redirect to start page
+        this.forceCleanUIState();
+        this.showStartPage();
+        this.showNotification('Session beendet', 'info');
+    }
+
+    updateSessionDisplay() {
+        const sessionBar = document.getElementById('sessionBar');
+        const sessionName = document.getElementById('sessionName');
+        const sessionToken = document.getElementById('sessionToken');
+        
+        // Header session info elements
+        const headerSession = document.getElementById('headerSession');
+        const sessionNameHeader = document.getElementById('sessionNameHeader');
+        const sessionTokenHeader = document.getElementById('sessionTokenHeader');
+        const autoSaveToggle = document.getElementById('autoSaveToggle');
+        
+        console.log('🔄 Updating session display:', {
+            hasSession: !!this.currentSession,
+            sessionName: this.currentSession?.name,
+            tokenPreview: this.currentSession?.token?.substring(0, 16) + '...',
+            isSessionSaved: this.isSessionSaved(),
+            sessionBarExists: !!sessionBar,
+            headerSessionExists: !!headerSession
+        });
+        
+        // Skip update if header is hidden (no session UI available)
+        if (!sessionBar && !headerSession) {
+            console.log('📝 Session display skipped - UI elements not available');
+            return;
+        }
+        
+        if (this.currentSession) {
+            const sessionNameText = this.currentSession.name || 'Unbenannte Session';
+            const tokenPreview = this.currentSession.token.substring(0, 16) + '...';
+            
+            console.log('🔧 Session Display Decision:', {
+                sessionExists: true,
+                sessionName: sessionNameText,
+                isSessionSaved: this.isSessionSaved(),
+                decision: 'Always show session bar when session exists'
+            });
+            
+            // Always show session bar when session exists
+            if (sessionBar) {
+                sessionBar.style.display = 'flex';
+                console.log('✅ Session bar should now be visible');
+            }
+            if (headerSession) headerSession.style.display = 'none';
+            if (sessionName) sessionName.textContent = sessionNameText;
+            if (sessionToken) sessionToken.textContent = tokenPreview;
+            
+            // Show auto-save toggle based on saved status
+            if (autoSaveToggle) {
+                autoSaveToggle.style.display = this.isSessionSaved() ? 'flex' : 'none';
+            }
+            // Also update the header controls to show session status
+            this.updateHeaderSessionStatus(true);
+        } else {
+            console.log('🔧 Session Display Decision: No session - hiding all session UI');
+            if (sessionBar) sessionBar.style.display = 'none';
+            if (headerSession) headerSession.style.display = 'none';
+            if (autoSaveToggle) {
+                autoSaveToggle.style.display = 'none';
+            }
+            this.updateHeaderSessionStatus(false);
+        }
+        
+        // Update unsaved changes indicator
+        this.updateUnsavedChangesIndicator();
+    }
+    
+    isSessionSaved() {
+        if (!this.currentSession) return false;
+        // Check if session is marked as saved (server-side only)
+        return this.currentSession.isSaved === true;
+    }
+    
+    saveCurrentSessionToStorage() {
+        if (!this.currentSession) return;
+        
+        // Update last accessed time for unsaved sessions
+        if (!this.currentSession.isSaved) {
+            this.currentSession.lastAccessed = new Date().toISOString();
+            // Only save unsaved sessions to localStorage
+            localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+        }
+        // Saved sessions are not stored in localStorage - they exist only server-side
+    }
+    
+    endCurrentSession() {
+        this.clearSession();
+        this.showNotification('Session beendet', 'info');
+    }
+    
+    updateHeaderSessionStatus(hasSession) {
+        const sessionBtn = document.getElementById('sessionBtn');
+        if (sessionBtn) {
+            if (hasSession) {
+                sessionBtn.innerHTML = '🔑 Session ✅';
+                sessionBtn.classList.add('session-active');
+            } else {
+                sessionBtn.innerHTML = '🔑 Session';
+                sessionBtn.classList.remove('session-active');
+            }
+        }
+    }
+
+    openSessionManager() {
+        this.switchMode('session-manager');
+    }
+
+    copySessionToken() {
+        if (this.currentSession && this.currentSession.token) {
+            // Check if clipboard API is available
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(this.currentSession.token).then(() => {
+                    this.showNotification('Session-Token kopiert!', 'success');
+                }).catch(err => {
+                    console.error('Failed to copy token:', err);
+                    this.fallbackCopyToClipboard(this.currentSession.token);
+                });
+            } else {
+                this.fallbackCopyToClipboard(this.currentSession.token);
+            }
+        }
+    }
+
+    fallbackCopyToClipboard(text) {
+        // Fallback method for older browsers or insecure contexts
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            document.execCommand('copy');
+            this.showNotification('Session-Token kopiert!', 'success');
+        } catch (err) {
+            console.error('Fallback copy failed:', err);
+            this.showNotification('Kopieren fehlgeschlagen. Token: ' + text, 'error');
+        }
+        
+        document.body.removeChild(textArea);
+    }
+
+    // Override error reporting to include session token
+    async reportError(message, source = 'manual', level = 'error') {
+        if (!this.currentSession) {
+            this.showNotification('Keine aktive Session - Error kann nicht gesendet werden', 'error');
+            return false;
+        }
+
+        const error = {
+            message: message,
+            timestamp: new Date().toISOString(),
+            source: source,
+            level: level,
+            sessionToken: this.currentSession.token
+        };
+
+        try {
+            const response = await fetch(`${this.serverUrl}/error`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-session-token': this.currentSession.token
+                },
+                body: JSON.stringify(error)
+            });
+
+            if (response.ok) {
+                console.log('✅ Error sent to server');
+                return true;
+            } else if (response.status === 400 || response.status === 401) {
+                const errorData = await response.json();
+                console.error('❌ Session error:', errorData.error);
+                this.showNotification(`Error: ${errorData.error}`, 'error');
+                return false;
+            } else {
+                console.error('❌ Failed to send error to server:', response.status);
+                return false;
+            }
+        } catch (err) {
+            console.error('❌ Error sending to server:', err);
+            return false;
+        }
+    }
+
+    saveCurrentSession() {
+        if (this.currentSession) {
+            // Show modal for save options including password
+            this.showSaveSessionModal();
+        } else {
+            this.showNotification('Keine aktive Session zum Speichern', 'warning');
+        }
+    }
+    
+    showSaveSessionModal() {
+        // Create modal for save session options
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>📁 Session speichern</h2>
+                    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="input-group">
+                        <label>Session Name</label>
+                        <input type="text" id="saveSessionName" value="${this.currentSession.name}" class="session-input">
+                    </div>
+                    <div class="input-group">
+                        <label>Passwort für gespeicherte Session *</label>
+                        <input type="password" id="saveSessionPassword" placeholder="Sicheres Passwort eingeben" class="session-input" required>
+                        <small class="input-hint">� Passwort ist erforderlich (min. 4 Zeichen)</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Abbrechen</button>
+                    <button class="btn btn-primary" onclick="window.errorDisplay.confirmSaveSession()">Speichern</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    confirmSaveSession() {
+        const name = document.getElementById('saveSessionName').value.trim();
+        const password = document.getElementById('saveSessionPassword').value.trim();
+        
+        if (!name) {
+            this.showNotification('Bitte Session Name eingeben', 'warning');
+            return;
+        }
+        
+        if (!password) {
+            this.showNotification('Passwort ist erforderlich für gespeicherte Sessions', 'warning');
+            return;
+        }
+        
+        if (password.length < 4) {
+            this.showNotification('Passwort muss mindestens 4 Zeichen lang sein', 'warning');
+            return;
+        }
+        
+        // Update current session with new name for server-side saving
+        this.currentSession.name = name;
+        
+        // Save session server-side with password
+        this.saveSessionToServer(password).then((success) => {
+            if (success) {
+                // Clear ALL localStorage data when session is saved
+                this.clearLocalStorageForSavedSession();
+                
+                // Close modal
+                document.querySelector('.modal-overlay').remove();
+                
+                this.showNotification('Session serverseitig gespeichert! Browser-Daten wurden gelöscht.', 'success');
+                this.updateSessionDisplay();
+                this.markAsSaved(); // Mark as saved and hide unsaved changes indicator
+                
+                // Refresh session manager if open
+                if (this.currentMode === 'session-manager') {
+                    this.loadSavedSessionsInline();
+                }
+            }
+        });
+    }
+    
+    async saveSessionToServer(password) {
+        try {
+            const response = await fetch(`${this.serverUrl}/api/session/${this.currentSession.token}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: this.currentSession.name,
+                    password: password || null,
+                    archiveData: this.archiveData || []
+                })
+            });
+            
+            if (response.ok) {
+                // Mark session as saved
+                this.currentSession.isSaved = true;
+                this.currentSession.hasPassword = !!password;
+                return true;
+            } else {
+                this.showNotification('Fehler beim Speichern der Session', 'error');
+                return false;
+            }
+        } catch (error) {
+            console.error('Error saving session:', error);
+            this.showNotification('Verbindungsfehler beim Speichern', 'error');
+            return false;
+        }
+    }
+    
+    clearLocalStorageForSavedSession() {
+        // Clear all localStorage data when session becomes server-side only
+        localStorage.removeItem('currentSession');
+        localStorage.removeItem('savedSessions');
+        localStorage.removeItem('errorArchive');
+        localStorage.removeItem(`errorArchive_${this.currentSession.token}`);
+        
+        console.log('🧹 Cleared localStorage - session is now server-side only');
+    }
+
+    async showStartPage() {
+        const errorsContainer = document.getElementById('errorsContainer');
+        if (!errorsContainer) return;
+
+        // Get last sessions for display with validation
+        const lastSessions = await this.validateAndCleanupLastSessions();
+        const hasLastSessions = lastSessions.length > 0;
+        
+        let lastSessionsHtml = '';
+        if (hasLastSessions) {
+            let hasInvalidSessions = false;
+            
+            const sessionItems = lastSessions.slice(0, 5).map(session => {
+                const lastAccessed = new Date(session.lastAccessed).toLocaleString('de-DE');
+                const isDeleted = session.serverDeleted === true;
+                hasInvalidSessions = hasInvalidSessions || isDeleted;
+                
+                return `
+                    <div class="start-session-item ${isDeleted ? 'deleted-session' : ''}" ${isDeleted ? '' : `onclick="errorDisplay.restoreFromLastSessions('${session.token}')"`}>
+                        <div class="start-session-info">
+                            <span class="start-session-name">
+                                ${this.escapeHtml(session.name)}
+                                ${isDeleted ? '<span class="deleted-indicator">🗑️ GELÖSCHT</span>' : ''}
+                            </span>
+                            ${session.hasPassword ? '<span class="password-indicator">🔒</span>' : ''}
+                        </div>
+                        <div class="start-session-date">${lastAccessed}</div>
+                        <div class="start-session-action">
+                            ${isDeleted ? `
+                                <span class="start-session-btn" onclick="event.stopPropagation(); errorDisplay.removeFromLastSessionsAndRefresh('${session.token}')">🗑️ Entfernen</span>
+                            ` : `
+                                <span class="start-session-btn">🔄 Laden</span>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            lastSessionsHtml = `
+                <div class="start-page-section">
+                    <h3>🕒 Letzte Sessions</h3>
+                    <div class="start-last-sessions">
+                        ${sessionItems}
+                    </div>
+                    ${hasInvalidSessions ? `
+                        <div class="cleanup-info">
+                            <small>💡 Gelöschte Sessions werden automatisch nach 5 Minuten aus dem Browser-Cache entfernt</small>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        errorsContainer.innerHTML = `
+            <div class="start-page">
+                <div class="start-page-hero">
+                    <div class="start-page-icon">
+                        <div class="error-icon-animated">🐛</div>
+                    </div>
+                    <h1 class="start-page-title">Live Error Display</h1>
+                    <p class="start-page-subtitle">v2.1 - Echtzeit Fehlerüberwachung & Session Management</p>
+                </div>
+
+                <div class="start-page-main">
+                    <div class="start-page-card">
+                        <div class="start-page-card-icon">🚀</div>
+                        <h2>Session Manager</h2>
+                        <p class="start-page-description">
+                            Verwalten Sie Ihre Sessions, erstellen Sie neue API-Tokens oder stellen Sie 
+                            bestehende Sessions wieder her. Der Session Manager bietet vollständige 
+                            Kontrolle über Ihre Verbindungen und gespeicherten Daten.
+                        </p>
+                        <button class="start-page-cta" onclick="errorDisplay.openSessionManager()">
+                            <span class="cta-text">Starten</span>
+                            <span class="cta-arrow">→</span>
+                        </button>
+                    </div>
+
+                    ${lastSessionsHtml}
+                </div>
+            </div>
+        `;
+
+        // Add animations
+        setTimeout(() => {
+            const startPage = document.querySelector('.start-page');
+            if (startPage) {
+                startPage.classList.add('start-page-loaded');
+            }
+        }, 100);
+    }
+
+    async validateAndUpdateUIState() {
+        // Check if current session is actually valid on server
+        let isValidSession = false;
+        
+        if (this.currentSession && this.currentSession.token) {
+            try {
+                const response = await fetch(`${this.serverUrl}/api/session/${this.currentSession.token}/expiry`);
+                isValidSession = response.ok;
+                
+                if (!isValidSession) {
+                    // Clear invalid session
+                    this.currentSession = null;
+                    localStorage.removeItem('currentSession');
+                }
+            } catch (error) {
+                console.warn('Session validation failed:', error);
+                isValidSession = false;
+            }
+        } else {
+            // No session at all
+            isValidSession = false;
+        }
+        
+        console.log('🔍 Session validation result:', { 
+            hasSession: !!this.currentSession, 
+            isValid: isValidSession 
+        });
+        
+        // Update UI based on session validity using new robust system
+        if (isValidSession) {
+            this.enableSessionUIMode();
+        } else {
+            this.enforceStartPageState();
+        }
+    }
+
+    // === NEW ROBUST UI VISIBILITY SYSTEM ===
+    
+    forceCleanUIState() {
+        // Force complete UI reset - remove all session-related UI elements
+        console.log('🧹 Forcing clean UI state...');
+        
+        // Hide all main UI elements
+        this.hideAllMainUIElements();
+        
+        // Clear all content containers
+        this.clearAllContentContainers();
+        
+        // Reset navigation state
+        this.resetNavigationState();
+        
+        // Clear session displays
+        this.clearAllSessionDisplays();
+        
+        console.log('✅ UI forced to clean state');
+    }
+    
+    hideAllMainUIElements() {
+        // Force hide header and all navigation but keep errorsContainer for start page
+        const elementsToHide = [
+            '.header',
+            '.controls', 
+            '.session-info',
+            '.navigation',
+            '.nav-tabs',
+            '#mainContent',
+            '.archive-container',
+            '.settings-container'
+        ];
+        
+        elementsToHide.forEach(selector => {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(element => {
+                element.style.display = 'none';
+                element.style.visibility = 'hidden';
+                element.style.opacity = '0';
+                element.style.pointerEvents = 'none';
+            });
+        });
+    }
+    
+    clearAllContentContainers() {
+        // Clear content from containers that might show session-related data
+        // But DON'T clear errorsContainer as it's used for start page
+        const containersToClean = [
+            '#archiveContainer', 
+            '#settingsContainer',
+            '#sessionContainer'
+        ];
+        
+        containersToClean.forEach(selector => {
+            const container = document.querySelector(selector);
+            if (container) {
+                container.innerHTML = '';
+            }
+        });
+    }
+    
+    resetNavigationState() {
+        // Reset navigation buttons and mode indicators
+        const navButtons = document.querySelectorAll('.nav-btn, .mode-btn, .tab-btn');
+        navButtons.forEach(btn => {
+            btn.classList.remove('active');
+            btn.style.display = 'none';
+        });
+        
+        // Reset current mode
+        this.currentMode = null;
+    }
+    
+    clearAllSessionDisplays() {
+        // Clear all session-related display elements
+        const sessionElements = [
+            '#sessionBar',
+            '#headerSession', 
+            '#sessionName',
+            '#sessionToken',
+            '#sessionNameHeader',
+            '#sessionTokenHeader'
+        ];
+        
+        sessionElements.forEach(selector => {
+            const element = document.querySelector(selector);
+            if (element) {
+                element.style.display = 'none';
+                element.innerHTML = '';
+                element.textContent = '';
+            }
+        });
+    }
+    
+    enforceStartPageState() {
+        // Aggressively enforce start page state
+        console.log('🎯 Enforcing start page state...');
+        
+        // Double-check that no UI elements are visible
+        this.forceCleanUIState();
+        
+        // Ensure errorsContainer is visible for start page
+        const errorsContainer = document.getElementById('errorsContainer');
+        if (errorsContainer) {
+            errorsContainer.style.display = '';
+            errorsContainer.style.visibility = '';
+            errorsContainer.style.opacity = '';
+            errorsContainer.style.pointerEvents = '';
+        }
+        
+        // Ensure body class is correct
+        document.body.className = 'start-page-mode';
+        
+        // Show only the start page
+        this.showStartPage();
+        
+        console.log('✅ Start page state enforced');
+    }
+    
+    enableSessionUIMode() {
+        // Enable full UI when session is valid
+        console.log('🔓 Enabling session UI mode...');
+        
+        // Show main UI elements
+        const elementsToShow = [
+            '.header',
+            '.controls', 
+            '.session-info',
+            '.navigation',
+            '.nav-tabs'
+        ];
+        
+        elementsToShow.forEach(selector => {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(element => {
+                element.style.display = '';
+                element.style.visibility = '';
+                element.style.opacity = '';
+                element.style.pointerEvents = '';
+            });
+        });
+        
+        // Update header for active session
+        this.updateHeaderForActiveSession();
+        
+        // Set body class for session mode
+        document.body.className = 'session-mode';
+        
+        // Switch to live mode by default
+        this.switchMode('live');
+        
+        console.log('✅ Session UI mode enabled');
+    }
+    
+    updateHeaderForActiveSession() {
+        // Update header to show session information
+        const header = document.querySelector('.header');
+        if (header) {
+            header.classList.remove('start-page-header');
+            header.style.display = 'grid';
+        }
+        
+        // Show session information
+        this.updateSessionDisplay();
+    }
+
+    updateHeaderForActiveSession() {
+        // Restore normal header for active sessions
+        const header = document.querySelector('.header');
+        const controls = document.querySelector('.controls');
+        
+        if (header) {
+            header.classList.remove('start-page-header');
+        }
+        
+        // Show navigation controls
+        if (controls) {
+            controls.style.display = 'flex';
+        }
+        
+        // Update session display will be handled by existing functions
+        this.updateSessionDisplay();
+        
+        // Load and display session expiry info
+        this.updateSessionExpiryInfo();
+    }
+
+    async updateSessionExpiryInfo() {
+        if (!this.currentSession || !this.currentSession.token) return;
+        
+        try {
+            const response = await fetch(`${this.serverUrl}/api/session/${this.currentSession.token}/expiry`);
+            if (response.ok) {
+                const data = await response.json();
+                const expiryInfo = data.expiry;
+                
+                // Update session display with expiry info
+                const sessionInfo = document.querySelector('.session-info');
+                if (sessionInfo && expiryInfo) {
+                    let expiryHtml = '';
+                    
+                    if (expiryInfo.isExpired) {
+                        expiryHtml = '<span class="expiry-warning expired">⚠️ Session abgelaufen</span>';
+                    } else if (expiryInfo.isExpiringSoon) {
+                        const expiryDate = new Date(expiryInfo.expiryDate).toLocaleDateString('de-DE');
+                        expiryHtml = `<span class="expiry-warning soon">⏰ Läuft ab: ${expiryDate}</span>`;
+                    } else if (expiryInfo.daysUntilExpiry <= 14) {
+                        expiryHtml = `<span class="expiry-info">📅 Läuft ab in ${expiryInfo.daysUntilExpiry} Tagen</span>`;
+                    }
+                    
+                    // Find existing session name display and add expiry info
+                    const existingExpiry = sessionInfo.querySelector('.expiry-warning, .expiry-info');
+                    if (existingExpiry) {
+                        existingExpiry.remove();
+                    }
+                    
+                    if (expiryHtml) {
+                        sessionInfo.insertAdjacentHTML('beforeend', `<div class="session-expiry">${expiryHtml}</div>`);
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to load session expiry info:', error);
+        }
+    }
+
+    showSessionRequiredMessage() {
+        const errorsContainer = document.getElementById('errorsContainer');
+        if (errorsContainer) {
+            errorsContainer.innerHTML = `
+                <div class="session-required">
+                    <div class="session-required-content">
+                        <h2>🔑 Session erforderlich</h2>
+                        <p>Für die Nutzung der Error Display App benötigen Sie eine gültige Session.</p>
+                        <div class="session-actions-large">
+                            <button class="btn btn-primary" onclick="window.errorDisplay.openSessionManager()">
+                                🔑 Session Manager öffnen
+                            </button>
+                        </div>
+                        <div class="session-info-text">
+                            <h3>Was ist eine Session?</h3>
+                            <p>Eine Session ermöglicht es Ihnen:</p>
+                            <ul>
+                                <li>🔐 Sichere API-Authentifizierung mit individuellem Token</li>
+                                <li>📊 Separate Error-Logs pro Session</li>
+                                <li>💾 Session-basierte Datenspeicherung</li>
+                                <li>🔄 Session-Wiederherstellung</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Hide controls that require a session
+        const controls = document.querySelector('.controls');
+        if (controls) {
+            const sessionBtn = controls.querySelector('#sessionBtn');
+            controls.querySelectorAll('.btn').forEach(btn => {
+                if (btn !== sessionBtn) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                }
+            });
+        }
+    }
+
+    onSessionLoaded() {
+        // Called when a session is loaded (created or restored)
+        // This unlocks all tabs and starts SSE connection
+        console.log('🎯 Session loaded globally, enabling full app functionality');
+        
+        // Show header and update to session mode
+        this.enableSessionUIMode();
+        
+        // Hide session required message if visible
+        const errorsContainer = document.getElementById('errorsContainer');
+        if (errorsContainer && errorsContainer.querySelector('.session-required')) {
+            errorsContainer.innerHTML = '';
+        }
+        
+        // Switch to live mode and hide session manager
+        this.switchMode('live');
+        
+        // Archiviere alle aktuellen Live-Fehler beim Session-Load
+        this.archiveExistingErrors();
+        
+        // Load session-specific archive if available
+        this.loadSessionArchive();
+        
+        // Connect SSE if not already connected
+        if (!this.eventSource || this.eventSource.readyState !== EventSource.OPEN) {
+            this.connectSSE();
+        }
+        
+        // Switch to live mode to show the app is now functional
+        this.displayMode('live');
+        
+        // Update all UI elements
+        this.updateStats();
+        this.updateSessionDisplay();
+        
+        // Enable all controls that were disabled
+        const controls = document.querySelector('.controls');
+        if (controls) {
+            controls.querySelectorAll('.btn').forEach(btn => {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            });
+        }
+        
+        // Force a complete UI refresh
+        setTimeout(() => {
+            this.displayMode(this.currentMode);
+        }, 100);
+    }
+    
+    async loadSessionArchive() {
+        // Check if restored session has archived data
+        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
+        const savedSession = savedSessions.find(s => s.token === this.currentSession.token);
+        
+        if (savedSession && savedSession.archiveData) {
+            console.log('📂 Loading session-specific archive data');
+            this.archiveData = savedSession.archiveData;
+        } else {
+            // Initialize empty archive for new session
+            this.archiveData = [];
+        }
+        
+        // Store in localStorage with session-specific key
+        localStorage.setItem(`archive_${this.currentSession.token}`, JSON.stringify(this.archiveData));
+    }
+
+    async createNewSessionInline() {
+        try {
+            const nameInput = document.getElementById('newSessionName');
+            const passwordInput = document.getElementById('newSessionPassword');
+            const saveLocallyCheckbox = document.getElementById('saveSessionLocally');
+            
+            const name = nameInput?.value.trim() || '';
+            const password = passwordInput?.value.trim() || '';
+            const saveLocally = saveLocallyCheckbox?.checked || false;
+            
+            // Validate password (minimum 4 characters)
+            if (!password || password.length < 4) {
+                this.showNotification('Passwort muss mindestens 4 Zeichen haben', 'error');
+                if (passwordInput) passwordInput.focus();
+                return;
+            }
+            
+            // Use random name if none provided
+            const sessionName = name || this.getRandomSessionName();
+            
+            const requestData = {
+                name: sessionName,
+                password: password
+            };
+            
+            // Use POST for new API with name and password support
+            const response = await fetch(`${this.serverUrl}/api/token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                this.currentSession = {
+                    name: data.session.name,
+                    token: data.token,
+                    createdAt: data.session.createdAt || new Date().toISOString(),
+                    lastModified: data.session.lastModified,
+                    modifiedBy: data.session.modifiedBy,
+                    hasPassword: data.session.hasPassword,
+                    isSaved: false, // Mark as unsaved
+                    lastAccessed: new Date().toISOString(),
+                    password: password // Store for later use
+                };
+                
+                // Always save to last sessions to keep them across browser reloads
+                this.saveToLastSessions(this.currentSession, password);
+                if (saveLocally) {
+                    this.setLastActiveSession(this.currentSession.token);
+                }
+                
+                // Only save unsaved sessions to localStorage
+                this.saveCurrentSessionToStorage();
+                this.updateSessionDisplay();
+                this.showNotification(saveLocally ? 'Session erstellt und gespeichert' : 'Session erstellt', 'success');
+                
+                // Clear input fields
+                document.getElementById('newSessionName').value = '';
+                document.getElementById('newSessionPassword').value = '';
+                
+                // Update current session display in session manager
+                this.updateCurrentSessionCard();
+                
+                // Global session load - unlock tabs and connect
+                this.onSessionLoaded();
+                
+                return this.currentSession;
+            } else {
+                const errorData = await response.json();
+                this.showNotification(`Fehler: ${errorData.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('Failed to create session:', error);
+            this.showNotification('Fehler beim Erstellen der Session', 'error');
+        }
+        return null;
+    }
+
+    async restoreSessionFromToken() {
+        const tokenInput = document.getElementById('sessionTokenInput');
+        const passwordInput = document.getElementById('sessionPasswordInput');
+        
+        const token = tokenInput?.value.trim() || '';
+        const password = passwordInput?.value.trim() || '';
+        
+        if (!token) {
+            this.showNotification('Bitte geben Sie einen Session Token ein', 'warning');
+            if (tokenInput) tokenInput.focus();
+            return;
+        }
+        
+        if (!password) {
+            this.showNotification('Passwort ist erforderlich', 'warning');
+            if (passwordInput) passwordInput.focus();
+            return;
+        }
+
+        try {
+            // Always use POST with password
+            const response = await fetch(`${this.serverUrl}/api/session/${token}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ password })
+            });
+            
+            const data = await response.json();
+            
+            // Handle authentication errors
+            if (!response.ok) {
+                if (response.status === 401) {
+                    this.showNotification('Falsches Passwort oder Session nicht gefunden!', 'error');
+                } else if (response.status === 404) {
+                    this.showNotification('Session nicht gefunden!', 'error');
+                } else {
+                    this.showNotification('Fehler beim Wiederherstellen der Session', 'error');
+                }
+                return;
+            }
+            
+            if (data.success) {
+                this.currentSession = {
+                    name: data.session.name,
+                    token: token,
+                    createdAt: data.session.createdAt || data.session.created,
+                    lastModified: data.session.lastModified,
+                    modifiedBy: data.session.modifiedBy,
+                    hasPassword: data.session.hasPassword,
+                    password: password // Store for later use
+                };
+                localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+                this.updateSessionDisplay();
+                this.showNotification(`Session "${data.session.name}" erfolgreich geladen!`, 'success');
+                
+                // Clear input fields
+                if (tokenInput) tokenInput.value = '';
+                if (passwordInput) passwordInput.value = '';
+                
+                this.updateCurrentSessionCard();
+                
+                // Global session load - unlock tabs and connect
+                this.onSessionLoaded();
+            } else {
+                this.showNotification(`Fehler: ${data.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error restoring session:', error);
+            this.showNotification('Verbindungsfehler beim Laden der Session', 'error');
+        }
+    }
+
+    updateCurrentSessionCard() {
+        const currentSessionCard = document.getElementById('currentSessionCard');
+        if (!currentSessionCard) return;
+
+        if (this.currentSession) {
+            currentSessionCard.style.display = 'block';
+            currentSessionCard.innerHTML = `
+                <div class="session-card current-session">
+                    <h2>🟢 Aktuelle Session</h2>
+                    <div class="session-details">
+                        <div class="session-detail">
+                            <label>Name:</label>
+                            <span>${this.currentSession.name}</span>
+                        </div>
+                        <div class="session-detail">
+                            <label>Token:</label>
+                            <code class="token-display">${this.currentSession.token}</code>
+                            <button class="btn btn-small" onclick="window.errorDisplay.copySessionToken()">📋</button>
+                        </div>
+                        <div class="session-detail">
+                            <label>Erstellt:</label>
+                            <span>${new Date(this.currentSession.created).toLocaleString()}</span>
+                        </div>
+                    </div>
+                    <div class="session-actions">
+                        <button class="btn btn-success" onclick="window.errorDisplay.switchMode('live')">
+                            📡 Zu Live-View
+                        </button>
+                        ${this.currentSession.isSaved ? 
+                            `<button class="btn btn-warning" onclick="window.errorDisplay.confirmDeleteCurrentSession()">
+                                🗑️ Session löschen
+                            </button>` : ''
+                        }
+                        <button class="btn btn-danger" onclick="window.errorDisplay.clearSession()">
+                            ${this.currentSession.isSaved ? '🔚 Session beenden' : '❌ Session beenden'}
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            currentSessionCard.style.display = 'none';
+        }
+    }
+
+    async loadSavedSessionsInline() {
+        const container = document.getElementById('inlineSavedSessions');
+        if (!container) return;
+
+        // Load saved sessions from server instead of localStorage
+        try {
+            const response = await fetch(`${this.serverUrl}/api/sessions/saved`);
+            if (!response.ok) {
+                container.innerHTML = '<p class="no-sessions">Fehler beim Laden der Sessions</p>';
+                return;
+            }
+            
+            const data = await response.json();
+            const savedSessions = data.sessions || [];
+            
+            if (savedSessions.length === 0) {
+                container.innerHTML = '<p class="no-sessions">Keine Sessions gespeichert</p>';
+                return;
+            }
+
+            // Sort sessions by last modification date (newest first)
+            savedSessions.sort((a, b) => new Date(b.savedAt || b.lastModified) - new Date(a.savedAt || a.lastModified));
+
+            container.innerHTML = savedSessions.map(session => {
+                const createdDate = new Date(session.createdAt || session.created);
+                const savedDate = new Date(session.savedAt || session.lastModified);
+                const modifiedDate = session.lastModified ? new Date(session.lastModified) : null;
+                
+                return `
+                    <div class="saved-session-item">
+                        <div class="saved-session-info">
+                            <div class="session-name">
+                                ${session.name}
+                                <span class="password-icon" title="Passwortgeschützt">🔒</span>
+                            </div>
+                            <div class="session-meta">
+                                <div class="session-dates">
+                                    <div><strong>Erstellt:</strong> ${createdDate.toLocaleDateString('de-DE')} ${createdDate.toLocaleTimeString('de-DE')}</div>
+                                    <div><strong>Gespeichert:</strong> ${savedDate.toLocaleDateString('de-DE')} ${savedDate.toLocaleTimeString('de-DE')}</div>
+                                    ${modifiedDate ? `<div><strong>Letzte Änderung:</strong> ${modifiedDate.toLocaleDateString('de-DE')} ${modifiedDate.toLocaleTimeString('de-DE')} (${session.modifiedBy || 'System'})</div>` : ''}
+                                </div>
+                            </div>
+                            <code class="session-token-preview">${session.token.substring(0, 16)}...</code>
+                        </div>
+                        <div class="saved-session-actions">
+                            <button class="btn btn-small btn-primary" onclick="window.errorDisplay.restoreSessionFromSaved('${session.token}', true)">
+                                🔄 Laden
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } catch (error) {
+            console.error('Error loading saved sessions:', error);
+            container.innerHTML = '<p class="no-sessions">Verbindungsfehler beim Laden der Sessions</p>';
+        }
+    }
+
+    // === LAST SESSIONS MANAGEMENT ===
+    saveToLastSessions(sessionData, password = '') {
+        const lastSessions = this.getLastSessions();
+        
+        // Check if session already exists
+        const existingIndex = lastSessions.findIndex(s => s.token === sessionData.token);
+        
+        const lastSession = {
+            token: sessionData.token,
+            name: sessionData.name,
+            password: password, // Store password for convenience
+            createdAt: sessionData.createdAt,
+            lastAccessed: new Date().toISOString(),
+            hasPassword: sessionData.hasPassword,
+            lastActive: false // Will be set to true when loading
+        };
+        
+        if (existingIndex >= 0) {
+            // Update existing session
+            lastSessions[existingIndex] = lastSession;
+        } else {
+            // Add new session
+            lastSessions.unshift(lastSession);
+        }
+        
+        // Keep only last 10 sessions
+        if (lastSessions.length > 10) {
+            lastSessions.splice(10);
+        }
+
+        localStorage.setItem('lastSessions', JSON.stringify(lastSessions));
+    }    getLastSessions() {
+        const stored = localStorage.getItem('lastSessions');
+        const sessions = stored ? JSON.parse(stored) : [];
+        return sessions;
+    }
+    
+    setLastActiveSession(token) {
+        const lastSessions = this.getLastSessions();
+        
+        // Set all to inactive
+        lastSessions.forEach(session => session.lastActive = false);
+        
+        // Set current session to active
+        const currentSession = lastSessions.find(s => s.token === token);
+        if (currentSession) {
+            currentSession.lastActive = true;
+            currentSession.lastAccessed = new Date().toISOString();
+        }
+        
+        localStorage.setItem('lastSessions', JSON.stringify(lastSessions));
+    }
+    
+    async validateAndCleanupLastSessions() {
+        const lastSessions = this.getLastSessions();
+        const validSessions = [];
+        const now = Date.now();
+        
+        for (const session of lastSessions) {
+            // Check if session is marked for auto-deletion and time has passed
+            if (session.serverDeleted && session.autoDeleteAt && now >= session.autoDeleteAt) {
+                console.log(`🗑️ Auto-removing expired deleted session: ${session.name}`);
+                continue; // Skip this session (auto-delete)
+            }
+            
+            try {
+                // Check if session still exists on server
+                const response = await fetch(`${this.serverUrl}/api/session/${session.token}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ password: session.password })
+                });
+                
+                if (response.ok) {
+                    // Session is valid - remove deletion flag if it exists
+                    if (session.serverDeleted) {
+                        delete session.serverDeleted;
+                        delete session.autoDeleteAt;
+                    }
+                    validSessions.push(session);
+                } else {
+                    // Session is deleted on server
+                    if (!session.serverDeleted) {
+                        // Mark as deleted and set auto-delete timer (5 minutes)
+                        session.serverDeleted = true;
+                        session.autoDeleteAt = now + (5 * 60 * 1000); // 5 minutes from now
+                        console.log(`🗑️ Marking session as deleted: ${session.name}`);
+                    }
+                    validSessions.push(session); // Keep it for now, will be auto-deleted later
+                }
+            } catch (error) {
+                console.log(`🧹 Removing session due to validation error: ${session.name}`);
+                // Don't add to validSessions (immediate removal for network errors)
+            }
+        }
+        
+        // Update storage with processed sessions
+        localStorage.setItem('lastSessions', JSON.stringify(validSessions));
+        return validSessions;
+    }
+
+    startAutoCleanupTimer() {
+        // Check every minute for sessions to auto-delete
+        setInterval(() => {
+            const lastSessions = this.getLastSessions();
+            const now = Date.now();
+            let hasChanges = false;
+            
+            const filteredSessions = lastSessions.filter(session => {
+                if (session.serverDeleted && session.autoDeleteAt && now >= session.autoDeleteAt) {
+                    console.log(`🗑️ Auto-cleaning deleted session: ${session.name}`);
+                    hasChanges = true;
+                    return false; // Remove this session
+                }
+                return true; // Keep this session
+            });
+            
+            if (hasChanges) {
+                localStorage.setItem('lastSessions', JSON.stringify(filteredSessions));
+                // Refresh display if on session manager or start page
+                if (this.currentMode === 'session-manager' || !this.currentSession) {
+                    this.loadLastSessionsInline();
+                }
+            }
+        }, 60000); // Check every minute
+    }
+    
+    async loadLastActiveSession() {
+        const lastSessions = this.getLastSessions();
+        const activeSession = lastSessions.find(s => s.lastActive === true);
+        
+        if (activeSession) {
+            console.log(`🔄 Auto-loading last active session: ${activeSession.name}`);
+            try {
+                await this.restoreLastSession(activeSession.token, activeSession.password);
+                return true;
+            } catch (error) {
+                console.error('Failed to restore last active session:', error);
+                // Remove invalid session
+                this.removeFromLastSessions(activeSession.token);
+            }
+        }
+        
+        return false;
+    }
+    
+    async restoreLastSession(token, password = '') {
+        try {
+            const response = await fetch(`${this.serverUrl}/api/session/${token}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ password: password })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                this.currentSession = {
+                    name: data.session.name,
+                    token: data.session.token,
+                    createdAt: data.session.createdAt,
+                    lastModified: data.session.lastModified,
+                    modifiedBy: data.session.modifiedBy,
+                    hasPassword: data.session.hasPassword,
+                    isSaved: true,
+                    lastAccessed: new Date().toISOString()
+                };
+                
+                // Update last sessions
+                this.saveToLastSessions(this.currentSession, password);
+                this.setLastActiveSession(token);
+                
+                this.updateSessionDisplay();
+                return true;
+            } else {
+                throw new Error(`Server error: ${response.status}`);
+            }
+        } catch (error) {
+            console.error('Failed to restore session:', error);
+            throw error;
+        }
+    }
+    
+    removeFromLastSessions(token) {
+        const lastSessions = this.getLastSessions();
+        const filtered = lastSessions.filter(s => s.token !== token);
+        localStorage.setItem('lastSessions', JSON.stringify(filtered));
+    }
+    
+    async loadLastSessionsInline() {
+        try {
+            // Validate and cleanup first
+            const validSessions = await this.validateAndCleanupLastSessions();
+            
+            const container = document.getElementById('inlineLastSessions');
+            if (!container) return;
+
+            if (validSessions.length === 0) {
+                container.innerHTML = '<p class="no-sessions">Keine letzten Sessions gefunden</p>';
+                return;
+            }
+
+            let html = '';
+            let hasInvalidSessions = false;
+            
+            for (const session of validSessions) {
+                const isActive = session.lastActive === true;
+                const lastAccessed = new Date(session.lastAccessed).toLocaleString('de-DE');
+                const isDeleted = session.serverDeleted === true;
+                hasInvalidSessions = hasInvalidSessions || isDeleted;
+                
+                html += `
+                    <div class="session-item ${isActive ? 'active-session' : ''} ${isDeleted ? 'deleted-session' : ''}">
+                        <div class="session-item-header">
+                            <span class="session-item-name">
+                                ${this.escapeHtml(session.name)} 
+                                ${isActive ? '(Aktiv)' : ''} 
+                                ${isDeleted ? '<span class="deleted-indicator">🗑️ GELÖSCHT</span>' : ''}
+                            </span>
+                            <span class="session-item-date">${lastAccessed}</span>
+                        </div>
+                        <div class="session-item-token">
+                            <code>${session.token.substring(0, 16)}...</code>
+                            ${session.hasPassword ? '<span class="password-indicator">🔒</span>' : ''}
+                        </div>
+                        <div class="session-item-actions">
+                            ${isDeleted ? `
+                                <button class="btn btn-small btn-danger" onclick="errorDisplay.removeFromLastSessionsAndRefresh('${session.token}')">
+                                    🗑️ Entfernen
+                                </button>
+                                <span class="auto-cleanup-hint">Wird automatisch in ${Math.max(0, Math.ceil((session.autoDeleteAt - Date.now()) / 60000))} Min entfernt</span>
+                            ` : `
+                                <button class="btn btn-small btn-primary" onclick="errorDisplay.restoreFromLastSessions('${session.token}')">
+                                    🔄 Laden
+                                </button>
+                                <button class="btn btn-small btn-danger" onclick="errorDisplay.removeFromLastSessionsAndRefresh('${session.token}')">
+                                    🗑️
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Add info text about auto-cleanup if there are deleted sessions
+            if (hasInvalidSessions) {
+                html += `
+                    <div class="cleanup-info">
+                        <small>💡 Gelöschte Sessions werden automatisch nach 5 Minuten aus dem Browser-Cache entfernt</small>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        } catch (error) {
+            console.error('Error loading last sessions:', error);
+            const container = document.getElementById('inlineLastSessions');
+            if (container) {
+                container.innerHTML = '<p class="error-state">Fehler beim Laden der letzten Sessions</p>';
+            }
+        }
+    }
+
+    loadLastSessionsInlineSimple() {
+        try {
+            // Get sessions without server validation - for simple UI updates
+            const lastSessions = this.getLastSessions();
+            
+            const container = document.getElementById('inlineLastSessions');
+            if (!container) return;
+
+            if (lastSessions.length === 0) {
+                container.innerHTML = '<p class="no-sessions">Keine letzten Sessions gefunden</p>';
+                return;
+            }
+
+            let html = '';
+            
+            for (const session of lastSessions) {
+                const isActive = session.lastActive === true;
+                const lastAccessed = new Date(session.lastAccessed).toLocaleString('de-DE');
+                const isDeleted = session.serverDeleted === true;
+                
+                html += `
+                    <div class="session-item ${isActive ? 'active-session' : ''} ${isDeleted ? 'deleted-session' : ''}">
+                        <div class="session-item-header">
+                            <span class="session-item-name">
+                                ${this.escapeHtml(session.name)} 
+                                ${isActive ? '(Aktiv)' : ''} 
+                                ${isDeleted ? '<span class="deleted-indicator">🗑️ GELÖSCHT</span>' : ''}
+                            </span>
+                            <span class="session-item-date">${lastAccessed}</span>
+                        </div>
+                        <div class="session-item-token">
+                            <code>${session.token.substring(0, 16)}...</code>
+                            ${session.hasPassword ? '<span class="password-indicator">🔒</span>' : ''}
+                        </div>
+                        <div class="session-item-actions">
+                            ${isDeleted ? `
+                                <button class="btn btn-small btn-danger" onclick="errorDisplay.removeFromLastSessionsAndRefresh('${session.token}')">
+                                    🗑️ Entfernen
+                                </button>
+                                <span class="auto-cleanup-hint">Wird automatisch in ${Math.max(0, Math.ceil((session.autoDeleteAt - Date.now()) / 60000))} Min entfernt</span>
+                            ` : `
+                                <button class="btn btn-small btn-primary" onclick="errorDisplay.restoreFromLastSessions('${session.token}')">
+                                    🔄 Laden
+                                </button>
+                                <button class="btn btn-small btn-danger" onclick="errorDisplay.removeFromLastSessionsAndRefresh('${session.token}')">
+                                    🗑️
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        } catch (error) {
+            console.error('Error loading last sessions simple:', error);
+            const container = document.getElementById('inlineLastSessions');
+            if (container) {
+                container.innerHTML = '<p class="error-state">Fehler beim Laden der letzten Sessions</p>';
+            }
+        }
+    }
+
+    loadLastSessionsInlineSimple() {
+        try {
+            // Get sessions without server validation - for simple UI updates
+            const lastSessions = this.getLastSessions();
+            
+            const container = document.getElementById('inlineLastSessions');
+            if (!container) return;
+
+            if (lastSessions.length === 0) {
+                container.innerHTML = '<p class="no-sessions">Keine letzten Sessions gefunden</p>';
+                return;
+            }
+
+            let html = '';
+            
+            for (const session of lastSessions) {
+                const isActive = session.lastActive === true;
+                const lastAccessed = new Date(session.lastAccessed).toLocaleString('de-DE');
+                const isDeleted = session.serverDeleted === true;
+                
+                html += `
+                    <div class="session-item ${isActive ? 'active-session' : ''} ${isDeleted ? 'deleted-session' : ''}">
+                        <div class="session-item-header">
+                            <span class="session-item-name">
+                                ${this.escapeHtml(session.name)} 
+                                ${isActive ? '(Aktiv)' : ''} 
+                                ${isDeleted ? '<span class="deleted-indicator">🗑️ GELÖSCHT</span>' : ''}
+                            </span>
+                            <span class="session-item-date">${lastAccessed}</span>
+                        </div>
+                        <div class="session-item-token">
+                            <code>${session.token.substring(0, 16)}...</code>
+                            ${session.hasPassword ? '<span class="password-indicator">🔒</span>' : ''}
+                        </div>
+                        <div class="session-item-actions">
+                            ${isDeleted ? `
+                                <button class="btn btn-small btn-danger" onclick="errorDisplay.removeFromLastSessionsAndRefresh('${session.token}')">
+                                    🗑️ Entfernen
+                                </button>
+                                <span class="auto-cleanup-hint">Wird automatisch in ${Math.max(0, Math.ceil((session.autoDeleteAt - Date.now()) / 60000))} Min entfernt</span>
+                            ` : `
+                                <button class="btn btn-small btn-primary" onclick="errorDisplay.restoreFromLastSessions('${session.token}')">
+                                    🔄 Laden
+                                </button>
+                                <button class="btn btn-small btn-danger" onclick="errorDisplay.removeFromLastSessionsAndRefresh('${session.token}')">
+                                    🗑️
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        } catch (error) {
+            console.error('Error loading last sessions simple:', error);
+            const container = document.getElementById('inlineLastSessions');
+            if (container) {
+                container.innerHTML = '<p class="error-state">Fehler beim Laden der letzten Sessions</p>';
+            }
+        }
+    }    async restoreFromLastSessions(token) {
+        const lastSessions = this.getLastSessions();
+        const session = lastSessions.find(s => s.token === token);
+        
+        if (session) {
+            try {
+                await this.restoreLastSession(token, session.password);
+                this.showNotification(`Session "${session.name}" wiederhergestellt`, 'success');
+                this.onSessionLoaded();
+                this.loadLastSessionsInline(); // Refresh display
+            } catch (error) {
+                this.showNotification('Fehler beim Wiederherstellen der Session', 'error');
+                this.removeFromLastSessions(token);
+                this.loadLastSessionsInline(); // Refresh display
+            }
+        }
+    }
+    
+    removeFromLastSessionsAndRefresh(token) {
+        this.removeFromLastSessions(token);
+        this.loadLastSessionsInlineSimple(); // Use simple version without server validation
+        this.showNotification('Session aus letzten Sessions entfernt', 'info');
+    }
+
+    async restoreSessionFromSaved(token, requirePassword = true) {
+        if (requirePassword) {
+            // Show password prompt modal for all saved sessions
+            this.showPasswordPromptModal(token);
+            return;
+        }
+        
+        // This should not be reached anymore since all saved sessions require password
+        await this.restoreSessionWithPassword(token, null);
+    }
+    
+    showPasswordPromptModal(token) {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>🔒 Passwort erforderlich</h2>
+                    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+                </div>
+                <div class="modal-body">
+                    <p>Diese gespeicherte Session ist passwortgeschützt.</p>
+                    <div class="input-group">
+                        <input type="password" id="savedSessionPassword" placeholder="Passwort eingeben..." class="session-input" onkeypress="if(event.key==='Enter') window.errorDisplay.confirmRestoreWithPassword('${token}')">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Abbrechen</button>
+                    <button class="btn btn-primary" onclick="window.errorDisplay.confirmRestoreWithPassword('${token}')">Laden</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        // Focus password input
+        setTimeout(() => document.getElementById('savedSessionPassword').focus(), 100);
+    }
+    
+    async confirmRestoreWithPassword(token) {
+        const password = document.getElementById('savedSessionPassword').value;
+        
+        if (!password) {
+            this.showNotification('Bitte Passwort eingeben', 'warning');
+            return;
+        }
+        
+        // Close modal
+        document.querySelector('.modal-overlay').remove();
+        
+        // Check if this is the saved password or the session password
+        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
+        const savedSession = savedSessions.find(s => s.token === token);
+        
+        if (savedSession && savedSession.savedPassword) {
+            // Check against saved password first
+            if (savedSession.savedPassword === password) {
+                await this.restoreSessionWithPassword(token, null);
+            } else {
+                this.showNotification('Falsches Passwort für gespeicherte Session!', 'error');
+            }
+        } else {
+            // Try with session password
+            await this.restoreSessionWithPassword(token, password);
+        }
+    }
+    
+    async restoreSessionWithPassword(token, password) {
+        try {
+            // Use POST with password
+            const response = await fetch(`${this.serverUrl}/api/session/${token}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ password })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.currentSession = {
+                    name: data.session.name,
+                    token: token,
+                    createdAt: data.session.createdAt || data.session.created,
+                    lastModified: data.session.lastModified,
+                    modifiedBy: data.session.modifiedBy,
+                    hasPassword: data.session.hasPassword,
+                    isSaved: true // Mark as saved since it was loaded from server
+                };
+                
+                // DO NOT save restored sessions to localStorage - they are server-side only
+                console.log('📂 Restored saved session from server (no localStorage)');
+                
+                this.updateSessionDisplay();
+                this.showNotification(`Session "${data.session.name}" erfolgreich geladen!`, 'success');
+                this.updateCurrentSessionCard();
+                
+                // Restore archived data from server if available
+                if (data.session.archive) {
+                    console.log('📂 Restoring archived data for session');
+                    this.archiveData = data.session.archive;
+                }
+                
+                // Automatically switch to live view and refresh
+                this.switchMode('live');
+                this.showNotification(`Session "${data.session.name}" geladen - zur Live-Ansicht gewechselt`, 'success');
+                
+                // Global session load - unlock tabs and connect
+                this.onSessionLoaded();
+            } else if (response.status === 401) {
+                this.showNotification('Falsches Passwort!', 'error');
+            } else {
+                this.showNotification('Session nicht mehr gültig', 'error');
+            }
+        } catch (error) {
+            console.error('Error restoring session:', error);
+            this.showNotification('Verbindungsfehler beim Laden der Session', 'error');
+        }
+    }
+
+    deleteSavedSession(token) {
+        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
+        const filteredSessions = savedSessions.filter(session => session.token !== token);
+        localStorage.setItem('savedSessions', JSON.stringify(filteredSessions));
+        this.loadSavedSessionsInline();
+        this.showNotification('Session aus Speicher entfernt', 'success');
+    }
+
+    // Update session activity timestamp
+    updateSessionActivity() {
+        if (this.currentSession && !this.currentSession.isSaved) {
+            this.currentSession.lastAccessed = new Date().toISOString();
+            localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+        }
+    }
+
+    confirmDeleteCurrentSession() {
+        if (!this.currentSession || !this.currentSession.isSaved) {
+            return;
+        }
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>⚠️ Session löschen</h2>
+                    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Sind Sie sicher, dass Sie die Session "${this.currentSession.name}" dauerhaft löschen möchten?</strong></p>
+                    <p>⚠️ Diese Aktion kann nicht rückgängig gemacht werden!</p>
+                    <p>Alle gespeicherten Daten und Archiveinträge gehen verloren.</p>
+                    <div class="input-group">
+                        <label>Zur Bestätigung geben Sie "LÖSCHEN" ein:</label>
+                        <input type="text" id="deleteConfirmInput" placeholder="LÖSCHEN" class="session-input">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Abbrechen</button>
+                    <button class="btn btn-danger" onclick="window.errorDisplay.executeDeleteCurrentSession()">Unwiderruflich löschen</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    async executeDeleteCurrentSession() {
+        const confirmInput = document.getElementById('deleteConfirmInput');
+        if (!confirmInput || confirmInput.value !== 'LÖSCHEN') {
+            this.showNotification('Bitte "LÖSCHEN" eingeben zur Bestätigung', 'warning');
+            return;
+        }
+
+        if (!this.currentSession || !this.currentSession.isSaved) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${this.serverUrl}/api/session/${this.currentSession.token}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                this.showNotification(`Session "${this.currentSession.name}" wurde dauerhaft gelöscht`, 'success');
+                
+                // Clear current session
+                this.clearSession();
+                
+                // Close modal
+                document.querySelector('.modal-overlay').remove();
+                
+                // Refresh saved sessions list
+                this.loadSavedSessionsInline();
+            } else {
+                this.showNotification('Fehler beim Löschen der Session', 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting session:', error);
+            this.showNotification('Verbindungsfehler beim Löschen', 'error');
+        }
+    }
+
+    async toggleAutoSave(checked) {
+        if (!this.currentSession || !this.isSessionSaved()) {
+            return;
+        }
+        
+        this.autoSaveEnabled = checked;
+        
+        if (this.autoSaveEnabled) {
+            // Save current session to server immediately when auto-save is enabled
+            await this.saveToServer();
+            this.markAsSaved();
+            this.showNotification('Auto-Save aktiviert - Änderungen werden automatisch gespeichert', 'success');
+        } else {
+            this.showNotification('Auto-Save deaktiviert', 'info');
+            // Check if there are unsaved changes and show indicator
+            if (this.errors.length > 0) {
+                this.markAsUnsaved();
+            }
+        }
+        
+        // Update the indicator visibility
+        this.updateUnsavedChangesIndicator();
+    }
+    
+    async saveToServer() {
+        if (!this.currentSession || !this.isSessionSaved()) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/session/${this.currentSession.token}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    password: this.currentSession.password,
+                    archive: this.currentSession.archive
+                })
+            });
+            
+            if (response.ok) {
+                console.log('Session auto-saved to server');
+                this.markAsSaved();
+            } else {
+                console.error('Failed to auto-save session');
+            }
+        } catch (error) {
+            console.error('Error during auto-save:', error);
+        }
+    }
+
+    // === SESSION MANAGER UI FUNCTIONS ===
+    
+    generateRandomSessionName() {
+        const RANDOM_SESSION_NAMES = [
+            "🚀 Projekt Apollo", "🌟 Projekt Nebula Scan", "⚡ Projekt Lightning Debug", "🔥 Projekt Phoenix Watch", 
+            "🌊 Projekt Ocean Flow", "🎯 Projekt Target Lock", "🛡️ Projekt Shield Guard", "⚗️ Projekt Lab Monitor",
+            "🎭 Projekt Theater Mode", "🌈 Projekt Rainbow Check", "🔮 Projekt Crystal Ball", "🎪 Projekt Circus Watch",
+            "🌙 Projekt Moonlight Scan", "☀️ Projekt Solar Flare", "❄️ Projekt Ice Crystal", "🌸 Projekt Cherry Bloom",
+            "🎨 Projekt Paint Debug", "🎵 Projekt Music Flow", "📡 Projekt Signal Watch", "🎲 Projekt Dice Roll",
+            "🏔️ Projekt Mountain Peak", "🌋 Projekt Volcano Alert", "🌪️ Projekt Storm Track", "🌻 Projekt Sunflower",
+            "🦋 Projekt Butterfly Effect", "🐝 Projekt Bee Swarm", "🦅 Projekt Eagle Eye", "🐙 Projekt Octopus Arms",
+            "💎 Projekt Diamond Core", "🗝️ Projekt Master Key", "🎯 Projekt Bullseye Hit", "🌠 Projekt Shooting Star",
+            "🎪 Projekt Magic Portal", "🌿 Projekt Green Garden", "🎨 Projekt Color Splash", "🎯 Projekt Focus Point",
+            "🌊 Projekt Wave Rider", "⚡ Projekt Thunder Strike", "🔥 Projekt Flame Core", "❄️ Projekt Frost Edge",
+            "🎵 Projekt Sound Wave", "🌈 Projekt Prism Light", "🚀 Projekt Space Quest", "🎭 Projekt Drama Mode",
+            "🔮 Projekt Future Vision", "🎪 Projekt Wonder Land", "🌙 Projekt Night Watch", "☀️ Projekt Day Break",
+            "🦋 Projekt Flutter Wing", "🐝 Projekt Buzz Hive", "🦅 Projekt Sky Soar", "💎 Projekt Gem Stone"
+        ];
+        
+        const randomName = RANDOM_SESSION_NAMES[Math.floor(Math.random() * RANDOM_SESSION_NAMES.length)];
+        const nameInput = document.getElementById('newSessionName');
+        if (nameInput) {
+            nameInput.value = randomName;
+        }
+    }
+    
+    setRandomPlaceholder() {
+        const RANDOM_SESSION_NAMES = [
+            "🚀 Projekt Apollo", "🌟 Projekt Nebula Scan", "⚡ Projekt Lightning Debug", "🔥 Projekt Phoenix Watch", 
+            "🌊 Projekt Ocean Flow", "🎯 Projekt Target Lock", "🛡️ Projekt Shield Guard", "⚗️ Projekt Lab Monitor",
+            "🎭 Projekt Theater Mode", "🌈 Projekt Rainbow Check", "🔮 Projekt Crystal Ball", "🎪 Projekt Circus Watch",
+            "🌙 Projekt Moonlight Scan", "☀️ Projekt Solar Flare", "❄️ Projekt Ice Crystal", "🌸 Projekt Cherry Bloom",
+            "🎨 Projekt Paint Debug", "🎵 Projekt Music Flow", "📡 Projekt Signal Watch", "🎲 Projekt Dice Roll",
+            "🏔️ Projekt Mountain Peak", "🌋 Projekt Volcano Alert", "🌪️ Projekt Storm Track", "🌻 Projekt Sunflower",
+            "🦋 Projekt Butterfly Effect", "🐝 Projekt Bee Swarm", "🦅 Projekt Eagle Eye", "🐙 Projekt Octopus Arms",
+            "💎 Projekt Diamond Core", "🗝️ Projekt Master Key", "🎯 Projekt Bullseye Hit", "🌠 Projekt Shooting Star",
+            "🎪 Projekt Magic Portal", "🌿 Projekt Green Garden", "🎨 Projekt Color Splash", "🎯 Projekt Focus Point",
+            "🌊 Projekt Wave Rider", "⚡ Projekt Thunder Strike", "🔥 Projekt Flame Core", "❄️ Projekt Frost Edge",
+            "🎵 Projekt Sound Wave", "🌈 Projekt Prism Light", "🚀 Projekt Space Quest", "🎭 Projekt Drama Mode",
+            "🔮 Projekt Future Vision", "🎪 Projekt Wonder Land", "🌙 Projekt Night Watch", "☀️ Projekt Day Break",
+            "🦋 Projekt Flutter Wing", "🐝 Projekt Buzz Hive", "🦅 Projekt Sky Soar", "💎 Projekt Gem Stone"
+        ];
+        
+        const randomName = RANDOM_SESSION_NAMES[Math.floor(Math.random() * RANDOM_SESSION_NAMES.length)];
+        const nameInput = document.getElementById('newSessionName');
+        if (nameInput) {
+            nameInput.placeholder = randomName;
+        }
+    }
+    
+    togglePasswordVisibility(inputId) {
+        const input = document.getElementById(inputId);
+        const button = input?.nextElementSibling;
+        
+        if (!input || !button) return;
+        
+        if (input.type === 'password') {
+            input.type = 'text';
+            button.textContent = '🙈';
+            button.title = 'Passwort verstecken';
+        } else {
+            input.type = 'password';
+            button.textContent = '👁️';
+            button.title = 'Passwort anzeigen';
+        }
+    }
+}
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    window.errorDisplay = new ErrorDisplay();
+    window.app = window.errorDisplay; // Make app globally available for inline onclick handlers
+});
+
+// Handle page visibility - only reconnect if in live mode
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && window.errorDisplay && window.errorDisplay.currentMode === 'live') {
+        console.log('📡 Page visible - reconnecting SSE in live mode');
+        window.errorDisplay.connectSSE();
+    }
+});
+
+// Listen for session manager messages
+window.addEventListener('message', (event) => {
+    if (event.data.type === 'sessionRestored') {
+        window.errorDisplay.restoreSession(event.data.session);
+    }
+});
