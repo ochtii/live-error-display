@@ -22,8 +22,8 @@ class ErrorDisplay {
         
         // Delegate session access to session manager
         Object.defineProperty(this, 'currentSession', {
-            get: () => this.sessionManager.currentSession,
-            set: (value) => this.sessionManager.currentSession = value
+            get: function() { return this.sessionManager.currentSession; },
+            set: function(value) { this.sessionManager.currentSession = value; }
         });
         
         this.init();
@@ -141,7 +141,7 @@ class ErrorDisplay {
         this.currentMode = mode;
         
         // Update button states
-        const buttons = ['liveBtn', 'archiveBtn', 'settingsBtn', 'apiBtn'];
+        const buttons = ['liveBtn', 'archiveBtn', 'settingsBtn', 'apiBtn', 'sessionBtn'];
         buttons.forEach(btnId => {
             const btn = document.getElementById(btnId);
             if (btn) {
@@ -169,6 +169,9 @@ class ErrorDisplay {
         } else if (mode === 'archive') {
             document.getElementById('errorsContainer').style.display = 'block';
             this.disconnectSSE();
+        } else if (mode === 'session-manager') {
+            document.getElementById('sessionManagerContainer').style.display = 'block';
+            this.disconnectSSE();
         }
         
         console.log(`✅ Mode switched to: ${mode}`);
@@ -191,11 +194,13 @@ class ErrorDisplay {
         const archiveBtn = document.getElementById('archiveBtn');
         const settingsBtn = document.getElementById('settingsBtn');
         const apiBtn = document.getElementById('apiBtn');
+        const sessionBtn = document.getElementById('sessionBtn');
         
         if (liveBtn) liveBtn.addEventListener('click', () => this.switchMode('live'));
         if (archiveBtn) archiveBtn.addEventListener('click', () => this.switchMode('archive'));
         if (settingsBtn) settingsBtn.addEventListener('click', () => this.switchMode('settings'));
         if (apiBtn) apiBtn.addEventListener('click', () => this.switchMode('api'));
+        if (sessionBtn) sessionBtn.addEventListener('click', () => this.switchMode('session-manager'));
         
         // Session Management Event Listeners - delegiert an SessionManager
         this.sessionManager.setupSessionEventListeners();
