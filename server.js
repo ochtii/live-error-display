@@ -302,6 +302,40 @@ if (!fs.existsSync(SESSIONS_DIR)) {
     fs.mkdirSync(SESSIONS_DIR, { recursive: true });
 }
 
+// Clean up corrupted session files on startup
+function cleanupCorruptedSessions() {
+    try {
+        const sessionFiles = fs.readdirSync(SESSIONS_DIR);
+        let corruptedCount = 0;
+        
+        for (const file of sessionFiles) {
+            if (file.endsWith('.json')) {
+                const filePath = path.join(SESSIONS_DIR, file);
+                try {
+                    const encryptedData = fs.readFileSync(filePath, 'utf8');
+                    const decrypted = decryptData(encryptedData);
+                    if (!decrypted) {
+                        fs.unlinkSync(filePath);
+                        corruptedCount++;
+                    }
+                } catch (error) {
+                    fs.unlinkSync(filePath);
+                    corruptedCount++;
+                }
+            }
+        }
+        
+        if (corruptedCount > 0) {
+            console.log(`🧹 Cleaned up ${corruptedCount} corrupted session files on startup`);
+        }
+    } catch (error) {
+        console.error('❌ Error during session cleanup:', error.message);
+    }
+}
+
+// Run cleanup on startup
+cleanupCorruptedSessions();
+
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -345,7 +379,11 @@ function decryptData(encryptedData, secret = SESSION_SECRET) {
         decrypted += decipher.final('utf8');
         return JSON.parse(decrypted);
     } catch (error) {
-        console.error('❌ Session decryption failed:', error.message);
+        // Only log detailed errors occasionally to avoid spam
+        if (Math.random() < 0.1) { // 10% chance to log
+            console.error('❌ Session decryption failed (sample):', error.message);
+            console.error('💡 This usually means old/incompatible session files exist');
+        }
         return null;
     }
 }
@@ -422,7 +460,14 @@ class SessionManager {
                     console.log(`📂 Loaded session from disk: ${session.name} (${token.substring(0, 8)}...)`);
                     return session;
                 } else {
-                    console.log(`❌ Failed to decrypt session file: ${sessionFile}`);
+                    console.log(`❌ Failed to decrypt session file, removing corrupted file: ${sessionFile}`);
+                    // Remove corrupted session file
+                    try {
+                        fs.unlinkSync(sessionFile);
+                        console.log(`🗑️ Removed corrupted session file: ${sessionFile}`);
+                    } catch (deleteError) {
+                        console.error(`❌ Failed to remove corrupted session file: ${deleteError.message}`);
+                    }
                 }
             } else {
                 console.log(`❌ Session file not found: ${sessionFile}`);
