@@ -612,6 +612,207 @@ class SessionManager {
         }
     }
 
+    setupEventListeners() {
+        // Session Management Event Listeners
+        const sessionBtn = document.getElementById('sessionBtn');
+        const copyToken = document.getElementById('copyToken');
+        const sessionManager = document.getElementById('sessionManager');
+        const saveSession = document.getElementById('saveSession');
+        const endSession = document.getElementById('endSession');
+        const copyTokenHeader = document.getElementById('copyTokenHeader');
+        const sessionEndLink = document.getElementById('sessionEndLink');
+        const autoSaveCheckbox = document.getElementById('autoSaveCheckbox');
+        
+        if (sessionBtn) sessionBtn.addEventListener('click', () => this.showSessionManager());
+        if (copyToken) copyToken.addEventListener('click', () => this.copySessionToken());
+        if (sessionManager) sessionManager.addEventListener('click', () => this.showSessionManager());
+        if (saveSession) saveSession.addEventListener('click', () => this.saveCurrentSession());
+        if (endSession) endSession.addEventListener('click', () => this.clearSession());
+        if (copyTokenHeader) copyTokenHeader.addEventListener('click', () => this.copySessionToken());
+        if (sessionEndLink) sessionEndLink.addEventListener('click', () => this.endCurrentSession());
+        if (autoSaveCheckbox) autoSaveCheckbox.addEventListener('change', (e) => this.toggleAutoSave(e.target.checked));
+        
+        // Session Manager inline controls
+        const createNewSessionBtn = document.getElementById('createNewSessionBtn');
+        const restoreSessionBtn = document.getElementById('restoreSessionBtn');
+        const refreshLastSessionsBtn = document.getElementById('refreshLastSessionsBtn');
+        
+        if (createNewSessionBtn) createNewSessionBtn.addEventListener('click', () => this.createNewSession());
+        if (restoreSessionBtn) restoreSessionBtn.addEventListener('click', () => this.restoreSessionFromToken());
+        if (refreshLastSessionsBtn) refreshLastSessionsBtn.addEventListener('click', () => this.loadLastSessionsInline());
+    }
+
+    showSessionManager() {
+        // Implementation für Session Manager UI
+        this.errorDisplay.switchMode('session-manager');
+    }
+
+    copySessionToken() {
+        if (this.currentSession && this.currentSession.token) {
+            navigator.clipboard.writeText(this.currentSession.token).then(() => {
+                this.errorDisplay.showNotification('Session Token kopiert!', 'success');
+            }).catch(err => {
+                console.error('Could not copy text: ', err);
+                this.errorDisplay.showNotification('Fehler beim Kopieren', 'error');
+            });
+        }
+    }
+
+    clearSession() {
+        if (this.currentSession) {
+            const confirmClear = confirm(`Session "${this.currentSession.name}" wirklich löschen?`);
+            if (confirmClear) {
+                localStorage.removeItem('currentSession');
+                this.currentSession = null;
+                
+                this.errorDisplay.showNotification('Session gelöscht', 'success');
+                this.errorDisplay.showStartPage();
+                this.errorDisplay.updateNavigationState(false);
+            }
+        }
+    }
+
+    saveCurrentSession() {
+        // Implementation für Session speichern
+        this.errorDisplay.showNotification('Session-Speichern noch nicht implementiert', 'info');
+    }
+
+    endCurrentSession() {
+        this.clearSession();
+    }
+
+    toggleAutoSave(enabled) {
+        this.errorDisplay.autoSaveEnabled = enabled;
+        if (enabled) {
+            this.errorDisplay.showNotification('Auto-Save aktiviert', 'success');
+        } else {
+            this.errorDisplay.showNotification('Auto-Save deaktiviert', 'info');
+        }
+    }
+
+    restoreSessionFromToken() {
+        // Implementation für Session-Wiederherstellung
+        this.errorDisplay.showNotification('Session-Wiederherstellung noch nicht implementiert', 'info');
+    }
+
+    loadLastSessionsInline() {
+        // Implementation für letzte Sessions laden
+        console.log('Loading last sessions...');
+    }
+
+    updateSessionDisplay() {
+        const sessionBar = document.getElementById('sessionBar');
+        const sessionInfo = document.getElementById('sessionInfo');
+        const sessionToken = document.getElementById('sessionToken');
+        
+        if (this.currentSession && sessionBar && sessionInfo && sessionToken) {
+            sessionBar.style.display = 'block';
+            sessionInfo.textContent = `Session: ${this.currentSession.name} (${this.currentSession.errorCount || 0} Errors)`;
+            sessionToken.textContent = this.currentSession.token;
+            
+            // Update last accessed time
+            this.currentSession.lastAccessed = new Date().toISOString();
+            localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+            
+            // Update navigation state
+            this.errorDisplay.updateNavigationState(true);
+        } else {
+            if (sessionBar) sessionBar.style.display = 'none';
+            this.errorDisplay.updateNavigationState(false);
+        }
+    }
+
+    generateRandomSessionName() {
+        const randomIndex = Math.floor(Math.random() * this.randomSessionNames.length);
+        return this.randomSessionNames[randomIndex];
+    }
+
+    async createNewSession() {
+        try {
+            const response = await fetch(`${this.errorDisplay.serverUrl}/api/token`);
+            if (response.ok) {
+                const data = await response.json();
+                this.currentSession = {
+                    name: data.session.name,
+                    token: data.token,
+                    createdAt: data.session.createdAt,
+                    lastModified: data.session.lastModified,
+                    modifiedBy: data.session.modifiedBy,
+                    errorCount: data.session.errorCount,
+                    hasPassword: data.session.hasPassword,
+                    isSaved: false // New sessions are not saved initially
+                };
+                localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
+                this.updateSessionDisplay();
+                
+                // Connect to SSE with new session token
+                this.errorDisplay.disconnectSSE();
+                this.errorDisplay.connectSSE();
+                
+                this.errorDisplay.showNotification(`Neue Session "${this.currentSession.name}" erstellt`, 'success');
+                console.log('🆕 New session created:', {
+                    name: this.currentSession.name,
+                    tokenPreview: this.currentSession.token?.substring(0, 16) + '...'
+                });
+                
+                // Switch to live mode automatically
+                this.errorDisplay.switchMode('live');
+            } else {
+                throw new Error(`Server error: ${response.status}`);
+            }
+        } catch (error) {
+            console.error('Error creating session:', error);
+            this.errorDisplay.showNotification('Fehler beim Erstellen der Session', 'error');
+        }
+    }
+
+    updateCurrentSessionCard() {
+        // Implementation für Session Card Update
+        console.log('Updating current session card...');
+    }
+
+    updateSessionManagerState() {
+        // Implementation für Session Manager State Update
+        console.log('Updating session manager state...');
+    }
+
+    setRandomPlaceholder() {
+        // Implementation für Random Placeholder
+        console.log('Setting random placeholder...');
+    }
+
+    isSessionSaved() {
+        return this.currentSession && this.currentSession.isSaved;
+    }
+
+    markAsUnsaved() {
+        if (this.currentSession && this.isSessionSaved()) {
+            this.errorDisplay.hasUnsavedChanges = true;
+            this.errorDisplay.updateUnsavedChangesIndicator();
+        }
+    }
+
+    markAsSaved() {
+        this.errorDisplay.hasUnsavedChanges = false;
+        this.errorDisplay.updateUnsavedChangesIndicator();
+    }
+
+    updateUnsavedChangesIndicator() {
+        const indicator = document.getElementById('unsavedChangesIndicator');
+        if (!indicator) return;
+
+        const shouldShow = !this.errorDisplay.autoSaveEnabled && 
+                          this.errorDisplay.hasUnsavedChanges && 
+                          this.currentSession && 
+                          this.isSessionSaved();
+
+        indicator.style.display = shouldShow ? 'flex' : 'none';
+    }
+
+    saveCurrentSessionDirect() {
+        this.errorDisplay.showNotification('Direct session save noch nicht implementiert', 'info');
+    }
+
     // Additional methods would continue here with the remaining session-related functions...
     // This includes all the inline session management functions from the original app.js
 }
