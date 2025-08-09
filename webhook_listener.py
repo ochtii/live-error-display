@@ -82,15 +82,30 @@ class WebhookListener:
         self.logger = logging.getLogger('webhook_listener')
         self.logger.setLevel(logging.DEBUG)
         
-        # Console handler with colors
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.DEBUG)  # Show all messages
-        console_formatter = ColoredFormatter(
+        # Clear any existing handlers
+        self.logger.handlers.clear()
+        
+        # Stdout handler for INFO and DEBUG (normale Meldungen)
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setLevel(logging.DEBUG)
+        stdout_handler.addFilter(lambda record: record.levelno <= logging.INFO)
+        stdout_formatter = ColoredFormatter(
             f'{Fore.BLUE}%(asctime)s{Style.RESET_ALL} - '
             f'{Fore.MAGENTA}%(name)s{Style.RESET_ALL} - '
             f'%(levelname)s - %(message)s'
         )
-        console_handler.setFormatter(console_formatter)
+        stdout_handler.setFormatter(stdout_formatter)
+        
+        # Stderr handler nur für WARNING und ERROR (echte Probleme)
+        stderr_handler = logging.StreamHandler(sys.stderr)
+        stderr_handler.setLevel(logging.WARNING)
+        stderr_formatter = ColoredFormatter(
+            f'{Fore.BLUE}%(asctime)s{Style.RESET_ALL} - '
+            f'{Fore.MAGENTA}%(name)s{Style.RESET_ALL} - '
+            f'%(levelname)s - %(message)s'
+        )
+        stderr_handler.setFormatter(stderr_formatter)
+        
         
         # File handler for persistent logging
         log_file = "/var/log/webhook-listener.log"
@@ -114,7 +129,15 @@ class WebhookListener:
             file_handler.setFormatter(file_formatter)
             self.logger.addHandler(file_handler)
         
-        self.logger.addHandler(console_handler)
+        # Add both handlers to logger
+        self.logger.addHandler(stdout_handler)
+        self.logger.addHandler(stderr_handler)
+        
+        # Configure Flask/Werkzeug logging to use stdout for INFO
+        werkzeug_logger = logging.getLogger('werkzeug')
+        werkzeug_logger.handlers.clear()
+        werkzeug_logger.addHandler(stdout_handler)
+        werkzeug_logger.setLevel(logging.INFO)
         
     def load_config(self):
         """Load configuration from environment variables"""
@@ -539,11 +562,17 @@ class WebhookListener:
         self.logger.info(f"📦 PM2 app: {self.pm2_app_name}")
         
         try:
+            # Suppress Flask development server warning
+            import logging
+            log = logging.getLogger('werkzeug')
+            log.setLevel(logging.ERROR)
+            
             self.app.run(
                 host=self.host,
                 port=self.port,
                 debug=False,
-                threaded=True
+                threaded=True,
+                use_reloader=False
             )
         except KeyboardInterrupt:
             self.logger.info(f"\n{Fore.YELLOW}🛑 Webhook listener stopped{Style.RESET_ALL}")
