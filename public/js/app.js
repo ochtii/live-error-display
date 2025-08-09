@@ -2245,7 +2245,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 
                 // Save to last sessions if checkbox is checked
                 if (saveLocally) {
-                    this.saveToLastSessions(this.currentSession, password);
+                    this.saveToLastSessions(this.currentSession);
                     this.setLastActiveSession(this.currentSession.token);
                 }
                 
@@ -2256,7 +2256,6 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 
                 // Clear input fields
                 document.getElementById('newSessionName').value = '';
-                document.getElementById('newSessionPassword').value = '';
                 
                 // Update current session display in session manager
                 this.updateCurrentSessionCard();
@@ -2451,7 +2450,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     }
 
     // === LAST SESSIONS MANAGEMENT ===
-    saveToLastSessions(sessionData, password = '') {
+    saveToLastSessions(sessionData) {
         const lastSessions = this.getLastSessions();
         
         // Check if session already exists
@@ -2460,7 +2459,6 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         const lastSession = {
             token: sessionData.token,
             name: sessionData.name,
-            password: password, // Store password for convenience
             createdAt: sessionData.createdAt,
             lastAccessed: new Date().toISOString(),
             hasPassword: sessionData.hasPassword,
@@ -2541,7 +2539,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         if (activeSession) {
             console.log(`🔄 Auto-loading last active session: ${activeSession.name}`);
             try {
-                await this.restoreLastSession(activeSession.token, activeSession.password);
+                await this.restoreLastSession(activeSession.token);
                 return true;
             } catch (error) {
                 console.error('Failed to restore last active session:', error);
@@ -2553,14 +2551,14 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         return false;
     }
     
-    async restoreLastSession(token, password = '') {
+    async restoreLastSession(token) {
         try {
             const response = await fetch(`${this.serverUrl}/api/session/${token}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ password: password })
+                body: JSON.stringify({})
             });
 
             if (response.ok) {
@@ -2577,7 +2575,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 };
                 
                 // Update last sessions
-                this.saveToLastSessions(this.currentSession, password);
+                this.saveToLastSessions(this.currentSession);
                 this.setLastActiveSession(token);
                 
                 this.updateSessionDisplay();
@@ -2653,7 +2651,7 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         
         if (session) {
             try {
-                await this.restoreLastSession(token, session.password);
+                await this.restoreLastSession(token);
                 this.showNotification(`Session "${session.name}" wiederhergestellt`, 'success');
                 this.onSessionLoaded();
                 this.loadLastSessionsInline(); // Refresh display
