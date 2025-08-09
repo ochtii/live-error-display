@@ -51,9 +51,11 @@ check_dependencies_silent() {
     fi
   done
   
-  # PM2 Version prüfen (still)
+  # PM2 Version prüfen (still) - ohne bc dependency
   local pm2_version=$(pm2 -v 2>/dev/null || echo "0")
-  if [[ $(echo "$pm2_version < 5.0" | bc -l) -eq 1 ]]; then
+  # Einfache Versionsprüfung ohne bc
+  local major_version=$(echo "$pm2_version" | cut -d. -f1)
+  if [ "$major_version" -lt 5 ] 2>/dev/null; then
     return 1
   fi
   return 0
