@@ -2,7 +2,28 @@
 
 class ErrorDisplay {
     constructor() {
-        // Server läuft auf demselben Host und Port wie das Frontend
+        // Server läu    showStartPage() {
+        console.log('🏠 Showing start page...');
+        
+        // Set current mode to start
+        this.currentMode = 'start';
+        
+        // Hide all views
+        const views = ['homeView', 'liveView', 'archiveView', 'sessionsView', 'settingsView', 'apiView'];
+        views.forEach(viewId => {
+            const view = document.getElementById(viewId);
+            if (view) {
+                view.classList.remove('active');
+            }
+        });
+        
+        // Show home view as start page
+        const homeView = document.getElementById('homeView');
+        if (homeView) {
+            homeView.classList.add('active');
+        }
+        
+        // Host und Port wie das Frontend
         this.serverUrl = `${window.location.protocol}//${window.location.host}`;
         
         console.log(`🔗 Server URL: ${this.serverUrl}`);
@@ -152,37 +173,43 @@ class ErrorDisplay {
         
         this.currentMode = mode;
         
-        // Update button states
-        const buttons = ['liveBtn', 'archiveBtn', 'settingsBtn', 'apiBtn', 'sessionBtn'];
-        buttons.forEach(btnId => {
-            const btn = document.getElementById(btnId);
-            if (btn) {
-                btn.classList.toggle('active', btnId === mode + 'Btn');
+        // Update navigation button states
+        const navButtons = document.querySelectorAll('.nav-btn');
+        navButtons.forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset.view === mode) {
+                btn.classList.add('active');
             }
         });
         
-        // Hide all containers
-        const containers = ['errorsContainer', 'settingsContainer', 'apiPanel', 'sessionManagerContainer'];
-        containers.forEach(containerId => {
-            const container = document.getElementById(containerId);
-            if (container) container.style.display = 'none';
+        // Hide all views
+        const views = ['homeView', 'liveView', 'archiveView', 'sessionsView', 'settingsView', 'apiView'];
+        views.forEach(viewId => {
+            const view = document.getElementById(viewId);
+            if (view) {
+                view.classList.remove('active');
+            }
         });
         
-        // Show appropriate container
+        // Show appropriate view
+        const targetView = mode + 'View';
+        const view = document.getElementById(targetView);
+        if (view) {
+            view.classList.add('active');
+        }
+        
+        // Handle mode-specific logic
         if (mode === 'live') {
-            document.getElementById('errorsContainer').style.display = 'block';
             this.connectSSE();
         } else if (mode === 'settings') {
-            document.getElementById('settingsContainer').style.display = 'block';
             this.disconnectSSE();
         } else if (mode === 'api') {
-            document.getElementById('apiPanel').style.display = 'block';
             this.disconnectSSE();
         } else if (mode === 'archive') {
-            document.getElementById('errorsContainer').style.display = 'block';
             this.disconnectSSE();
-        } else if (mode === 'session-manager') {
-            document.getElementById('sessionManagerContainer').style.display = 'block';
+        } else if (mode === 'sessions') {
+            this.disconnectSSE();
+        } else if (mode === 'home') {
             this.disconnectSSE();
         }
         
@@ -202,17 +229,19 @@ class ErrorDisplay {
 
     setupEventListeners() {
         // Mode switching - with null checks
+        const homeBtn = document.getElementById('homeBtn');
         const liveBtn = document.getElementById('liveBtn');
         const archiveBtn = document.getElementById('archiveBtn');
         const settingsBtn = document.getElementById('settingsBtn');
         const apiBtn = document.getElementById('apiBtn');
         const sessionBtn = document.getElementById('sessionBtn');
         
+        if (homeBtn) homeBtn.addEventListener('click', () => this.switchMode('home'));
         if (liveBtn) liveBtn.addEventListener('click', () => this.switchMode('live'));
         if (archiveBtn) archiveBtn.addEventListener('click', () => this.switchMode('archive'));
         if (settingsBtn) settingsBtn.addEventListener('click', () => this.switchMode('settings'));
         if (apiBtn) apiBtn.addEventListener('click', () => this.switchMode('api'));
-        if (sessionBtn) sessionBtn.addEventListener('click', () => this.switchMode('session-manager'));
+        if (sessionBtn) sessionBtn.addEventListener('click', () => this.switchMode('sessions'));
         
         // Session Management Event Listeners - delegiert an SessionManager
         this.sessionManager.setupSessionEventListeners();
