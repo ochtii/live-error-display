@@ -112,44 +112,6 @@ class SessionManager {
         }
     }
 
-    async createNewSession() {
-        try {
-            const response = await fetch(`${this.errorDisplay.serverUrl}/api/token`);
-            if (response.ok) {
-                const data = await response.json();
-                this.currentSession = {
-                    name: data.session.name,
-                    token: data.token,
-                    createdAt: data.session.createdAt,
-                    lastModified: data.session.lastModified,
-                    modifiedBy: data.session.modifiedBy,
-                    errorCount: data.session.errorCount,
-                    hasPassword: data.session.hasPassword,
-                    isSaved: false // New sessions are not saved initially
-                };
-                localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
-                this.updateSessionDisplay();
-                
-                // Connect to SSE with new session token
-                this.errorDisplay.disconnectSSE();
-                this.errorDisplay.connectSSE();
-                
-                console.log('✅ New session created:', {
-                    name: this.currentSession.name,
-                    token: this.currentSession.token.substring(0, 16) + '...'
-                });
-                return this.currentSession;
-            } else {
-                console.error('Failed to create session:', response.status);
-                this.errorDisplay.showNotification('Fehler beim Erstellen der Session', 'error');
-            }
-        } catch (error) {
-            console.error('Failed to create session:', error);
-            this.errorDisplay.showNotification('Verbindungsfehler beim Erstellen der Session', 'error');
-        }
-        return null;
-    }
-
     restoreSession(sessionData) {
         this.currentSession = sessionData;
         localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
@@ -552,16 +514,6 @@ class SessionManager {
         this.errorDisplay.updateNavigationState(false);
     }
 
-    checkForRecoverableSessions() {
-        const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '[]');
-        if (savedSessions.length > 0) {
-            console.log(`🔍 Found ${savedSessions.length} saved sessions that could be restored`);
-            setTimeout(() => {
-                this.errorDisplay.showNotification(`${savedSessions.length} gespeicherte Session(s) verfügbar - Session Manager öffnen zum Wiederherstellen`, 'info');
-            }, 2000);
-        }
-    }
-
     startAutoCleanupTimer() {
         // Clean up expired sessions every hour
         setInterval(() => {
@@ -634,40 +586,6 @@ class SessionManager {
         this.errorDisplay.switchMode('session-manager');
     }
 
-    copySessionToken() {
-        if (this.currentSession && this.currentSession.token) {
-            navigator.clipboard.writeText(this.currentSession.token).then(() => {
-                this.errorDisplay.showNotification('Session Token kopiert!', 'success');
-            }).catch(err => {
-                console.error('Could not copy text: ', err);
-                this.errorDisplay.showNotification('Fehler beim Kopieren', 'error');
-            });
-        }
-    }
-
-    clearSession() {
-        if (this.currentSession) {
-            const confirmClear = confirm(`Session "${this.currentSession.name}" wirklich löschen?`);
-            if (confirmClear) {
-                localStorage.removeItem('currentSession');
-                this.currentSession = null;
-                
-                this.errorDisplay.showNotification('Session gelöscht', 'success');
-                this.errorDisplay.showStartPage();
-                this.errorDisplay.updateNavigationState(false);
-            }
-        }
-    }
-
-    saveCurrentSession() {
-        // Implementation für Session speichern
-        this.errorDisplay.showNotification('Session-Speichern noch nicht implementiert', 'info');
-    }
-
-    endCurrentSession() {
-        this.clearSession();
-    }
-
     toggleAutoSave(enabled) {
         this.errorDisplay.autoSaveEnabled = enabled;
         if (enabled) {
@@ -685,34 +603,6 @@ class SessionManager {
     loadLastSessionsInline() {
         // Implementation für letzte Sessions laden
         console.log('Loading last sessions...');
-    }
-
-    updateSessionDisplay() {
-        const sessionBar = document.getElementById('sessionBar');
-        const sessionInfo = document.getElementById('sessionInfo');
-        const sessionToken = document.getElementById('sessionToken');
-        
-        if (this.currentSession && sessionBar && sessionInfo && sessionToken) {
-            sessionBar.style.display = 'block';
-            sessionInfo.textContent = `Session: ${this.currentSession.name} (${this.currentSession.errorCount || 0} Errors)`;
-            sessionToken.textContent = this.currentSession.token;
-            
-            // Update last accessed time
-            this.currentSession.lastAccessed = new Date().toISOString();
-            localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
-            
-            // Update navigation state
-            this.errorDisplay.updateNavigationState(true);
-        } else {
-            if (sessionBar) sessionBar.style.display = 'none';
-            this.errorDisplay.updateNavigationState(false);
-            this.errorDisplay.showStartPage();
-        }
-    }
-
-    generateRandomSessionName() {
-        const randomIndex = Math.floor(Math.random() * this.randomSessionNames.length);
-        return this.randomSessionNames[randomIndex];
     }
 
     async createNewSession() {
@@ -767,10 +657,6 @@ class SessionManager {
     setRandomPlaceholder() {
         // Implementation für Random Placeholder
         console.log('Setting random placeholder...');
-    }
-
-    isSessionSaved() {
-        return this.currentSession && this.currentSession.isSaved;
     }
 
     markAsUnsaved() {
