@@ -117,8 +117,8 @@ pull_changes() {
   # Aktuelle Commit-ID speichern
   local old_commit=$(git rev-parse HEAD)
   
-  # Änderungen holen
-  git pull origin main
+  # Änderungen holen aber Output speichern für den Fall von Änderungen
+  local pull_output=$(git pull origin main 2>&1)
   
   # Neue Commit-ID
   local new_commit=$(git rev-parse HEAD)
@@ -129,6 +129,12 @@ pull_changes() {
     return 1
   else
     success "Neue Änderungen gefunden: $old_commit -> $new_commit"
+    # Speichere die Änderungen für detailliertes Feedback
+    echo "$pull_output" > /tmp/pull_output.txt
+    # Geänderte Dateien speichern
+    git diff --name-status $old_commit $new_commit > /tmp/changed_files.txt
+    # Speichere den Commit-Log
+    git log --pretty=format:"%h - %an, %ar : %s" $old_commit..$new_commit > /tmp/commit_log.txt
     return 0
   fi
 }
@@ -241,15 +247,42 @@ deploy() {
   # Nur ausgeben wenn wirklich etwas passiert
   
   if ! acquire_lock; then
-    return 0
+    return 1  # Kein Deployment durchgeführt
   fi
   
   # Hauptfunktionen
   init_repo
-  pull_changes || { release_lock; return 0; }
+  pull_changes
+  local changes_found=$?
+  
+  # Wenn keine Änderungen gefunden wurden
+  if [ $changes_found -eq 1 ]; then
+    release_lock
+    return 1  # Kein Deployment durchgeführt
+  fi
   
   # Ab hier gibt es Änderungen, die wir deployen müssen
   info "Starte Deployment-Prozess..."
+  
+  # Detailliertes Feedback zu den Änderungen
+  if [ -f "/tmp/pull_output.txt" ]; then
+    info "=== Git Pull Ausgabe ==="
+    cat /tmp/pull_output.txt
+    info "======================="
+  fi
+  
+  if [ -f "/tmp/changed_files.txt" ]; then
+    info "=== Geänderte Dateien ==="
+    cat /tmp/changed_files.txt
+    info "========================="
+  fi
+  
+  if [ -f "/tmp/commit_log.txt" ]; then
+    info "=== Commit-Logs ==="
+    cat /tmp/commit_log.txt
+    info "==================="
+  fi
+  
   handle_merge_conflicts
   install_dependencies
   build_app
@@ -257,6 +290,11 @@ deploy() {
   
   success "Deployment abgeschlossen!"
   release_lock
+  
+  # Temp-Dateien aufräumen
+  rm -f /tmp/pull_output.txt /tmp/changed_files.txt /tmp/commit_log.txt
+  
+  return 0  # Deployment erfolgreich durchgeführt
 }
 
 # === HAUPTPROGRAMM ===
@@ -279,7 +317,32 @@ deploy
 
 # Fortlaufende Überwachung
 info "Starte fortlaufende Überwachung..."
+
+# Zähler für reduzierte Logs
+COUNTER=0
+MAX_SILENT_RUNS=10
+
 while true; do
+  # Reduziere Ausgabe, zeige nur alle 10 Durchläufe eine Nachricht an
+  if [ $COUNTER -eq 0 ]; then
+    info "Überwache Repository (stille Prüfungen für die nächsten $MAX_SILENT_RUNS Durchläufe)..."
+  fi
+  
+  # Deployment ausführen - hier werden die Logs reduziert
+  # Bei erkannten Änderungen gibt es ausführliches Feedback
   deploy
-  sleep $CHECK_INTERVAL
+  
+  # Bei Änderungen Counter zurücksetzen für neuen Zyklus der stillen Prüfungen
+  if [ $? -eq 0 ]; then
+    COUNTER=0
+    # Längere Pause nach Deployment um System zu entlasten
+    sleep $((CHECK_INTERVAL * 5))
+  else
+    # Zähler erhöhen und prüfen ob wir die Nachricht ausgeben
+    COUNTER=$((COUNTER + 1))
+    if [ $COUNTER -ge $MAX_SILENT_RUNS ]; then
+      COUNTER=0
+    fi
+    sleep $CHECK_INTERVAL
+  fi
 done
