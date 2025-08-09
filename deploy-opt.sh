@@ -280,6 +280,316 @@ setup_pm2_silent() {
   sudo -u $PM2_USER pm2 save
 }
 
+# === DETAILLIERTE DEPLOYMENT-FUNKTIONEN ===
+# Diese Funktionen geben umfassende Logs aus, wenn Änderungen erkannt werden
+
+perform_detailed_deployment() {
+  info "=== DETAILLIERTES DEPLOYMENT GESTARTET ==="
+  
+  # Detaillierte Git-Informationen ausgeben
+  show_git_details
+  
+  # Detaillierte Dateianalyse
+  analyze_changed_files
+  
+  # Merge-Konflikte behandeln
+  handle_merge_conflicts
+  
+  # Dependencies installieren
+  install_dependencies
+  
+  # Anwendung bauen
+  build_app
+  
+  # PM2 Services mit detailliertem Feedback verwalten
+  manage_pm2_services
+  
+  # API Health Check durchführen
+  perform_health_check
+  
+  success "=== DETAILLIERTES DEPLOYMENT ABGESCHLOSSEN ==="
+}
+
+show_git_details() {
+  info "=== GIT DETAILS ==="
+  
+  if [ -f "/tmp/pull_output.txt" ]; then
+    info "Git Pull Ausgabe:"
+    cat /tmp/pull_output.txt | while IFS= read -r line; do
+      info "  $line"
+    done
+  fi
+  
+  if [ -f "/tmp/commit_log.txt" ]; then
+    info "Neue Commits:"
+    cat /tmp/commit_log.txt | while IFS= read -r line; do
+      info "  📝 $line"
+    done
+  fi
+  
+  # Aktuelle Branch und Remote Info
+  cd "$REPO_DIR"
+  local current_branch=$(git rev-parse --abbrev-ref HEAD)
+  local current_commit=$(git rev-parse HEAD)
+  local commit_message=$(git log -1 --pretty=format:"%s")
+  local commit_author=$(git log -1 --pretty=format:"%an")
+  local commit_date=$(git log -1 --pretty=format:"%ad" --date=relative)
+  
+  info "Branch: $current_branch"
+  info "Aktueller Commit: $current_commit"
+  info "Commit Message: $commit_message"
+  info "Autor: $commit_author ($commit_date)"
+}
+
+analyze_changed_files() {
+  info "=== DATEI-ANALYSE ==="
+  
+  if [ -f "/tmp/changed_files.txt" ]; then
+    local file_count=$(wc -l < /tmp/changed_files.txt)
+    info "Anzahl geänderter Dateien: $file_count"
+    
+    # Kategorisiere Dateien
+    local js_files=$(grep -E '\.(js|ts|jsx|tsx)$' /tmp/changed_files.txt | wc -l)
+    local css_files=$(grep -E '\.(css|scss|sass)$' /tmp/changed_files.txt | wc -l)
+    local html_files=$(grep -E '\.(html|htm)$' /tmp/changed_files.txt | wc -l)
+    local config_files=$(grep -E '\.(json|yml|yaml|config\.js)$' /tmp/changed_files.txt | wc -l)
+    local server_files=$(grep -E 'server\.js|app\.js|index\.js' /tmp/changed_files.txt | wc -l)
+    
+    [ "$js_files" -gt 0 ] && info "  📜 JavaScript/TypeScript Dateien: $js_files"
+    [ "$css_files" -gt 0 ] && info "  🎨 CSS/Styling Dateien: $css_files"
+    [ "$html_files" -gt 0 ] && info "  🌐 HTML Dateien: $html_files"
+    [ "$config_files" -gt 0 ] && info "  ⚙️  Konfigurationsdateien: $config_files"
+    [ "$server_files" -gt 0 ] && warn "  🔧 Server-Dateien geändert: $server_files (Neustart erforderlich)"
+    
+    info "Detaillierte Dateiliste:"
+    cat /tmp/changed_files.txt | while IFS= read -r line; do
+      local status=$(echo "$line" | cut -f1)
+      local file=$(echo "$line" | cut -f2)
+      case "$status" in
+        "A") info "  ➕ Hinzugefügt: $file" ;;
+        "M") info "  ✏️  Geändert: $file" ;;
+        "D") info "  ❌ Gelöscht: $file" ;;
+        "R"*) info "  🔄 Umbenannt: $file" ;;
+        *) info "  ❓ $status: $file" ;;
+      esac
+    done
+  fi
+}
+
+manage_pm2_services() {
+  info "=== PM2 SERVICE MANAGEMENT ==="
+  
+  cd "$REPO_DIR"
+  
+  # Aktuelle PM2 Prozesse auflisten
+  info "Aktuelle PM2 Prozesse vor Deployment:"
+  sudo -u $PM2_USER pm2 list --no-color | while IFS= read -r line; do
+    info "  $line"
+  done
+  
+  # PM2 Ecosystem-Datei verwalten
+  local config_file=""
+  if [ -f "ecosystem.config.js" ]; then
+    config_file="ecosystem.config.js"
+    info "Verwende ecosystem.config.js"
+  elif [ -f "ecosystem.config.json" ]; then
+    config_file="ecosystem.config.json"
+    info "Verwende ecosystem.config.json"
+  else
+    warn "Keine PM2 Ecosystem-Datei gefunden. Erstelle Standard-Konfiguration..."
+    create_default_ecosystem
+    config_file="ecosystem.config.js"
+  fi
+  
+  # Prozesse neu starten/starten
+  restart_pm2_processes "$config_file"
+  
+  # PM2 Status nach Neustart
+  info "PM2 Prozesse nach Deployment:"
+  sudo -u $PM2_USER pm2 list --no-color | while IFS= read -r line; do
+    info "  $line"
+  done
+  
+  # PM2 Logs der letzten Minuten anzeigen
+  info "Aktuelle PM2 Logs (letzte 10 Zeilen):"
+  sudo -u $PM2_USER pm2 logs --lines 10 --no-color | while IFS= read -r line; do
+    info "  $line"
+  done
+}
+
+create_default_ecosystem() {
+  cat > ecosystem.config.js << EOL
+module.exports = {
+  apps: [{
+    name: "${SERVICE_NAME}",
+    script: "server.js",
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: "500M",
+    env: {
+      NODE_ENV: "production",
+      PORT: 8080
+    },
+    log_date_format: "YYYY-MM-DD HH:mm:ss Z",
+    error_file: "/var/log/${SERVICE_NAME}-error.log",
+    out_file: "/var/log/${SERVICE_NAME}-out.log",
+    log_file: "/var/log/${SERVICE_NAME}-combined.log"
+  }]
+};
+EOL
+  success "Standard PM2 Ecosystem-Konfiguration erstellt"
+}
+
+restart_pm2_processes() {
+  local config_file="$1"
+  
+  info "Verwende Konfigurationsdatei: $config_file"
+  
+  # Prüfe, ob Service bereits läuft
+  if sudo -u $PM2_USER pm2 list | grep -q "$SERVICE_NAME"; then
+    info "Service '$SERVICE_NAME' läuft bereits. Führe Reload durch..."
+    
+    # Graceful reload für Zero-Downtime
+    if sudo -u $PM2_USER pm2 reload "$config_file" --update-env; then
+      success "✅ Service '$SERVICE_NAME' erfolgreich neu geladen"
+    else
+      warn "Reload fehlgeschlagen. Versuche Restart..."
+      if sudo -u $PM2_USER pm2 restart "$config_file"; then
+        success "✅ Service '$SERVICE_NAME' erfolgreich neu gestartet"
+      else
+        error "❌ Fehler beim Neustarten des Services '$SERVICE_NAME'!"
+      fi
+    fi
+  else
+    info "Service '$SERVICE_NAME' läuft nicht. Starte neu..."
+    if sudo -u $PM2_USER pm2 start "$config_file"; then
+      success "✅ Service '$SERVICE_NAME' erfolgreich gestartet"
+    else
+      error "❌ Fehler beim Starten des Services '$SERVICE_NAME'!"
+    fi
+  fi
+  
+  # Warte kurz, damit der Service hochfahren kann
+  info "Warte 3 Sekunden auf Service-Start..."
+  sleep 3
+  
+  # PM2 Konfiguration speichern
+  info "Speichere PM2-Konfiguration für Autostart..."
+  if sudo -u $PM2_USER pm2 save; then
+    success "✅ PM2-Konfiguration gespeichert"
+  else
+    warn "⚠️  Warnung: PM2-Konfiguration konnte nicht gespeichert werden"
+  fi
+}
+
+perform_health_check() {
+  info "=== API HEALTH CHECK ==="
+  
+  local health_url="http://localhost:8080/health"
+  local api_url="http://localhost:8080/api/status"
+  local max_attempts=5
+  local attempt=1
+  
+  info "Führe Health Check durch..."
+  info "Health Check URL: $health_url"
+  info "API Status URL: $api_url"
+  
+  while [ $attempt -le $max_attempts ]; do
+    info "Versuch $attempt/$max_attempts..."
+    
+    # Health Check
+    local health_response=$(curl -s -w "%{http_code}" -o /tmp/health_response.txt "$health_url" 2>/dev/null || echo "000")
+    
+    if [ "$health_response" = "200" ]; then
+      success "✅ Health Check erfolgreich (HTTP 200)"
+      
+      # Zeige Health Check Response
+      if [ -f "/tmp/health_response.txt" ]; then
+        local health_content=$(cat /tmp/health_response.txt)
+        info "Health Response: $health_content"
+      fi
+      
+      # API Status Check
+      local api_response=$(curl -s -w "%{http_code}" -o /tmp/api_response.txt "$api_url" 2>/dev/null || echo "000")
+      
+      if [ "$api_response" = "200" ]; then
+        success "✅ API Status Check erfolgreich (HTTP 200)"
+        
+        if [ -f "/tmp/api_response.txt" ]; then
+          local api_content=$(cat /tmp/api_response.txt)
+          info "API Response: $api_content"
+        fi
+      else
+        warn "⚠️  API Status Check fehlgeschlagen (HTTP $api_response)"
+        if [ -f "/tmp/api_response.txt" ]; then
+          local api_content=$(cat /tmp/api_response.txt)
+          warn "API Error Response: $api_content"
+        fi
+      fi
+      
+      # Memory und CPU Info
+      show_system_status
+      
+      # Cleanup
+      rm -f /tmp/health_response.txt /tmp/api_response.txt
+      return 0
+      
+    elif [ "$health_response" = "000" ]; then
+      warn "⚠️  Keine Verbindung möglich (Versuch $attempt/$max_attempts)"
+    else
+      warn "⚠️  Health Check fehlgeschlagen: HTTP $health_response (Versuch $attempt/$max_attempts)"
+      if [ -f "/tmp/health_response.txt" ]; then
+        local error_content=$(cat /tmp/health_response.txt)
+        warn "Error Response: $error_content"
+      fi
+    fi
+    
+    if [ $attempt -lt $max_attempts ]; then
+      info "Warte 5 Sekunden vor nächstem Versuch..."
+      sleep 5
+    fi
+    
+    attempt=$((attempt + 1))
+  done
+  
+  error "❌ Health Check nach $max_attempts Versuchen fehlgeschlagen!"
+  
+  # Zeige PM2 Status bei fehlgeschlagenem Health Check
+  warn "PM2 Status bei fehlgeschlagenem Health Check:"
+  sudo -u $PM2_USER pm2 status --no-color | while IFS= read -r line; do
+    warn "  $line"
+  done
+  
+  # Cleanup
+  rm -f /tmp/health_response.txt /tmp/api_response.txt
+  return 1
+}
+
+show_system_status() {
+  info "=== SYSTEM STATUS ==="
+  
+  # Memory Information
+  local memory_info=$(free -h | grep "^Mem:" | awk '{print "Gesamt: "$2", Verwendet: "$3", Verfügbar: "$7}')
+  info "💾 Memory: $memory_info"
+  
+  # Disk Space
+  local disk_info=$(df -h "$REPO_DIR" | tail -1 | awk '{print "Verfügbar: "$4"/"$2" ("$5" verwendet)"}')
+  info "💿 Disk Space: $disk_info"
+  
+  # Load Average
+  local load_avg=$(uptime | awk -F'load average:' '{print $2}')
+  info "⚡ Load Average:$load_avg"
+  
+  # PM2 Memory Usage
+  if command -v pm2 >/dev/null 2>&1; then
+    info "🔧 PM2 Memory Usage:"
+    sudo -u $PM2_USER pm2 monit --no-color | head -10 | while IFS= read -r line; do
+      info "  $line"
+    done
+  fi
+}
+
 deploy() {
   # Völlig still, wenn keine Änderungen
   
@@ -298,38 +608,26 @@ deploy() {
     return 1  # Kein Deployment durchgeführt
   fi
   
-  # Ab hier gibt es Änderungen - erster Log (Zeile 1 von 2)
-  success "Deployment: Änderungen werden installiert..."
+  # Ab hier gibt es Änderungen - verwende detailliertes Deployment
+  success "🚀 ÄNDERUNGEN ERKANNT - Starte detailliertes Deployment..."
   
-  # Detailliertes Feedback zu den Änderungen in einer Datei statt Logs
-  if [ -f "/tmp/pull_output.txt" ] || [ -f "/tmp/changed_files.txt" ] || [ -f "/tmp/commit_log.txt" ]; then
-    # Alle Outputs in eine Datei zusammenführen für späteren Zugriff
-    {
-      echo "=== Git Pull Ausgabe ==="
-      cat /tmp/pull_output.txt 2>/dev/null
-      echo
-      echo "=== Geänderte Dateien ==="
-      cat /tmp/changed_files.txt 2>/dev/null
-      echo
-      echo "=== Commit-Logs ==="
-      cat /tmp/commit_log.txt 2>/dev/null
-    } > /tmp/deploy_details.log
-  fi
+  # Führe detailliertes Deployment durch
+  perform_detailed_deployment
+  local deployment_result=$?
   
-  # Funktionen ohne Logs ausführen
-  handle_merge_conflicts_silent
-  install_dependencies_silent
-  build_app_silent
-  setup_pm2_silent
-  
-  # Abschluss-Log (Zeile 2 von 2)
-  success "Deployment erfolgreich abgeschlossen - Details in /tmp/deploy_details.log"
+  # Release Lock
   release_lock_silent
   
   # Temp-Dateien aufräumen
   rm -f /tmp/pull_output.txt /tmp/changed_files.txt /tmp/commit_log.txt
   
-  return 0  # Deployment erfolgreich durchgeführt
+  if [ $deployment_result -eq 0 ]; then
+    success "🎉 DEPLOYMENT ERFOLGREICH ABGESCHLOSSEN!"
+    return 0  # Deployment erfolgreich durchgeführt
+  else
+    error "💥 DEPLOYMENT FEHLGESCHLAGEN!"
+    return 1
+  fi
 }
 
 # === HAUPTPROGRAMM ===
