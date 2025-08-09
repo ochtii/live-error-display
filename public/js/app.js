@@ -127,36 +127,38 @@ class ErrorDisplay {
     }
 
     showStartPage() {
-        console.log('📋 Showing start page (session manager)');
+        console.log('🏠 Showing start page...');
         
-        // Set current mode to start
-        this.currentMode = 'start';
+        // Set current mode to home
+        this.currentMode = 'home';
         
-        // Hide all containers
-        document.getElementById('errorsContainer').style.display = 'none';
-        document.getElementById('settingsContainer').style.display = 'none';
-        document.getElementById('apiPanel').style.display = 'none';
+        // Hide all views
+        const views = ['homeView', 'liveView', 'archiveView', 'sessionsView', 'settingsView', 'apiView'];
+        views.forEach(viewId => {
+            const view = document.getElementById(viewId);
+            if (view) {
+                view.classList.remove('active');
+            }
+        });
         
-        // Show session manager container as start page
-        const sessionManagerContainer = document.getElementById('sessionManagerContainer');
-        if (sessionManagerContainer) {
-            sessionManagerContainer.style.display = 'block';
+        // Show home view as start page
+        const homeView = document.getElementById('homeView');
+        if (homeView) {
+            homeView.classList.add('active');
         }
         
         // Reset all navigation buttons to inactive
-        const buttons = ['liveBtn', 'archiveBtn', 'settingsBtn', 'apiBtn', 'sessionBtn'];
-        buttons.forEach(btnId => {
-            const btn = document.getElementById(btnId);
-            if (btn) btn.classList.remove('active');
-        });
+        const navButtons = document.querySelectorAll('.nav-btn');
+        navButtons.forEach(btn => btn.classList.remove('active'));
+        
+        // Activate home button
+        const homeBtn = document.getElementById('homeBtn');
+        if (homeBtn) homeBtn.classList.add('active');
         
         // Ensure session UI is hidden when no session active
         if (!this.sessionManager.currentSession) {
-            const sessionBar = document.getElementById('sessionBar');
-            const headerSession = document.getElementById('headerSession');
-            
-            if (sessionBar) sessionBar.style.display = 'none';
-            if (headerSession) headerSession.style.display = 'none';
+            const sessionInfo = document.getElementById('sessionInfo');
+            if (sessionInfo) sessionInfo.style.display = 'none';
         }
     }
 
