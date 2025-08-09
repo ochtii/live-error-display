@@ -1449,7 +1449,7 @@ class ErrorDisplay {
         // Kurz warten bis DOM vollständig geladen ist
         setTimeout(() => {
             this.updatePushPermissionStatus();
-        }, 100);
+        }, 500);
     }
     
     // Push-Berechtigung prüfen und Status aktualisieren
@@ -1458,7 +1458,7 @@ class ErrorDisplay {
         const buttonElement = document.getElementById('requestPushPermission');
         
         if (!statusElement || !buttonElement) {
-            console.error('Push-Elemente nicht gefunden im DOM');
+            console.log('Push-Elemente noch nicht im DOM verfügbar, überspringe Update');
             return;
         }
         
@@ -1665,9 +1665,6 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         if (window.soundManager) {
             window.soundManager.setEnabled(this.settings.enableSounds);
         }
-        
-        // Push-Benachrichtigungen initialisieren
-        this.initPushNotifications();
     }
     
     // Alle LocalStorage Daten anzeigen
