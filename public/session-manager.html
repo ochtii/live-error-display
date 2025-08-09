@@ -134,16 +134,6 @@
             color: white;
         }
         
-        .input-group {
-            display: flex;
-            gap: 0.5rem;
-            align-items: stretch;
-        }
-        
-        .input-group input {
-            flex: 1;
-        }
-        
         .btn-icon {
             padding: 0.75rem;
             min-width: 3rem;
@@ -167,6 +157,37 @@
         .session-password-input {
             font-family: 'Courier New', monospace;
         }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .required {
+            color: var(--danger);
+            font-weight: bold;
+        }
+        
+        .form-group input {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: stretch;
+        }
+        
+        .input-group input {
+            flex: 1;
+        }
     </style>
 </head>
 <body>
@@ -185,24 +206,32 @@
                 <h2>🆕 Neue Session starten</h2>
                 <p>Erstelle eine neue Error-Monitoring Session</p>
                 
-                <div class="input-group">
-                    <input type="text" 
-                           id="newSessionName" 
-                           class="session-name-input" 
-                           placeholder="Session Name (optional)">
-                    <button class="btn btn-icon" onclick="generateRandomSessionName()" title="Zufälligen Namen generieren">
-                        🎲
-                    </button>
+                <div class="form-group">
+                    <label for="newSessionName">Session Name</label>
+                    <div class="input-group">
+                        <input type="text" 
+                               id="newSessionName" 
+                               class="session-name-input" 
+                               placeholder="">
+                        <button class="btn btn-icon" onclick="generateRandomSessionName()" title="Zufälligen Namen generieren">
+                            🎲
+                        </button>
+                    </div>
                 </div>
                 
-                <div class="input-group" style="margin-top: 1rem;">
-                    <input type="password" 
-                           id="newSessionPassword" 
-                           class="session-password-input" 
-                           placeholder="Passwort (optional für Schutz)">
-                    <button class="btn btn-icon" onclick="togglePasswordVisibility('newSessionPassword')" title="Passwort anzeigen/verstecken">
-                        👁️
-                    </button>
+                <div class="form-group">
+                    <label for="newSessionPassword">Passwort <span class="required">*</span></label>
+                    <div class="input-group">
+                        <input type="password" 
+                               id="newSessionPassword" 
+                               class="session-password-input" 
+                               placeholder="Mindestens 4 Zeichen"
+                               required
+                               minlength="4">
+                        <button class="btn btn-icon" onclick="togglePasswordVisibility('newSessionPassword')" title="Passwort anzeigen/verstecken">
+                            👁️
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="session-actions">
@@ -220,19 +249,28 @@
                 <h2>🔄 Session wiederherstellen</h2>
                 <p>Lade eine bestehende Session mit Token</p>
                 
-                <input type="text" 
-                       id="sessionToken" 
-                       class="session-token-input" 
-                       placeholder="Session Token eingeben...">
+                <div class="form-group">
+                    <label for="sessionToken">Session Token <span class="required">*</span></label>
+                    <input type="text" 
+                           id="sessionToken" 
+                           class="session-token-input" 
+                           placeholder="Session Token eingeben..."
+                           required>
+                </div>
                 
-                <div class="input-group" style="margin-top: 1rem;">
-                    <input type="password" 
-                           id="sessionPassword" 
-                           class="session-password-input" 
-                           placeholder="Passwort (falls erforderlich)">
-                    <button class="btn btn-icon" onclick="togglePasswordVisibility('sessionPassword')" title="Passwort anzeigen/verstecken">
-                        👁️
-                    </button>
+                <div class="form-group">
+                    <label for="sessionPassword">Passwort <span class="required">*</span></label>
+                    <div class="input-group">
+                        <input type="password" 
+                               id="sessionPassword" 
+                               class="session-password-input" 
+                               placeholder="Session Passwort"
+                               required
+                               minlength="4">
+                        <button class="btn btn-icon" onclick="togglePasswordVisibility('sessionPassword')" title="Passwort anzeigen/verstecken">
+                            👁️
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="session-actions">
@@ -256,7 +294,7 @@
                 </div>
                 
                 <div class="session-actions">
-                    <button class="btn btn-secondary" onclick="loadSavedSessions()">
+                    <button class="btn btn-primary" onclick="loadSavedSessions()">
                         🔄 Aktualisieren
                     </button>
                     <button class="btn btn-danger" onclick="clearAllSavedSessions()">
@@ -280,12 +318,22 @@
             "🎨 Paint Debug", "🎵 Music Flow", "📡 Signal Watch", "🎲 Dice Roll",
             "🏔️ Mountain Peak", "🌋 Volcano Alert", "🌪️ Storm Track", "🌻 Sunflower",
             "🦋 Butterfly Effect", "🐝 Bee Swarm", "🦅 Eagle Eye", "🐙 Octopus Arms",
-            "💎 Diamond Core", "🗝️ Master Key", "🎯 Bullseye Hit", "🌠 Shooting Star"
+            "💎 Diamond Core", "🗝️ Master Key", "🎯 Bullseye Hit", "🌠 Shooting Star",
+            "🎪 Magic Portal", "🌿 Green Garden", "🎨 Color Splash", "🎯 Focus Point",
+            "🌊 Wave Rider", "⚡ Thunder Strike", "🔥 Flame Core", "❄️ Frost Edge",
+            "🎵 Sound Wave", "🌈 Prism Light", "🚀 Space Quest", "🎭 Drama Mode",
+            "🔮 Future Vision", "🎪 Wonder Land", "🌙 Night Watch", "☀️ Day Break",
+            "🦋 Flutter Wing", "🐝 Buzz Hive", "🦅 Sky Soar", "💎 Gem Stone"
         ];
         
         function generateRandomSessionName() {
             const randomName = RANDOM_SESSION_NAMES[Math.floor(Math.random() * RANDOM_SESSION_NAMES.length)];
             document.getElementById('newSessionName').value = randomName;
+        }
+        
+        function setRandomPlaceholder() {
+            const randomName = RANDOM_SESSION_NAMES[Math.floor(Math.random() * RANDOM_SESSION_NAMES.length)];
+            document.getElementById('newSessionName').placeholder = randomName;
         }
         
         function togglePasswordVisibility(inputId) {
@@ -318,6 +366,19 @@
             try {
                 const name = document.getElementById('newSessionName').value.trim();
                 const password = document.getElementById('newSessionPassword').value.trim();
+                
+                // Validate password (required, minimum 4 characters)
+                if (!password) {
+                    showStatus('Passwort ist erforderlich!', 'error');
+                    document.getElementById('newSessionPassword').focus();
+                    return;
+                }
+                
+                if (password.length < 4) {
+                    showStatus('Passwort muss mindestens 4 Zeichen haben!', 'error');
+                    document.getElementById('newSessionPassword').focus();
+                    return;
+                }
                 
                 // Create the session
                 const response = await fetch(`${SERVER_URL}/api/token`, {
@@ -373,18 +434,24 @@
             
             if (!token) {
                 showStatus('Bitte geben Sie einen Session Token ein', 'error');
+                document.getElementById('sessionToken').focus();
+                return;
+            }
+            
+            if (!password) {
+                showStatus('Passwort ist erforderlich!', 'error');
+                document.getElementById('sessionPassword').focus();
                 return;
             }
             
             try {
-                // Try to restore session with password
-                const requestBody = password ? { password } : {};
+                // Always use POST with password (required)
                 const response = await fetch(`${SERVER_URL}/api/session/${token}`, {
-                    method: password ? 'POST' : 'GET',
+                    method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: password ? JSON.stringify(requestBody) : undefined
+                    body: JSON.stringify({ password })
                 });
                 
                 const data = await response.json();
@@ -536,6 +603,7 @@
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadSavedSessions();
+            setRandomPlaceholder(); // Set random placeholder for session name
             
             // Check if session token is provided in URL
             const urlParams = new URLSearchParams(window.location.search);
