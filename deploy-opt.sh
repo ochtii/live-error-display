@@ -219,14 +219,14 @@ EOL
   # PM2 neu starten oder neustarten
   if pm2 list | grep -q "$SERVICE_NAME"; then
     info "Service existiert bereits. Starte neu..."
-    if sudo -u $PM2_USER pm2 reload "$config_file" --update-env; then
+    if pm2 reload "$config_file" --update-env; then
       success "Service erfolgreich neugestartet."
     else
       error "Fehler beim Neustarten des Services!"
     fi
   else
     info "Service existiert noch nicht. Starte neu..."
-    if sudo -u $PM2_USER pm2 start "$config_file"; then
+    if pm2 start "$config_file"; then
       success "Service erfolgreich gestartet."
     else
       error "Fehler beim Starten des Services!"
@@ -235,7 +235,13 @@ EOL
   
   # PM2 Startup speichern, damit es beim Neustart automatisch startet
   info "Speichere PM2-Konfiguration für Autostart..."
-  sudo -u $PM2_USER pm2 save
+  pm2 save
+  
+  # Aktuelle PM2 Prozesse nach Deployment anzeigen
+  info "PM2 Prozesse nach Deployment:"
+  pm2 list --no-color | head -10 | while IFS= read -r line; do
+    info "  $line"
+  done
 }
 
 # === STILLE VERSIONEN DER FUNKTIONEN ===
@@ -273,21 +279,28 @@ build_app_silent() {
 setup_pm2_silent() {
   cd "$REPO_DIR"
   
+  # PM2 als root ausführen (da das Script bereits als root läuft)
+  export PM2_HOME="/root/.pm2"
+  
   # Pfad zur Konfigurationsdatei
   local config_file="$REPO_DIR/ecosystem.config.js"
   
   # Wenn die PM2-Konfigurationsdatei existiert
   if [ -f "$config_file" ]; then
     # Prüfe, ob der Service bereits läuft
-    if sudo -u $PM2_USER pm2 list | grep -q "$SERVICE_NAME"; then
-      sudo -u $PM2_USER pm2 reload "$config_file"
+    if pm2 list | grep -q "$SERVICE_NAME"; then
+      pm2 reload "$config_file" 2>/dev/null
     else
-      sudo -u $PM2_USER pm2 start "$config_file"
+      pm2 start "$config_file" 2>/dev/null
     fi
   fi
   
   # PM2 Startup speichern, damit es beim Neustart automatisch startet
-  sudo -u $PM2_USER pm2 save
+  pm2 save 2>/dev/null
+  
+  # Zeige aktive Prozesse in einer Zeile
+  local active_count=$(pm2 list | grep -c "online" 2>/dev/null || echo "0")
+  echo "[$(date +'%Y-%m-%d %H:%M:%S')] INFO: PM2 Prozesse aktiv: $active_count" >> "$LOG_FILE" 2>/dev/null
 }
 
 # === DETAILLIERTE DEPLOYMENT-FUNKTIONEN ===
@@ -391,11 +404,18 @@ manage_pm2_services() {
   
   cd "$REPO_DIR"
   
+  # PM2 als root ausführen (da das Script bereits als root läuft)
+  export PM2_HOME="/root/.pm2"
+  
   # Aktuelle PM2 Prozesse auflisten
   info "Aktuelle PM2 Prozesse vor Deployment:"
-  sudo -u $PM2_USER pm2 list --no-color | while IFS= read -r line; do
-    info "  $line"
-  done
+  if pm2 list 2>/dev/null; then
+    pm2 list --no-color | head -20 | while IFS= read -r line; do
+      info "  $line"
+    done
+  else
+    warn "Keine PM2 Prozesse gefunden oder PM2 nicht verfügbar"
+  fi
   
   # PM2 Ecosystem-Datei verwalten
   local config_file=""
