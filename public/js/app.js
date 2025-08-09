@@ -111,13 +111,16 @@ class ErrorDisplay {
     }
 
     async clearAllBrowserDataWithNotification() {
-        this.showNotification('Bestehende Daten gefunden.. werden gelöscht', 'info');
+        this.showNotification('Bestehende Daten gefunden... werden überprüft', 'info');
         
         // Wait a moment for the notification to show
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Clear all localStorage data
-        const keysToKeep = []; // No keys to keep - clear everything
+        // Check which sessions exist on server before clearing
+        const validSessionsCount = await this.validateAndPreserveSessions();
+        
+        // Clear all localStorage data except valid sessions
+        const keysToKeep = validSessionsCount > 0 ? ['lastSessions'] : []; // Keep lastSessions if valid sessions found
         const allKeys = Object.keys(localStorage);
         
         for (const key of allKeys) {
@@ -126,15 +129,78 @@ class ErrorDisplay {
             }
         }
         
-        // Clear current session state
+        // Clear current session state (but preserve lastSessions if valid)
         this.currentSession = null;
-        this.lastSessions = [];
+        if (validSessionsCount === 0) {
+            this.lastSessions = [];
+        }
         
-        // Show success notification
-        this.showNotification('Erfolgreich alle Browserdaten gelöscht', 'success');
+        // Show appropriate notification
+        if (validSessionsCount > 0) {
+            this.showNotification(`${validSessionsCount} gültige Sessions gefunden. ${validSessionsCount} Sessions werden im Local Storage behalten`, 'success');
+        } else {
+            this.showNotification('Erfolgreich alle Browserdaten gelöscht', 'success');
+        }
         
         // Force UI update to ensure clean state
         this.enforceStartPageState();
+    }
+
+    async validateAndPreserveSessions() {
+        try {
+            // Get existing lastSessions from localStorage
+            const lastSessionsData = localStorage.getItem('lastSessions');
+            if (!lastSessionsData) {
+                return 0; // No sessions to validate
+            }
+            
+            const lastSessions = JSON.parse(lastSessionsData);
+            if (!Array.isArray(lastSessions) || lastSessions.length === 0) {
+                return 0; // No sessions to validate
+            }
+            
+            console.log(`🔍 Validating ${lastSessions.length} stored sessions against server...`);
+            
+            const validSessions = [];
+            
+            // Check each session against server
+            for (const sessionData of lastSessions) {
+                if (!sessionData.token) continue;
+                
+                try {
+                    // Try to validate session on server (without loading it)
+                    const response = await fetch(`${this.serverUrl}/api/session/${sessionData.token}/validate`, {
+                        method: 'GET'
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.exists) {
+                            validSessions.push(sessionData);
+                            console.log(`✅ Session valid: ${sessionData.name} (${sessionData.token.substring(0, 8)}...)`);
+                        }
+                    }
+                } catch (error) {
+                    console.log(`❌ Failed to validate session: ${sessionData.token.substring(0, 8)}...`);
+                }
+            }
+            
+            // Update lastSessions with only valid sessions
+            if (validSessions.length > 0) {
+                localStorage.setItem('lastSessions', JSON.stringify(validSessions));
+                this.lastSessions = validSessions;
+                console.log(`💾 Preserved ${validSessions.length} valid sessions in localStorage`);
+            } else {
+                localStorage.removeItem('lastSessions');
+                this.lastSessions = [];
+            }
+            
+            return validSessions.length;
+            
+        } catch (error) {
+            console.error('Error validating sessions:', error);
+            return 0; // On error, don't preserve any sessions
+        }
     }
 
     setupEventListeners() {

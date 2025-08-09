@@ -143,6 +143,52 @@ app.get('/api/session/:token/expiry', (req, res) => {
     }
 });
 
+// Validate session exists (without loading it)
+app.get('/api/session/:token/validate', (req, res) => {
+    try {
+        const { token } = req.params;
+        
+        // Check if session exists in memory
+        const session = sessions.get(token);
+        if (session) {
+            return res.json({
+                exists: true,
+                name: session.name,
+                lastAccessed: session.lastAccessed
+            });
+        }
+        
+        // Check if session file exists on disk
+        const sessionFile = path.join(SESSIONS_DIR, `${token}.json`);
+        const fileExists = fs.existsSync(sessionFile);
+        
+        if (fileExists) {
+            // Try to decrypt to ensure it's valid
+            try {
+                const encryptedData = fs.readFileSync(sessionFile, 'utf8');
+                const sessionData = decryptData(encryptedData);
+                if (sessionData) {
+                    return res.json({
+                        exists: true,
+                        name: sessionData.name || 'Unknown Session',
+                        lastAccessed: sessionData.lastAccessed
+                    });
+                }
+            } catch (error) {
+                // File exists but is corrupted
+                return res.json({ exists: false });
+            }
+        }
+        
+        res.json({ exists: false });
+    } catch (error) {
+        res.status(500).json({
+            exists: false,
+            error: 'Failed to validate session'
+        });
+    }
+});
+
 // Restore session with token (GET for backwards compatibility, no password support)
 app.get('/api/session/:token', (req, res) => {
     try {
