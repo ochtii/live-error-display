@@ -106,16 +106,28 @@ class ErrorDisplay {
     }
 
     showStartPage() {
+        console.log('📋 Showing start page (session manager)');
+        
+        // Set current mode to start
+        this.currentMode = 'start';
+        
         // Hide all containers
         document.getElementById('errorsContainer').style.display = 'none';
         document.getElementById('settingsContainer').style.display = 'none';
         document.getElementById('apiPanel').style.display = 'none';
         
-        // Show session manager container
+        // Show session manager container as start page
         const sessionManagerContainer = document.getElementById('sessionManagerContainer');
         if (sessionManagerContainer) {
             sessionManagerContainer.style.display = 'block';
         }
+        
+        // Reset all navigation buttons to inactive
+        const buttons = ['liveBtn', 'archiveBtn', 'settingsBtn', 'apiBtn', 'sessionBtn'];
+        buttons.forEach(btnId => {
+            const btn = document.getElementById(btnId);
+            if (btn) btn.classList.remove('active');
+        });
         
         // Ensure session UI is hidden when no session active
         if (!this.sessionManager.currentSession) {

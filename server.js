@@ -379,6 +379,69 @@ function cleanupCorruptedSessions() {
     }
 }
 
+// Clean up temporary sessions and old saved sessions on server restart
+function cleanupSessionsOnRestart() {
+    try {
+        console.log('🧹 Starting session cleanup on server restart...');
+        
+        const sessionFiles = fs.readdirSync(SESSIONS_DIR);
+        let tempSessionsDeleted = 0;
+        let oldSavedSessionsDeleted = 0;
+        
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        for (const file of sessionFiles) {
+            if (file.endsWith('.json')) {
+                const filePath = path.join(SESSIONS_DIR, file);
+                try {
+                    const encryptedData = fs.readFileSync(filePath, 'utf8');
+                    const decrypted = decryptData(encryptedData);
+                    
+                    if (decrypted) {
+                        const sessionData = JSON.parse(decrypted);
+                        const lastAccessed = new Date(sessionData.lastAccessed || sessionData.createdAt);
+                        
+                        // Delete temporary sessions (not saved) regardless of age
+                        if (!sessionData.isSaved) {
+                            fs.unlinkSync(filePath);
+                            tempSessionsDeleted++;
+                            console.log(`🗑️ Deleted temporary session: ${sessionData.name} (${sessionData.token?.substring(0, 8)}...)`);
+                        }
+                        // Delete saved sessions older than 30 days
+                        else if (sessionData.isSaved && lastAccessed < thirtyDaysAgo) {
+                            fs.unlinkSync(filePath);
+                            oldSavedSessionsDeleted++;
+                            console.log(`🗑️ Deleted old saved session: ${sessionData.name} (${sessionData.token?.substring(0, 8)}...) - Last accessed: ${lastAccessed.toLocaleDateString()}`);
+                        }
+                        // Keep saved sessions less than 30 days old
+                        else if (sessionData.isSaved) {
+                            console.log(`✅ Keeping saved session: ${sessionData.name} (${sessionData.token?.substring(0, 8)}...) - Last accessed: ${lastAccessed.toLocaleDateString()}`);
+                        }
+                    }
+                } catch (error) {
+                    console.error(`❌ Error processing session file ${file}:`, error.message);
+                    // Delete corrupted files
+                    fs.unlinkSync(filePath);
+                    tempSessionsDeleted++;
+                }
+            }
+        }
+        
+        console.log(`🧹 Session cleanup completed:`);
+        console.log(`   - Temporary sessions deleted: ${tempSessionsDeleted}`);
+        console.log(`   - Old saved sessions deleted: ${oldSavedSessionsDeleted}`);
+        console.log(`   - Cleanup finished at: ${new Date().toLocaleString()}`);
+        
+        // Clear in-memory sessions as well since server restarted
+        sessions.clear();
+        console.log('🧹 Cleared in-memory sessions cache');
+        
+    } catch (error) {
+        console.error('❌ Error during session cleanup on restart:', error.message);
+    }
+}
+
 // Run cleanup on startup
 cleanupCorruptedSessions();
 
@@ -1362,6 +1425,9 @@ setInterval(() => {
 
 // Initial cleanup on startup
 SessionManager.cleanupExpiredSessions();
+
+// Clean up sessions on server restart (delete temporary, keep saved sessions < 30 days)
+cleanupSessionsOnRestart();
 
 // Load existing sessions on startup
 console.log('🔄 Starting session loading process...');
