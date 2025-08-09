@@ -456,7 +456,7 @@ cleanupCorruptedSessions();
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // In-Memory Error Storage (now per session)
 let globalErrors = []; // Fallback for sessionless mode
