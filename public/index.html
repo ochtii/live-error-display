@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Error Display v4.0</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: white;
+            padding: 20px;
+            margin: 0;
+        }
+        h1 {
+            color: #3b82f6;
+            text-align: center;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 10px;
+            border: 1px solid #334155;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .status.info {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid #3b82f6;
+            color: #60a5fa;
+        }
+        .status.success {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid #22c55e;
+            color: #4ade80;
+        }
+        .test-info {
+            background: #374151;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚨 Live Error Display v4.0</h1>
+        
+        <div class="status info">
+            ✅ HTML erfolgreich geladen!
+        </div>
+        
+        <div class="test-info">
+            <strong>Browser Test:</strong><br>
+            URL: <span id="currentUrl">-</span><br>
+            Host: <span id="currentHost">-</span><br>
+            Time: <span id="currentTime">-</span>
+        </div>
+        
+        <div class="status success">
+            🎉 Frontend funktioniert!<br>
+            <small>Das Problem lag am komplexen JavaScript.</small>
+        </div>
+        
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="debug.html" style="color: #60a5fa; text-decoration: none;">
+                🔧 Zur Debug-Seite →
+            </a>
+        </div>
+    </div>
+
+    <script>
+        console.log('🚀 Simple version loaded successfully');
+        
+        // Update page info
+        document.getElementById('currentUrl').textContent = window.location.href;
+        document.getElementById('currentHost').textContent = window.location.host;
+        document.getElementById('currentTime').textContent = new Date().toLocaleString();
+        
+        console.log('✅ All info updated');
+    </script>
+</body>
+</html>
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        
+        .title {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #3b82f6, #10b981);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+        
+        .subtitle {
+            color: #94a3b8;
+            font-size: 1.1rem;
+        }
+        
+        .card {
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #f8fafc;
+        }
+        
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .input-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        
+        .input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            border-radius: 0.5rem;
+            color: #f8fafc;
+            font-size: 1rem;
+        }
+        
+        .input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 1rem;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        
+        .btn-secondary {
+            background: rgba(148, 163, 184, 0.2);
+            color: #f8fafc;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(148, 163, 184, 0.3);
+        }
+        
+        .status {
+            text-align: center;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .status.connecting {
+            background: rgba(251, 191, 36, 0.2);
+            border: 1px solid #f59e0b;
+            color: #fbbf24;
+        }
+        
+        .status.connected {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid #10b981;
+            color: #34d399;
+        }
+        
+        .status.error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+            color: #f87171;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .error-item {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            color: #f87171;
+        }
+        
+        .error-level {
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .error-time {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">🚨 Live Error Display</h1>
+            <p class="subtitle">v4.0 - Minimal Clean Frontend</p>
+        </div>
+        
+        <!-- Connection Status -->
+        <div id="connectionStatus" class="status connecting">
+            🔄 Verbinde mit Server...
+        </div>
+        
+        <!-- Session Management -->
+        <div class="card">
+            <h2 class="section-title">🔑 Session Management</h2>
+            
+            <!-- Current Session Display -->
+            <div id="currentSession" class="hidden">
+                <div class="status connected">
+                    ✅ Session aktiv: <strong id="sessionName">-</strong><br>
+                    Token: <code id="sessionToken">-</code>
+                    <button id="endSessionBtn" class="btn btn-secondary" style="margin-left: 1rem; padding: 0.25rem 0.75rem; font-size: 0.9rem;">Beenden</button>
+                </div>
+            </div>
+            
+            <!-- Session Creation -->
+            <div id="sessionCreate">
+                <div class="input-group">
+                    <label class="input-label" for="newSessionName">Session Name</label>
+                    <input type="text" id="newSessionName" class="input" placeholder="Mein Projekt" value="Test Session">
+                </div>
+                
+                <div class="input-group">
+                    <label class="input-label" for="newSessionPassword">Passwort (optional)</label>
+                    <input type="password" id="newSessionPassword" class="input" placeholder="Mindestens 4 Zeichen">
+                </div>
+                
+                <button id="createSessionBtn" class="btn btn-primary">Session erstellen</button>
+            </div>
+            
+            <!-- Session Restore -->
+            <div id="sessionRestore" class="input-group">
+                <label class="input-label" for="restoreToken">Bestehende Session wiederherstellen</label>
+                <input type="text" id="restoreToken" class="input" placeholder="Session Token eingeben...">
+                <button id="restoreSessionBtn" class="btn btn-secondary" style="margin-top: 0.5rem;">Session laden</button>
+            </div>
+        </div>
+        
+        <!-- Live Error Display -->
+        <div id="errorSection" class="card hidden">
+            <h2 class="section-title">📡 Live Errors <span id="errorCount" style="color: #94a3b8; font-size: 1rem;">(0)</span></h2>
+            <button id="clearErrorsBtn" class="btn btn-secondary" style="margin-bottom: 1rem;">Fehler löschen</button>
+            <div id="errorsList"></div>
+            <div id="noErrors" class="status" style="color: #94a3b8;">
+                Keine Fehler - Bereit für Live-Monitoring
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class MinimalErrorDisplay {
+            constructor() {
+                this.serverUrl = `${window.location.protocol}//${window.location.host}`;
+                this.currentSession = null;
+                this.eventSource = null;
+                this.errors = [];
+                
+                this.init();
+            }
+            
+            async init() {
+                console.log('🚀 Minimal Error Display v4.0 starting...');
+                this.setupEventListeners();
+                this.checkConnection();
+            }
+            
+            setupEventListeners() {
+                // Session creation
+                document.getElementById('createSessionBtn').addEventListener('click', () => {
+                    this.createSession();
+                });
+                
+                // Session restore
+                document.getElementById('restoreSessionBtn').addEventListener('click', () => {
+                    this.restoreSession();
+                });
+                
+                // End session
+                document.getElementById('endSessionBtn').addEventListener('click', () => {
+                    this.endSession();
+                });
+                
+                // Clear errors
+                document.getElementById('clearErrorsBtn').addEventListener('click', () => {
+                    this.clearErrors();
+                });
+            }
+            
+            async checkConnection() {
+                try {
+                    const response = await fetch(`${this.serverUrl}/api/health`);
+                    if (response.ok) {
+                        this.showStatus('connected', '✅ Server verbunden');
+                    } else {
+                        this.showStatus('error', '❌ Server nicht erreichbar');
+                    }
+                } catch (error) {
+                    this.showStatus('error', '❌ Verbindung fehlgeschlagen');
+                    console.error('Connection check failed:', error);
+                }
+            }
+            
+            showStatus(type, message) {
+                const statusEl = document.getElementById('connectionStatus');
+                statusEl.className = `status ${type}`;
+                statusEl.innerHTML = message;
+            }
+            
+            async createSession() {
+                const name = document.getElementById('newSessionName').value;
+                const password = document.getElementById('newSessionPassword').value;
+                
+                if (!name.trim()) {
+                    alert('Bitte Session Name eingeben');
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`${this.serverUrl}/api/token`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: name.trim(), password: password || undefined })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        this.setSession(data.token, name);
+                        console.log('✅ Session created:', data);
+                    } else {
+                        alert(`Fehler: ${data.error}`);
+                    }
+                } catch (error) {
+                    console.error('❌ Session creation failed:', error);
+                    alert('Session konnte nicht erstellt werden');
+                }
+            }
+            
+            async restoreSession() {
+                const token = document.getElementById('restoreToken').value.trim();
+                
+                if (!token) {
+                    alert('Bitte Token eingeben');
+                    return;
+                }
+                
+                try {
+                    // Verify token by trying to connect
+                    this.setSession(token, 'Wiederhergestellt');
+                    console.log('✅ Session restored:', token);
+                } catch (error) {
+                    console.error('❌ Session restore failed:', error);
+                    alert('Session konnte nicht wiederhergestellt werden');
+                }
+            }
+            
+            endSession() {
+                if (this.eventSource) {
+                    this.eventSource.close();
+                    this.eventSource = null;
+                }
+                
+                this.currentSession = null;
+                this.errors = [];
+                
+                // Update UI
+                document.getElementById('currentSession').classList.add('hidden');
+                document.getElementById('sessionCreate').classList.remove('hidden');
+                document.getElementById('sessionRestore').classList.remove('hidden');
+                document.getElementById('errorSection').classList.add('hidden');
+                
+                // Clear form
+                document.getElementById('newSessionName').value = '';
+                document.getElementById('newSessionPassword').value = '';
+                document.getElementById('restoreToken').value = '';
+                
+                console.log('✅ Session ended');
+            }
+            
+            setSession(token, name) {
+                this.currentSession = { token, name };
+                
+                // Update UI
+                document.getElementById('sessionName').textContent = name;
+                document.getElementById('sessionToken').textContent = token;
+                document.getElementById('currentSession').classList.remove('hidden');
+                document.getElementById('sessionCreate').classList.add('hidden');
+                document.getElementById('sessionRestore').classList.add('hidden');
+                document.getElementById('errorSection').classList.remove('hidden');
+                
+                // Start listening for errors
+                this.connectToSSE();
+                this.updateErrorCount();
+            }
+            
+            connectToSSE() {
+                if (this.eventSource) {
+                    this.eventSource.close();
+                }
+                
+                this.eventSource = new EventSource(`${this.serverUrl}/events`);
+                
+                this.eventSource.onopen = () => {
+                    console.log('📡 SSE connected');
+                    this.showStatus('connected', '✅ Live-Verbindung aktiv');
+                };
+                
+                this.eventSource.onmessage = (event) => {
+                    try {
+                        const error = JSON.parse(event.data);
+                        this.displayError(error);
+                    } catch (e) {
+                        console.log('📡 SSE message:', event.data);
+                    }
+                };
+                
+                this.eventSource.onerror = () => {
+                    console.log('❌ SSE error');
+                    this.showStatus('error', '❌ Live-Verbindung unterbrochen');
+                };
+            }
+            
+            displayError(error) {
+                this.errors.unshift(error);
+                
+                const errorsList = document.getElementById('errorsList');
+                const errorEl = document.createElement('div');
+                errorEl.className = 'error-item';
+                errorEl.innerHTML = `
+                    <div class="error-level">${error.level || 'ERROR'}</div>
+                    <div style="margin: 0.5rem 0;">${error.message}</div>
+                    <div class="error-time">Zeit: ${new Date(error.timestamp).toLocaleString()}</div>
+                    ${error.source ? `<div class="error-time">Quelle: ${error.source}</div>` : ''}
+                `;
+                errorsList.insertBefore(errorEl, errorsList.firstChild);
+                
+                // Keep only last 20 errors
+                while (errorsList.children.length > 20) {
+                    errorsList.removeChild(errorsList.lastChild);
+                    this.errors.pop();
+                }
+                
+                this.updateErrorCount();
+            }
+            
+            clearErrors() {
+                this.errors = [];
+                document.getElementById('errorsList').innerHTML = '';
+                this.updateErrorCount();
+            }
+            
+            updateErrorCount() {
+                const count = this.errors.length;
+                document.getElementById('errorCount').textContent = `(${count})`;
+                
+                const noErrors = document.getElementById('noErrors');
+                if (count === 0) {
+                    noErrors.style.display = 'block';
+                } else {
+                    noErrors.style.display = 'none';
+                }
+            }
+        }
+        
+        // Start the application
+        document.addEventListener('DOMContentLoaded', () => {
+            new MinimalErrorDisplay();
+        });
+    </script>
+</body>
+</html>

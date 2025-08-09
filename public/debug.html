@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Error Display v4.0 - DEBUG</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: white;
+            padding: 20px;
+            margin: 0;
+        }
+        .debug {
+            background: #1e293b;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid #334155;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .status.ok { background: rgba(34, 197, 94, 0.2); border: 1px solid #22c55e; }
+        .status.error { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; }
+        .status.warning { background: rgba(251, 191, 36, 0.2); border: 1px solid #f59e0b; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #2563eb; }
+        input {
+            background: #1e293b;
+            border: 1px solid #475569;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚨 Live Error Display v4.0 - DEBUG MODE</h1>
+    
+    <div class="debug">
+        <h2>🔧 System Status</h2>
+        <div id="systemStatus" class="status warning">Initialisiere...</div>
+        <div id="debugInfo"></div>
+    </div>
+    
+    <div class="debug">
+        <h2>🌐 Server Test</h2>
+        <div id="serverStatus" class="status warning">Teste Verbindung...</div>
+        <button onclick="testServer()">Server testen</button>
+    </div>
+    
+    <div class="debug">
+        <h2>🔑 Session Test</h2>
+        <input type="text" id="sessionName" placeholder="Session Name" value="Debug Test">
+        <button onclick="createSession()">Session erstellen</button>
+        <div id="sessionStatus" class="status warning">Bereit</div>
+        <div id="sessionInfo"></div>
+    </div>
+    
+    <div class="debug">
+        <h2>📡 SSE Test</h2>
+        <button onclick="testSSE()">SSE Verbindung testen</button>
+        <div id="sseStatus" class="status warning">Nicht verbunden</div>
+        <div id="sseMessages"></div>
+    </div>
+
+    <script>
+        console.log('🚀 Debug mode loaded');
+        
+        // System info
+        function updateSystemStatus() {
+            const info = {
+                url: window.location.href,
+                protocol: window.location.protocol,
+                host: window.location.host,
+                userAgent: navigator.userAgent.substring(0, 50) + '...'
+            };
+            
+            document.getElementById('debugInfo').innerHTML = 
+                `<pre>${JSON.stringify(info, null, 2)}</pre>`;
+            
+            document.getElementById('systemStatus').innerHTML = '✅ System geladen';
+            document.getElementById('systemStatus').className = 'status ok';
+        }
+        
+        // Test server connection
+        async function testServer() {
+            const serverUrl = `${window.location.protocol}//${window.location.host}`;
+            const statusEl = document.getElementById('serverStatus');
+            
+            try {
+                statusEl.innerHTML = '🔄 Teste Server...';
+                statusEl.className = 'status warning';
+                
+                const response = await fetch(`${serverUrl}/api/health`);
+                
+                if (response.ok) {
+                    const data = await response.text();
+                    statusEl.innerHTML = `✅ Server OK (${response.status})`;
+                    statusEl.className = 'status ok';
+                } else {
+                    statusEl.innerHTML = `❌ Server Error (${response.status})`;
+                    statusEl.className = 'status error';
+                }
+            } catch (error) {
+                statusEl.innerHTML = `❌ Verbindung fehlgeschlagen: ${error.message}`;
+                statusEl.className = 'status error';
+                console.error('Server test failed:', error);
+            }
+        }
+        
+        // Test session creation
+        async function createSession() {
+            const name = document.getElementById('sessionName').value;
+            const statusEl = document.getElementById('sessionStatus');
+            const infoEl = document.getElementById('sessionInfo');
+            
+            if (!name) {
+                statusEl.innerHTML = '❌ Bitte Namen eingeben';
+                statusEl.className = 'status error';
+                return;
+            }
+            
+            try {
+                statusEl.innerHTML = '🔄 Erstelle Session...';
+                statusEl.className = 'status warning';
+                
+                const serverUrl = `${window.location.protocol}//${window.location.host}`;
+                const response = await fetch(`${serverUrl}/api/token`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusEl.innerHTML = '✅ Session erstellt';
+                    statusEl.className = 'status ok';
+                    infoEl.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    statusEl.innerHTML = `❌ Session Fehler: ${data.error}`;
+                    statusEl.className = 'status error';
+                }
+            } catch (error) {
+                statusEl.innerHTML = `❌ Session fehlgeschlagen: ${error.message}`;
+                statusEl.className = 'status error';
+                console.error('Session creation failed:', error);
+            }
+        }
+        
+        // Test SSE connection
+        function testSSE() {
+            const statusEl = document.getElementById('sseStatus');
+            const messagesEl = document.getElementById('sseMessages');
+            
+            try {
+                const serverUrl = `${window.location.protocol}//${window.location.host}`;
+                const eventSource = new EventSource(`${serverUrl}/events`);
+                
+                statusEl.innerHTML = '🔄 Verbinde SSE...';
+                statusEl.className = 'status warning';
+                
+                eventSource.onopen = () => {
+                    statusEl.innerHTML = '✅ SSE verbunden';
+                    statusEl.className = 'status ok';
+                    messagesEl.innerHTML = '<div>SSE Verbindung hergestellt</div>';
+                };
+                
+                eventSource.onmessage = (event) => {
+                    const msg = `<div>[${new Date().toLocaleTimeString()}] ${event.data}</div>`;
+                    messagesEl.innerHTML = msg + messagesEl.innerHTML;
+                };
+                
+                eventSource.onerror = (error) => {
+                    statusEl.innerHTML = '❌ SSE Fehler';
+                    statusEl.className = 'status error';
+                    console.error('SSE error:', error);
+                };
+                
+                // Auto-close after 30 seconds
+                setTimeout(() => {
+                    eventSource.close();
+                    if (statusEl.className === 'status ok') {
+                        statusEl.innerHTML = '⏹️ SSE Test beendet';
+                        statusEl.className = 'status warning';
+                    }
+                }, 30000);
+                
+            } catch (error) {
+                statusEl.innerHTML = `❌ SSE fehlgeschlagen: ${error.message}`;
+                statusEl.className = 'status error';
+                console.error('SSE test failed:', error);
+            }
+        }
+        
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', () => {
+            updateSystemStatus();
+            testServer();
+        });
+    </script>
+</body>
+</html>
