@@ -133,9 +133,9 @@ check_logs() {
     fi
     
     # Check file logs
-    if [ -f "/var/log/live-error-display-webhook-combined.log" ]; then
+    if [ -f "./logs/live-error-display-webhook-combined.log" ]; then
         echo -e "${CYAN}Webhook file logs (last 5 lines):${NC}"
-        tail -n 5 /var/log/live-error-display-webhook-combined.log
+        tail -n 5 ./logs/live-error-display-webhook-combined.log
     fi
 }
 

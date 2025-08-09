@@ -165,7 +165,7 @@ pm2 logs live-error-display
 pm2 logs
 
 # System Logs (if needed)
-tail -f /var/log/live-error-display-webhook-*.log
+tail -f ./logs/live-error-display-webhook-*.log
 ```
 
 ## 🛡️ 7. Sicherheit

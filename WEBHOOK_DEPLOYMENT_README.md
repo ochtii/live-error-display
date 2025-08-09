@@ -140,8 +140,8 @@ pm2 logs
 
 - **PM2 Webhook Logs**: `pm2 logs live-error-display-webhook`
 - **PM2 App Logs**: `pm2 logs live-error-display`
-- **File Logs**: `/var/log/live-error-display-webhook-*.log`
-- **PM2 App File Logs**: `/var/log/live-error-display-*.log`
+- **File Logs**: `./logs/live-error-display-webhook-*.log`
+- **PM2 App File Logs**: `./logs/live-error-display-*.log`
 
 ### Endpoints
 

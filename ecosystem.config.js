@@ -22,9 +22,9 @@ module.exports = {
       
       // Logging configuration
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      error_file: '/var/log/live-error-display-error.log',
-      out_file: '/var/log/live-error-display-out.log',
-      log_file: '/var/log/live-error-display-combined.log',
+      error_file: './logs/live-error-display-error.log',
+      out_file: './logs/live-error-display-out.log',
+      log_file: './logs/live-error-display-combined.log',
       
       // Advanced PM2 features
       min_uptime: '10s',
@@ -68,9 +68,9 @@ module.exports = {
       
       // Logging for webhook listener
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      error_file: '/var/log/live-error-display-webhook-error.log',
-      out_file: '/var/log/live-error-display-webhook-out.log',
-      log_file: '/var/log/live-error-display-webhook-combined.log',
+      error_file: './logs/live-error-display-webhook-error.log',
+      out_file: './logs/live-error-display-webhook-out.log',
+      log_file: './logs/live-error-display-webhook-combined.log',
       
       // Restart configuration for webhook listener
       min_uptime: '10s',
