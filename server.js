@@ -992,6 +992,87 @@ app.get('/status', (req, res) => {
     });
 });
 
+// Delete single error by index
+app.delete('/error/:index', (req, res) => {
+    const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+    const index = parseInt(req.params.index);
+    const sessionToken = req.headers['x-session-token'];
+    
+    if (isNaN(index) || index < 0) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid error index'
+        });
+    }
+    
+    let targetErrors = errors; // Default to global errors
+    let deletedError;
+    
+    // Check if request is session-specific
+    if (sessionToken) {
+        const session = SessionManager.getSession(sessionToken);
+        if (session) {
+            targetErrors = session.errors;
+            console.log(`🗑️ Deleting error ${index} from session ${sessionToken} by ${ip}`);
+        } else {
+            console.log(`❌ Invalid session token in delete request: ${sessionToken}`);
+            return res.status(404).json({
+                success: false,
+                error: 'Session not found'
+            });
+        }
+    } else {
+        console.log(`🗑️ Deleting error ${index} from global errors by ${ip}`);
+    }
+    
+    if (index >= targetErrors.length) {
+        return res.status(404).json({
+            success: false,
+            error: 'Error not found'
+        });
+    }
+    
+    deletedError = targetErrors[index];
+    targetErrors.splice(index, 1);
+    
+    // Save session if it was session-specific
+    if (sessionToken) {
+        const session = SessionManager.getSession(sessionToken);
+        if (session) {
+            SessionManager.saveSession(session);
+        }
+    }
+    
+    // Notify all clients that an error was deleted
+    const deleteMessage = {
+        type: 'delete',
+        index: index,
+        sessionToken: sessionToken || null,
+        message: 'Error deleted',
+        timestamp: new Date().toLocaleString('de-DE')
+    };
+    
+    const activeClients = new Map();
+    clients.forEach((client, id) => {
+        try {
+            client.write(`data: ${JSON.stringify(deleteMessage)}\n\n`);
+            activeClients.set(id, client);
+        } catch (e) {
+            console.log(`Failed to notify client ${id} about delete`);
+        }
+    });
+    
+    clients = activeClients;
+    
+    res.json({ 
+        success: true, 
+        message: 'Error deleted',
+        deletedError: deletedError,
+        remainingCount: targetErrors.length,
+        sessionToken: sessionToken || null
+    });
+});
+
 // Clear all errors
 app.delete('/errors', (req, res) => {
     const ip = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';

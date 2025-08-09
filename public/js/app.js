@@ -595,6 +595,31 @@ class ErrorDisplay {
                 this.updateStats();
             } else if (data.type === 'buffered_notification') {
                 this.showBufferedNotification(data.count, data.oldestError);
+            } else if (data.type === 'delete') {
+                // Handle server-side error deletion
+                if (this.currentMode === 'live') {
+                    // Check if this deletion is for the current session or global
+                    const isForCurrentSession = !data.sessionToken || 
+                        (this.currentSession && data.sessionToken === this.currentSession.token);
+                    
+                    if (isForCurrentSession) {
+                        // Remove the error from the live errors array
+                        if (data.index >= 0 && data.index < this.errors.length) {
+                            this.errors.splice(data.index, 1);
+                            this.displayErrors(this.errors);
+                            this.updateStats();
+                            this.showNotification('Fehler vom Server gelöscht', 'info');
+                        }
+                    }
+                }
+            } else if (data.type === 'clear') {
+                // Handle server-side clear all errors
+                if (this.currentMode === 'live') {
+                    this.errors = [];
+                    this.displayErrors(this.errors);
+                    this.updateStats();
+                    this.showNotification('Alle Fehler vom Server gelöscht', 'info');
+                }
             }
         };
         
@@ -972,22 +997,53 @@ class ErrorDisplay {
 
     performDeleteError(index, isArchive) {
         if (isArchive) {
-            // Fehler aus Archiv löschen
+            // Fehler aus Archiv löschen (nur lokal)
             this.archiveData.splice(index, 1);
             this.saveArchive();
             this.displayErrors(this.archiveData, true);
             this.showNotification(`Fehler aus Archiv gelöscht`, 'success');
         } else {
-            // Fehler aus Live-Liste löschen
-            this.errors.splice(index, 1);
-            this.displayErrors(this.errors);
-            this.showNotification(`Live-Fehler gelöscht`, 'success');
+            // Fehler aus Live-Liste löschen (sowohl lokal als auch auf dem Server)
+            this.deleteErrorFromServer(index);
         }
         
         this.updateStats();
         
         // Sound für erfolgreiche Löschung
         this.playNotificationSound('errorDeleted');
+    }
+
+    async deleteErrorFromServer(index) {
+        try {
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            // Add session token if available
+            if (this.currentSession && this.currentSession.token) {
+                headers['x-session-token'] = this.currentSession.token;
+            }
+            
+            const response = await fetch(`${this.serverUrl}/error/${index}`, {
+                method: 'DELETE',
+                headers: headers
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                // Lokale Löschung wird durch SSE-Nachricht vom Server ausgelöst
+                this.showNotification(`Live-Fehler gelöscht`, 'success');
+            } else {
+                throw new Error(`Server error: ${response.status}`);
+            }
+        } catch (error) {
+            console.error('Fehler beim Löschen des Fehlers:', error);
+            this.showNotification('Fehler beim Löschen vom Server', 'error');
+            
+            // Fallback: Lokale Löschung wenn Server-Request fehlschlägt
+            this.errors.splice(index, 1);
+            this.displayErrors(this.errors);
+        }
     }
 
     showBufferedNotification(count, oldestErrorTime) {
