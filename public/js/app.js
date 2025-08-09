@@ -8,6 +8,7 @@ import * as StatusManager from './modules/status-manager.js';
 import * as ErrorManager from './modules/error-manager.js';
 import * as SessionManager from './modules/session-manager.js';
 import * as SSEClient from './modules/sse-client.js';
+import * as SoundManager from './modules/sound-manager.js';
 
 /**
  * Initialize the application
@@ -18,6 +19,7 @@ async function initApp() {
     // Initialize managers
     ErrorManager.initErrorManager();
     SessionManager.initSessionManager();
+    SoundManager.initSoundManager();
     
     // Set up event listeners
     setupEventHandlers();
@@ -34,7 +36,14 @@ async function initApp() {
  */
 function setupEventHandlers() {
     // Live errors buttons
-    addSafeEventListener('connectButton', 'click', SSEClient.connect);
+    addSafeEventListener('connectButton', 'click', () => {
+        SSEClient.connect();
+        updateDemoModeUI(SSEClient.isDemoMode());
+    });
+    addSafeEventListener('stopDemoButton', 'click', () => {
+        SSEClient.disconnect();
+        updateDemoModeUI(false);
+    });
     addSafeEventListener('clearButton', 'click', ErrorManager.clearErrors);
     
     // Session management buttons
@@ -91,10 +100,40 @@ function updateUIBasedOnSession() {
         if (demoModeInfo && !demoModeInfo.classList.contains('hidden')) {
             demoModeInfo.classList.add('hidden');
         }
+        
+        // Update demo mode UI
+        updateDemoModeUI(false);
     } else {
         // No active session
         if (connectButton) {
             connectButton.querySelector('span').textContent = 'Demo-Modus starten';
+        }
+    }
+}
+
+/**
+ * Update UI for demo mode state
+ * @param {boolean} isDemoActive - Whether demo mode is active
+ */
+function updateDemoModeUI(isDemoActive) {
+    const connectButton = document.getElementById('connectButton');
+    const stopDemoButton = document.getElementById('stopDemoButton');
+    
+    if (isDemoActive) {
+        // Demo mode active
+        if (connectButton) {
+            connectButton.classList.add('hidden');
+        }
+        if (stopDemoButton) {
+            stopDemoButton.classList.remove('hidden');
+        }
+    } else {
+        // Demo mode inactive
+        if (connectButton) {
+            connectButton.classList.remove('hidden');
+        }
+        if (stopDemoButton) {
+            stopDemoButton.classList.add('hidden');
         }
     }
 }

@@ -9,7 +9,7 @@ import { hasActiveSession } from './session-manager.js';
 
 // SSE connection
 let eventSource = null;
-let isDemoMode = false;
+let demoModeActive = false;
 
 /**
  * Connect to the SSE endpoint
@@ -29,8 +29,8 @@ export function connect() {
         }
         
         // Exit demo mode if active
-        if (isDemoMode) {
-            isDemoMode = false;
+        if (demoModeActive) {
+            demoModeActive = false;
         }
         
         // Show connecting status
@@ -62,8 +62,8 @@ export function disconnect() {
     }
     
     // Also exit demo mode if active
-    if (isDemoMode) {
-        isDemoMode = false;
+    if (demoModeActive) {
+        demoModeActive = false;
         
         // Hide demo mode explanation
         const demoModeInfo = document.getElementById('demoModeInfo');
@@ -78,7 +78,7 @@ export function disconnect() {
  */
 export function startDemoMode() {
     // Set demo mode flag
-    isDemoMode = true;
+    demoModeActive = true;
     
     // Show demo mode status
     setStatus(STATUS.OK, 'Demo-Modus aktiv');
@@ -91,7 +91,7 @@ export function startDemoMode() {
     
     // Add some sample errors
     setTimeout(() => {
-        if (isDemoMode) {
+        if (demoModeActive) {
             addError({
                 id: 'demo-1',
                 timestamp: new Date().toISOString(),
@@ -104,7 +104,7 @@ export function startDemoMode() {
     }, 1000);
     
     setTimeout(() => {
-        if (isDemoMode) {
+        if (demoModeActive) {
             addError({
                 id: 'demo-2',
                 timestamp: new Date().toISOString(),
@@ -117,7 +117,7 @@ export function startDemoMode() {
     }, 3000);
     
     setTimeout(() => {
-        if (isDemoMode) {
+        if (demoModeActive) {
             addError({
                 id: 'demo-3',
                 timestamp: new Date().toISOString(),
@@ -136,6 +136,14 @@ export function startDemoMode() {
  */
 export function isConnected() {
     return eventSource !== null && eventSource.readyState === EventSource.OPEN;
+}
+
+/**
+ * Check if demo mode is active
+ * @returns {boolean} - Whether demo mode is active
+ */
+export function isDemoMode() {
+    return demoModeActive;
 }
 
 /**

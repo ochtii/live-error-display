@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="/css/components/buttons.css">
     <link rel="stylesheet" href="/css/components/forms.css">
     <link rel="stylesheet" href="/css/components/status.css">
+    <link rel="stylesheet" href="/css/components/sound-toggle.css">
     <link rel="stylesheet" href="/css/dark-mode.css">
 </head>
 <body>
@@ -26,6 +27,13 @@
                 </div>
             </div>
             <div class="header-controls">
+                <div class="sound-toggle">
+                    <label class="switch" title="Sound Ein/Aus">
+                        <input type="checkbox" id="soundToggle" checked>
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="sound-label">🔊</span>
+                </div>
                 <button id="darkModeToggle" class="btn btn-icon" title="Dark/Light Mode umschalten">
                     🌓
                 </button>

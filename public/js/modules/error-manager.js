@@ -5,6 +5,7 @@
 
 import { getElement, clearChildren, createElement, setVisible, createElementWithClass, appendChildren } from './dom-utils.js';
 import * as SoundPlayer from '../../sounds/sounds.js';
+import * as SoundManager from './sound-manager.js';
 
 // Error list data
 let errors = [];
@@ -33,8 +34,10 @@ export function addError(error) {
         errors.length = 200; // Keep only last 200 errors
     }
     
-    // Play sound based on error level
-    SoundPlayer.playForErrorLevel(error.level);
+    // Play sound based on error level if sounds are enabled
+    if (SoundManager.isSoundEnabled()) {
+        SoundPlayer.playForErrorLevel(error.level);
+    }
     
     // Update the UI
     updateErrorsUI();
