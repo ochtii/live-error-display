@@ -1,83 +1,665 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Live Error Display v4.0</title>
-    <link rel="stylesheet" href="/css/styles.css?v=20250809" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Error Display v5.0</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-dark: #1d4ed8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --surface: #1e293b;
+            --surface-dark: #0f172a;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: rgba(148, 163, 184, 0.2);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #020617 100%);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+            flex: 1;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .logo {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            font-size: 1.5rem;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+        
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            border: 1px solid var(--border);
+        }
+        
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--warning);
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+        }
+        
+        .status-indicator.ok {
+            background: var(--success);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+        }
+        
+        .status-indicator.error {
+            background: var(--danger);
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+        }
+        
+        main {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            gap: 1.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .card {
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(8px);
+        }
+        
+        .card h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .count-badge {
+            font-size: 0.75rem;
+            font-weight: normal;
+            color: var(--text-muted);
+        }
+        
+        .hint {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+        }
+        
+        button {
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            border: none;
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+            border: none;
+        }
+        
+        .errors-container {
+            margin-top: 1rem;
+            max-height: 60vh;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+        
+        .error-item {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .error-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        
+        .error-timestamp {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: normal;
+        }
+        
+        .error-source {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+        
+        .no-errors {
+            color: var(--text-muted);
+            text-align: center;
+            padding: 2rem 0;
+        }
+        
+        .session-form {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        @media (max-width: 560px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        input {
+            width: 100%;
+            padding: 0.6rem 0.75rem;
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 0.9rem;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 1rem 0;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+        
+        .divider::before,
+        .divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+        
+        .divider::before {
+            margin-right: 0.5rem;
+        }
+        
+        .divider::after {
+            margin-left: 0.5rem;
+        }
+        
+        .session-active {
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            background: rgba(16, 185, 129, 0.1);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        
+        .session-active h3 {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .token-display {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px dashed var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            margin-top: 0.5rem;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        footer {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            margin-top: 2rem;
+            padding: 1.5rem 0 1rem;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <header class="app-header">
-            <div class="brand">
+        <header>
+            <div class="logo-container">
                 <div class="logo">🚨</div>
                 <div>
-                    <div class="title">Live Error Display</div>
-                    <div class="subtitle">v4.0 • Minimal, schnell, modern</div>
+                    <h1>Live Error Display</h1>
+                    <div class="subtitle">v5.0 • Modern, schnell, effizient</div>
                 </div>
             </div>
-            <div class="status-pill">
-                <span id="statusDot" class="dot"></span>
-                <span id="statusText">Initialisiere…</span>
+            <div class="status-badge">
+                <span id="statusIndicator" class="status-indicator"></span>
+                <span id="statusText">Initialisiere...</span>
             </div>
         </header>
 
-        <main class="grid">
-            <!-- Live Errors -->
+        <main>
+            <!-- Live Errors Panel -->
             <section class="card">
-                <h2>📡 Live Errors <span class="muted" id="errorCount">(0)</span></h2>
-                <div class="hint">Echtzeit-Logs erscheinen hier, sobald verbunden.</div>
-
-                <div class="row row-spaced">
-                    <button class="btn primary" onclick="connectSSE()">Live-Überwachung starten</button>
-                    <button class="btn ghost" onclick="clearErrors()">Fehler löschen</button>
+                <h2>📡 Live Errors <span id="errorCount" class="count-badge">(0)</span></h2>
+                <p class="hint">Echtzeit-Fehler erscheinen hier, sobald eine Verbindung hergestellt ist.</p>
+                
+                <div class="actions">
+                    <button id="connectButton" class="btn-primary">
+                        <span>Live-Überwachung starten</span>
+                    </button>
+                    <button id="clearButton" class="btn-secondary">
+                        <span>Fehler löschen</span>
+                    </button>
                 </div>
-
-                <div id="noErrors" class="muted">Keine Fehler – bereit.</div>
-                <div id="errors" class="errors-list"></div>
+                
+                <div id="noErrors" class="no-errors">
+                    Keine Fehler – System bereit.
+                </div>
+                
+                <div id="errorsList" class="errors-container"></div>
             </section>
 
-            <!-- Session Management -->
+            <!-- Session Management Panel -->
             <section class="card">
-                <h2>🔑 Session</h2>
-                <div class="hint">Erstelle eine neue Session oder stelle eine existierende mit Token wieder her.</div>
-
-                <!-- Current Session -->
-                <div id="currentSessionBox" class="session-box hidden">
-                    <div class="row space-between">
-                        <div>
-                            <div class="muted">Aktiv:</div>
-                            <div id="currentSessionName">–</div>
-                        </div>
-                        <button class="btn danger" onclick="endSession()">Beenden</button>
-                    </div>
+                <h2>🔑 Session Management</h2>
+                <p class="hint">Erstelle eine neue Session oder stelle mit Token eine bestehende wieder her.</p>
+                
+                <!-- Active Session Display -->
+                <div id="activeSession" class="session-active hidden">
+                    <h3>
+                        <span>Aktive Session: <strong id="sessionName">-</strong></span>
+                        <button id="endSessionButton" class="btn-danger">Beenden</button>
+                    </h3>
                     <div>
-                        <div class="muted token-label">Token</div>
-                        <div id="currentSessionToken" class="token">–</div>
+                        <div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 0.25rem;">Token (zum Wiederherstellen):</div>
+                        <div id="sessionToken" class="token-display">-</div>
                     </div>
                 </div>
-
-                <!-- Create / Restore -->
-                <div id="sessionForms" class="stack">
-                    <div class="two">
-                        <input id="sessionName" class="input" placeholder="Session Name" />
-                        <input id="sessionPassword" type="password" class="input" placeholder="Passwort (optional)" />
+                
+                <!-- Session Forms -->
+                <div id="sessionForms">
+                    <!-- Create Session -->
+                    <div class="session-form">
+                        <div class="form-grid">
+                            <input type="text" id="newSessionName" placeholder="Session Name" />
+                            <input type="password" id="sessionPassword" placeholder="Passwort (optional)" />
+                        </div>
+                        <button id="createSessionButton" class="btn-primary" style="width: 100%;">
+                            Neue Session erstellen
+                        </button>
                     </div>
-                    <div class="row">
-                        <button class="btn primary" onclick="createSession()">Session erstellen</button>
-                        <span class="muted">oder</span>
-                        <input id="restoreToken" class="input" placeholder="Token eingeben…" />
-                        <button class="btn ghost" onclick="restoreSession()">Wiederherstellen</button>
+                    
+                    <div class="divider">oder</div>
+                    
+                    <!-- Restore Session -->
+                    <div class="session-form">
+                        <input type="text" id="restoreToken" placeholder="Session-Token eingeben..." style="margin-bottom: 0.75rem;" />
+                        <button id="restoreSessionButton" class="btn-secondary" style="width: 100%;">
+                            Session wiederherstellen
+                        </button>
                     </div>
                 </div>
             </section>
         </main>
-
+        
         <footer>
-            <span>Tip: Nutze die Live-Überwachung und sende einen Test-Error an /error</span>
+            <p>Tipp: Nutze die Live-Überwachung und sende einen Test-Error an /error</p>
         </footer>
     </div>
 
-    <script src="js/app.js"></script>
-    </body>
-    </html>
+    <script>
+        // State management
+        let currentSession = null;
+        let eventSource = null;
+        let errors = [];
+        
+        // DOM Elements
+        const elements = {
+            statusIndicator: document.getElementById('statusIndicator'),
+            statusText: document.getElementById('statusText'),
+            errorCount: document.getElementById('errorCount'),
+            errorsList: document.getElementById('errorsList'),
+            noErrors: document.getElementById('noErrors'),
+            connectButton: document.getElementById('connectButton'),
+            clearButton: document.getElementById('clearButton'),
+            activeSession: document.getElementById('activeSession'),
+            sessionForms: document.getElementById('sessionForms'),
+            sessionName: document.getElementById('sessionName'),
+            sessionToken: document.getElementById('sessionToken'),
+            newSessionName: document.getElementById('newSessionName'),
+            sessionPassword: document.getElementById('sessionPassword'),
+            restoreToken: document.getElementById('restoreToken'),
+            createSessionButton: document.getElementById('createSessionButton'),
+            restoreSessionButton: document.getElementById('restoreSessionButton'),
+            endSessionButton: document.getElementById('endSessionButton')
+        };
+        
+        // Set status indicator and text
+        function setStatus(state, message) {
+            elements.statusText.textContent = message;
+            elements.statusIndicator.className = 'status-indicator';
+            
+            if (state === 'ok') {
+                elements.statusIndicator.classList.add('ok');
+            } else if (state === 'error') {
+                elements.statusIndicator.classList.add('error');
+            }
+        }
+        
+        // Update the errors list UI
+        function updateErrorsUI() {
+            elements.errorCount.textContent = `(${errors.length})`;
+            
+            if (errors.length === 0) {
+                elements.noErrors.classList.remove('hidden');
+                elements.errorsList.innerHTML = '';
+                return;
+            }
+            
+            elements.noErrors.classList.add('hidden');
+            elements.errorsList.innerHTML = '';
+            
+            // Display the most recent 50 errors
+            errors.slice(0, 50).forEach(error => {
+                const errorElement = document.createElement('div');
+                errorElement.className = 'error-item';
+                
+                const timestamp = new Date(error.timestamp).toLocaleString();
+                const level = error.level || 'ERROR';
+                const message = error.message || JSON.stringify(error);
+                const source = error.source || '';
+                
+                errorElement.innerHTML = `
+                    <div class="error-header">
+                        <span>${level}</span>
+                        <span class="error-timestamp">${timestamp}</span>
+                    </div>
+                    <div>${message}</div>
+                    ${source ? `<div class="error-source">Quelle: ${source}</div>` : ''}
+                `;
+                
+                elements.errorsList.appendChild(errorElement);
+            });
+        }
+        
+        // Update session UI based on current state
+        function updateSessionUI() {
+            if (currentSession) {
+                elements.sessionName.textContent = currentSession.name;
+                elements.sessionToken.textContent = currentSession.token;
+                elements.activeSession.classList.remove('hidden');
+                elements.sessionForms.classList.add('hidden');
+            } else {
+                elements.activeSession.classList.add('hidden');
+                elements.sessionForms.classList.remove('hidden');
+            }
+        }
+        
+        // Connect to Server-Sent Events
+        function connectSSE() {
+            try {
+                if (eventSource) {
+                    eventSource.close();
+                }
+                
+                setStatus('', 'Verbinde...');
+                eventSource = new EventSource('/events');
+                
+                eventSource.onopen = () => {
+                    setStatus('ok', 'Live verbunden');
+                };
+                
+                eventSource.onmessage = (event) => {
+                    try {
+                        const errorData = JSON.parse(event.data);
+                        errors.unshift(errorData);
+                        if (errors.length > 200) {
+                            errors.length = 200; // Keep only last 200 errors
+                        }
+                        updateErrorsUI();
+                    } catch (e) {
+                        // Handle non-JSON messages
+                        errors.unshift({
+                            level: 'INFO',
+                            message: event.data,
+                            timestamp: Date.now()
+                        });
+                        updateErrorsUI();
+                    }
+                };
+                
+                eventSource.onerror = () => {
+                    setStatus('error', 'Verbindung unterbrochen');
+                };
+            } catch (error) {
+                console.error('SSE Connection error:', error);
+                setStatus('error', 'Verbindungsfehler');
+            }
+        }
+        
+        // Create a new session
+        async function createSession() {
+            const name = elements.newSessionName.value.trim();
+            const password = elements.sessionPassword.value;
+            
+            if (!name) {
+                alert('Bitte einen Session-Namen eingeben');
+                return;
+            }
+            
+            try {
+                setStatus('', 'Erstelle Session...');
+                
+                const response = await fetch('/api/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name,
+                        password: password || undefined
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Unbekannter Fehler');
+                }
+                
+                currentSession = {
+                    token: data.token,
+                    name
+                };
+                
+                updateSessionUI();
+                setStatus('ok', 'Session aktiv');
+                
+                // Clear form fields
+                elements.newSessionName.value = '';
+                elements.sessionPassword.value = '';
+            } catch (error) {
+                console.error('Session creation error:', error);
+                setStatus('error', `Fehler: ${error.message}`);
+            }
+        }
+        
+        // Restore an existing session
+        function restoreSession() {
+            const token = elements.restoreToken.value.trim();
+            
+            if (!token) {
+                alert('Bitte einen Token eingeben');
+                return;
+            }
+            
+            currentSession = {
+                token,
+                name: 'Wiederhergestellte Session'
+            };
+            
+            updateSessionUI();
+            setStatus('ok', 'Session wiederhergestellt');
+            elements.restoreToken.value = '';
+        }
+        
+        // End the current session
+        function endSession() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            
+            currentSession = null;
+            errors = [];
+            
+            updateSessionUI();
+            updateErrorsUI();
+            setStatus('', 'Bereit');
+        }
+        
+        // Clear all errors
+        function clearErrors() {
+            errors = [];
+            updateErrorsUI();
+        }
+        
+        // Initialize the application
+        async function init() {
+            // Check server health
+            try {
+                const response = await fetch('/api/health');
+                if (response.ok) {
+                    setStatus('ok', 'Server verbunden');
+                } else {
+                    setStatus('error', 'Server-Fehler');
+                }
+            } catch (error) {
+                setStatus('error', 'Server nicht erreichbar');
+                console.error('Server health check failed:', error);
+            }
+            
+            // Set up event listeners
+            elements.connectButton.addEventListener('click', connectSSE);
+            elements.clearButton.addEventListener('click', clearErrors);
+            elements.createSessionButton.addEventListener('click', createSession);
+            elements.restoreSessionButton.addEventListener('click', restoreSession);
+            elements.endSessionButton.addEventListener('click', endSession);
+            
+            // Initialize UI state
+            updateSessionUI();
+            updateErrorsUI();
+        }
+        
+        // Start the application when DOM is loaded
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
