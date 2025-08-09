@@ -3681,19 +3681,19 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     
     generateRandomSessionName() {
         const RANDOM_SESSION_NAMES = [
-            "🚀 Projekt Apollo", "🌟 Nebula Scan", "⚡ Lightning Debug", "🔥 Phoenix Watch", 
-            "🌊 Ocean Flow", "🎯 Target Lock", "🛡️ Shield Guard", "⚗️ Lab Monitor",
-            "🎭 Theater Mode", "🌈 Rainbow Check", "🔮 Crystal Ball", "🎪 Circus Watch",
-            "🌙 Moonlight Scan", "☀️ Solar Flare", "❄️ Ice Crystal", "🌸 Cherry Bloom",
-            "🎨 Paint Debug", "🎵 Music Flow", "📡 Signal Watch", "🎲 Dice Roll",
-            "🏔️ Mountain Peak", "🌋 Volcano Alert", "🌪️ Storm Track", "🌻 Sunflower",
-            "🦋 Butterfly Effect", "🐝 Bee Swarm", "🦅 Eagle Eye", "🐙 Octopus Arms",
-            "💎 Diamond Core", "🗝️ Master Key", "🎯 Bullseye Hit", "🌠 Shooting Star",
-            "🎪 Magic Portal", "🌿 Green Garden", "🎨 Color Splash", "🎯 Focus Point",
-            "🌊 Wave Rider", "⚡ Thunder Strike", "🔥 Flame Core", "❄️ Frost Edge",
-            "🎵 Sound Wave", "🌈 Prism Light", "🚀 Space Quest", "🎭 Drama Mode",
-            "🔮 Future Vision", "🎪 Wonder Land", "🌙 Night Watch", "☀️ Day Break",
-            "🦋 Flutter Wing", "🐝 Buzz Hive", "🦅 Sky Soar", "💎 Gem Stone"
+            "🚀 Projekt Apollo", "🌟 Projekt Nebula Scan", "⚡ Projekt Lightning Debug", "🔥 Projekt Phoenix Watch", 
+            "🌊 Projekt Ocean Flow", "🎯 Projekt Target Lock", "🛡️ Projekt Shield Guard", "⚗️ Projekt Lab Monitor",
+            "🎭 Projekt Theater Mode", "🌈 Projekt Rainbow Check", "🔮 Projekt Crystal Ball", "🎪 Projekt Circus Watch",
+            "🌙 Projekt Moonlight Scan", "☀️ Projekt Solar Flare", "❄️ Projekt Ice Crystal", "🌸 Projekt Cherry Bloom",
+            "🎨 Projekt Paint Debug", "🎵 Projekt Music Flow", "📡 Projekt Signal Watch", "🎲 Projekt Dice Roll",
+            "🏔️ Projekt Mountain Peak", "🌋 Projekt Volcano Alert", "🌪️ Projekt Storm Track", "🌻 Projekt Sunflower",
+            "🦋 Projekt Butterfly Effect", "🐝 Projekt Bee Swarm", "🦅 Projekt Eagle Eye", "🐙 Projekt Octopus Arms",
+            "💎 Projekt Diamond Core", "🗝️ Projekt Master Key", "🎯 Projekt Bullseye Hit", "🌠 Projekt Shooting Star",
+            "🎪 Projekt Magic Portal", "🌿 Projekt Green Garden", "🎨 Projekt Color Splash", "🎯 Projekt Focus Point",
+            "🌊 Projekt Wave Rider", "⚡ Projekt Thunder Strike", "🔥 Projekt Flame Core", "❄️ Projekt Frost Edge",
+            "🎵 Projekt Sound Wave", "🌈 Projekt Prism Light", "🚀 Projekt Space Quest", "🎭 Projekt Drama Mode",
+            "🔮 Projekt Future Vision", "🎪 Projekt Wonder Land", "🌙 Projekt Night Watch", "☀️ Projekt Day Break",
+            "🦋 Projekt Flutter Wing", "🐝 Projekt Buzz Hive", "🦅 Projekt Sky Soar", "💎 Projekt Gem Stone"
         ];
         
         const randomName = RANDOM_SESSION_NAMES[Math.floor(Math.random() * RANDOM_SESSION_NAMES.length)];
@@ -3705,19 +3705,19 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     
     setRandomPlaceholder() {
         const RANDOM_SESSION_NAMES = [
-            "🚀 Projekt Apollo", "🌟 Nebula Scan", "⚡ Lightning Debug", "🔥 Phoenix Watch", 
-            "🌊 Ocean Flow", "🎯 Target Lock", "🛡️ Shield Guard", "⚗️ Lab Monitor",
-            "🎭 Theater Mode", "🌈 Rainbow Check", "🔮 Crystal Ball", "🎪 Circus Watch",
-            "🌙 Moonlight Scan", "☀️ Solar Flare", "❄️ Ice Crystal", "🌸 Cherry Bloom",
-            "🎨 Paint Debug", "🎵 Music Flow", "📡 Signal Watch", "🎲 Dice Roll",
-            "🏔️ Mountain Peak", "🌋 Volcano Alert", "🌪️ Storm Track", "🌻 Sunflower",
-            "🦋 Butterfly Effect", "🐝 Bee Swarm", "🦅 Eagle Eye", "🐙 Octopus Arms",
-            "💎 Diamond Core", "🗝️ Master Key", "🎯 Bullseye Hit", "🌠 Shooting Star",
-            "🎪 Magic Portal", "🌿 Green Garden", "🎨 Color Splash", "🎯 Focus Point",
-            "🌊 Wave Rider", "⚡ Thunder Strike", "🔥 Flame Core", "❄️ Frost Edge",
-            "🎵 Sound Wave", "🌈 Prism Light", "🚀 Space Quest", "🎭 Drama Mode",
-            "🔮 Future Vision", "🎪 Wonder Land", "🌙 Night Watch", "☀️ Day Break",
-            "🦋 Flutter Wing", "🐝 Buzz Hive", "🦅 Sky Soar", "💎 Gem Stone"
+            "🚀 Projekt Apollo", "🌟 Projekt Nebula Scan", "⚡ Projekt Lightning Debug", "🔥 Projekt Phoenix Watch", 
+            "🌊 Projekt Ocean Flow", "🎯 Projekt Target Lock", "🛡️ Projekt Shield Guard", "⚗️ Projekt Lab Monitor",
+            "🎭 Projekt Theater Mode", "🌈 Projekt Rainbow Check", "🔮 Projekt Crystal Ball", "🎪 Projekt Circus Watch",
+            "🌙 Projekt Moonlight Scan", "☀️ Projekt Solar Flare", "❄️ Projekt Ice Crystal", "🌸 Projekt Cherry Bloom",
+            "🎨 Projekt Paint Debug", "🎵 Projekt Music Flow", "📡 Projekt Signal Watch", "🎲 Projekt Dice Roll",
+            "🏔️ Projekt Mountain Peak", "🌋 Projekt Volcano Alert", "🌪️ Projekt Storm Track", "🌻 Projekt Sunflower",
+            "🦋 Projekt Butterfly Effect", "🐝 Projekt Bee Swarm", "🦅 Projekt Eagle Eye", "🐙 Projekt Octopus Arms",
+            "💎 Projekt Diamond Core", "🗝️ Projekt Master Key", "🎯 Projekt Bullseye Hit", "🌠 Projekt Shooting Star",
+            "🎪 Projekt Magic Portal", "🌿 Projekt Green Garden", "🎨 Projekt Color Splash", "🎯 Projekt Focus Point",
+            "🌊 Projekt Wave Rider", "⚡ Projekt Thunder Strike", "🔥 Projekt Flame Core", "❄️ Projekt Frost Edge",
+            "🎵 Projekt Sound Wave", "🌈 Projekt Prism Light", "🚀 Projekt Space Quest", "🎭 Projekt Drama Mode",
+            "🔮 Projekt Future Vision", "🎪 Projekt Wonder Land", "🌙 Projekt Night Watch", "☀️ Projekt Day Break",
+            "🦋 Projekt Flutter Wing", "🐝 Projekt Buzz Hive", "🦅 Projekt Sky Soar", "💎 Projekt Gem Stone"
         ];
         
         const randomName = RANDOM_SESSION_NAMES[Math.floor(Math.random() * RANDOM_SESSION_NAMES.length)];
