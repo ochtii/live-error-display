@@ -61,9 +61,6 @@
         <header>
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h1>🔊 Sound Test</h1>
-                <button id="darkModeToggle" class="btn btn-icon" title="Dark/Light Mode umschalten">
-                    🌓
-                </button>
             </div>
             <p>Test die verschiedenen Benachrichtigungstöne für die Live Error Display Anwendung.</p>
         </header>
@@ -131,7 +128,7 @@
     
     <script type="module">
         import * as SoundPlayer from '/sounds/sounds.js';
-        import { FALLBACK_GENERATOR } from '/sounds/soundpack.js';
+        import { MODERN_AUDIO_GENERATOR } from '/sounds/soundpack.js';
         
         document.addEventListener('DOMContentLoaded', function() {
             // Set up volume control
@@ -162,7 +159,7 @@
             document.querySelectorAll('[data-fallback]').forEach(button => {
                 button.addEventListener('click', function() {
                     const fallbackId = this.getAttribute('data-fallback');
-                    FALLBACK_GENERATOR[fallbackId]();
+                    MODERN_AUDIO_GENERATOR[fallbackId]();
                 });
             });
             

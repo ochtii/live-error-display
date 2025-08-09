@@ -3,9 +3,9 @@
  * Handles playing notification sounds for the application
  */
 
-import { SOUND_PACK, FALLBACK_GENERATOR } from './soundpack.js';
+import { SOUND_PACK, MODERN_AUDIO_GENERATOR } from './soundpack.js';
 
-// Sound configuration - now uses online sound pack
+// Sound configuration - now uses modern sound pack
 const SOUNDS = SOUND_PACK;
 
 // Keep track of loaded audio elements
@@ -55,17 +55,21 @@ function play(id) {
         return false;
     }
 
+    // First try modern audio generator for better quality
+    if (MODERN_AUDIO_GENERATOR && typeof MODERN_AUDIO_GENERATOR[id] === 'function') {
+        return MODERN_AUDIO_GENERATOR[id]();
+    }
+
+    // Fallback to audio files if available
     const audio = audioElements[id];
     const config = SOUNDS[id];
 
     if (!audio || !config) {
         console.warn(`Sound not found: ${id}`);
-        // Try fallback tone generator
-        if (FALLBACK_GENERATOR && typeof FALLBACK_GENERATOR[id] === 'function') {
-            return FALLBACK_GENERATOR[id]();
-        }
         return false;
-    }    try {
+    }
+
+    try {
         // Set volume
         audio.volume = config.volume * volume;
         
