@@ -122,11 +122,16 @@ class ErrorDisplay {
     }
 
     setupEventListeners() {
-        // Mode switching
-        document.getElementById('liveBtn').addEventListener('click', () => this.switchMode('live'));
-        document.getElementById('archiveBtn').addEventListener('click', () => this.switchMode('archive'));
-        document.getElementById('settingsBtn').addEventListener('click', () => this.switchMode('settings'));
-        document.getElementById('apiBtn').addEventListener('click', () => this.switchMode('api'));
+        // Mode switching - with null checks
+        const liveBtn = document.getElementById('liveBtn');
+        const archiveBtn = document.getElementById('archiveBtn');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const apiBtn = document.getElementById('apiBtn');
+        
+        if (liveBtn) liveBtn.addEventListener('click', () => this.switchMode('live'));
+        if (archiveBtn) archiveBtn.addEventListener('click', () => this.switchMode('archive'));
+        if (settingsBtn) settingsBtn.addEventListener('click', () => this.switchMode('settings'));
+        if (apiBtn) apiBtn.addEventListener('click', () => this.switchMode('api'));
         
         // Session Management (with null checks)
         const sessionBtn = document.getElementById('sessionBtn');
@@ -156,22 +161,35 @@ class ErrorDisplay {
         if (restoreSessionBtn) restoreSessionBtn.addEventListener('click', () => this.restoreSessionFromToken());
         if (refreshLastSessionsBtn) refreshLastSessionsBtn.addEventListener('click', () => this.loadLastSessionsInline());
         
-        // Settings
-        document.getElementById('saveSettings').addEventListener('click', () => this.saveSettings());
-        document.getElementById('clearStorage').addEventListener('click', () => this.clearArchive());
-        document.getElementById('showAllData').addEventListener('click', () => this.showAllLocalStorageData());
-        document.getElementById('deleteAllData').addEventListener('click', () => this.deleteAllData());
+        // Settings - with null checks
+        const saveSettings = document.getElementById('saveSettings');
+        const clearStorage = document.getElementById('clearStorage');
+        const showAllData = document.getElementById('showAllData');
+        const deleteAllData = document.getElementById('deleteAllData');
+        const archiveRetentionDays = document.getElementById('archiveRetentionDays');
+        const maxArchiveItems = document.getElementById('maxArchiveItems');
+        
+        if (saveSettings) saveSettings.addEventListener('click', () => this.saveSettings());
+        if (clearStorage) clearStorage.addEventListener('click', () => this.clearArchive());
+        if (showAllData) showAllData.addEventListener('click', () => this.showAllLocalStorageData());
+        if (deleteAllData) deleteAllData.addEventListener('click', () => this.deleteAllData());
         
         // Push-Permission Button wird später in initPushNotifications hinzugefügt
         
-        // Range slider updates
-        document.getElementById('archiveRetentionDays').addEventListener('input', (e) => {
-            document.getElementById('retentionValue').textContent = e.target.value;
-        });
+        // Range slider updates - with null checks
+        if (archiveRetentionDays) {
+            archiveRetentionDays.addEventListener('input', (e) => {
+                const retentionValue = document.getElementById('retentionValue');
+                if (retentionValue) retentionValue.textContent = e.target.value;
+            });
+        }
         
-        document.getElementById('maxArchiveItems').addEventListener('input', (e) => {
-            document.getElementById('maxItemsValue').textContent = e.target.value;
-        });
+        if (maxArchiveItems) {
+            maxArchiveItems.addEventListener('input', (e) => {
+                const maxItemsValue = document.getElementById('maxItemsValue');
+                if (maxItemsValue) maxItemsValue.textContent = e.target.value;
+            });
+        }
     }
 
     // === SETTINGS MANAGEMENT ===
