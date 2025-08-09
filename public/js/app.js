@@ -22,6 +22,9 @@ async function initApp() {
     // Set up event listeners
     setupEventHandlers();
     
+    // Update UI based on session state
+    updateUIBasedOnSession();
+    
     // Check server health
     await checkServerHealth();
 }
@@ -35,9 +38,23 @@ function setupEventHandlers() {
     addSafeEventListener('clearButton', 'click', ErrorManager.clearErrors);
     
     // Session management buttons
-    addSafeEventListener('createSessionButton', 'click', SessionManager.createSession);
-    addSafeEventListener('restoreSessionButton', 'click', SessionManager.restoreSession);
-    addSafeEventListener('endSessionButton', 'click', SessionManager.endSession);
+    addSafeEventListener('createSessionButton', 'click', () => {
+        SessionManager.createSession().then(success => {
+            if (success) {
+                updateUIBasedOnSession();
+            }
+        });
+    });
+    addSafeEventListener('restoreSessionButton', 'click', () => {
+        const success = SessionManager.restoreSession();
+        if (success) {
+            updateUIBasedOnSession();
+        }
+    });
+    addSafeEventListener('endSessionButton', 'click', () => {
+        SessionManager.endSession();
+        updateUIBasedOnSession();
+    });
 }
 
 /**
@@ -54,6 +71,25 @@ async function checkServerHealth() {
     } catch (error) {
         StatusManager.setStatus(StatusManager.STATUS.ERROR, 'Server nicht erreichbar');
         console.error('Server health check failed:', error);
+    }
+}
+
+/**
+ * Update UI elements based on session state
+ */
+function updateUIBasedOnSession() {
+    const connectButton = document.getElementById('connectButton');
+    
+    if (SessionManager.hasActiveSession()) {
+        // Active session
+        if (connectButton) {
+            connectButton.querySelector('span').textContent = 'Live-Überwachung starten';
+        }
+    } else {
+        // No active session
+        if (connectButton) {
+            connectButton.querySelector('span').textContent = 'Demo-Modus starten';
+        }
     }
 }
 

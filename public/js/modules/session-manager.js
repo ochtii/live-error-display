@@ -31,6 +31,11 @@ export async function createSession() {
         return false;
     }
     
+    if (!password) {
+        alert('Bitte ein Passwort eingeben');
+        return false;
+    }
+    
     try {
         setStatus(STATUS.NONE, 'Erstelle Session...');
         

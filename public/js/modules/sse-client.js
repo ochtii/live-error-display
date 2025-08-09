@@ -5,19 +5,32 @@
 
 import { STATUS, setStatus, showConnecting, showConnected, showConnectionError } from './status-manager.js';
 import { addError } from './error-manager.js';
+import { hasActiveSession } from './session-manager.js';
 
 // SSE connection
 let eventSource = null;
+let isDemoMode = false;
 
 /**
  * Connect to the SSE endpoint
  */
 export function connect() {
     try {
+        // Check if we have an active session
+        if (!hasActiveSession()) {
+            startDemoMode();
+            return true;
+        }
+        
         // Close existing connection if any
         if (eventSource) {
             eventSource.close();
             eventSource = null;
+        }
+        
+        // Exit demo mode if active
+        if (isDemoMode) {
+            isDemoMode = false;
         }
         
         // Show connecting status
@@ -47,6 +60,62 @@ export function disconnect() {
         eventSource.close();
         eventSource = null;
     }
+    
+    // Also exit demo mode if active
+    if (isDemoMode) {
+        isDemoMode = false;
+    }
+}
+
+/**
+ * Start demo mode with sample errors
+ */
+export function startDemoMode() {
+    // Set demo mode flag
+    isDemoMode = true;
+    
+    // Show demo mode status
+    setStatus(STATUS.OK, 'Demo-Modus aktiv');
+    
+    // Add some sample errors
+    setTimeout(() => {
+        if (isDemoMode) {
+            addError({
+                id: 'demo-1',
+                timestamp: new Date().toISOString(),
+                type: 'TypeError',
+                message: 'Cannot read property "length" of undefined',
+                source: 'main.js:42',
+                severity: 'error'
+            });
+        }
+    }, 1000);
+    
+    setTimeout(() => {
+        if (isDemoMode) {
+            addError({
+                id: 'demo-2',
+                timestamp: new Date().toISOString(),
+                type: 'SyntaxError',
+                message: 'Unexpected token ")"',
+                source: 'utils.js:87',
+                severity: 'error'
+            });
+        }
+    }, 3000);
+    
+    setTimeout(() => {
+        if (isDemoMode) {
+            addError({
+                id: 'demo-3',
+                timestamp: new Date().toISOString(),
+                type: 'Warning',
+                message: 'Resource not found: /images/logo.png',
+                source: 'index.html',
+                severity: 'warning'
+            });
+        }
+    }, 5000);
 }
 
 /**
