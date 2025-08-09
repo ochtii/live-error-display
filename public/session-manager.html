@@ -133,6 +133,40 @@
             background: var(--primary);
             color: white;
         }
+        
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: stretch;
+        }
+        
+        .input-group input {
+            flex: 1;
+        }
+        
+        .btn-icon {
+            padding: 0.75rem;
+            min-width: 3rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--background-alt);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-icon:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .session-password-input {
+            font-family: 'Courier New', monospace;
+        }
     </style>
 </head>
 <body>
@@ -151,10 +185,25 @@
                 <h2>🆕 Neue Session starten</h2>
                 <p>Erstelle eine neue Error-Monitoring Session</p>
                 
-                <input type="text" 
-                       id="newSessionName" 
-                       class="session-name-input" 
-                       placeholder="Session Name (optional)">
+                <div class="input-group">
+                    <input type="text" 
+                           id="newSessionName" 
+                           class="session-name-input" 
+                           placeholder="Session Name (optional)">
+                    <button class="btn btn-icon" onclick="generateRandomSessionName()" title="Zufälligen Namen generieren">
+                        🎲
+                    </button>
+                </div>
+                
+                <div class="input-group" style="margin-top: 1rem;">
+                    <input type="password" 
+                           id="newSessionPassword" 
+                           class="session-password-input" 
+                           placeholder="Passwort (optional für Schutz)">
+                    <button class="btn btn-icon" onclick="togglePasswordVisibility('newSessionPassword')" title="Passwort anzeigen/verstecken">
+                        👁️
+                    </button>
+                </div>
                 
                 <div class="session-actions">
                     <button class="btn btn-primary" onclick="createNewSession()">
@@ -175,6 +224,16 @@
                        id="sessionToken" 
                        class="session-token-input" 
                        placeholder="Session Token eingeben...">
+                
+                <div class="input-group" style="margin-top: 1rem;">
+                    <input type="password" 
+                           id="sessionPassword" 
+                           class="session-password-input" 
+                           placeholder="Passwort (falls erforderlich)">
+                    <button class="btn btn-icon" onclick="togglePasswordVisibility('sessionPassword')" title="Passwort anzeigen/verstecken">
+                        👁️
+                    </button>
+                </div>
                 
                 <div class="session-actions">
                     <button class="btn btn-primary" onclick="restoreSession()">
@@ -212,6 +271,38 @@
         // Session management
         const SERVER_URL = `${window.location.protocol}//${window.location.host}`;
         
+        // Array of random session names
+        const RANDOM_SESSION_NAMES = [
+            "🚀 Projekt Apollo", "🌟 Nebula Scan", "⚡ Lightning Debug", "🔥 Phoenix Watch", 
+            "🌊 Ocean Flow", "🎯 Target Lock", "🛡️ Shield Guard", "⚗️ Lab Monitor",
+            "🎭 Theater Mode", "🌈 Rainbow Check", "🔮 Crystal Ball", "🎪 Circus Watch",
+            "🌙 Moonlight Scan", "☀️ Solar Flare", "❄️ Ice Crystal", "🌸 Cherry Bloom",
+            "🎨 Paint Debug", "🎵 Music Flow", "📡 Signal Watch", "🎲 Dice Roll",
+            "🏔️ Mountain Peak", "🌋 Volcano Alert", "🌪️ Storm Track", "🌻 Sunflower",
+            "🦋 Butterfly Effect", "🐝 Bee Swarm", "🦅 Eagle Eye", "🐙 Octopus Arms",
+            "💎 Diamond Core", "🗝️ Master Key", "🎯 Bullseye Hit", "🌠 Shooting Star"
+        ];
+        
+        function generateRandomSessionName() {
+            const randomName = RANDOM_SESSION_NAMES[Math.floor(Math.random() * RANDOM_SESSION_NAMES.length)];
+            document.getElementById('newSessionName').value = randomName;
+        }
+        
+        function togglePasswordVisibility(inputId) {
+            const input = document.getElementById(inputId);
+            const button = input.nextElementSibling;
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                button.textContent = '🙈';
+                button.title = 'Passwort verstecken';
+            } else {
+                input.type = 'password';
+                button.textContent = '👁️';
+                button.title = 'Passwort anzeigen';
+            }
+        }
+        
         function showStatus(message, type = 'success') {
             const statusEl = document.getElementById('statusMessage');
             statusEl.textContent = message;
@@ -226,6 +317,9 @@
         async function createNewSession() {
             try {
                 const name = document.getElementById('newSessionName').value.trim();
+                const password = document.getElementById('newSessionPassword').value.trim();
+                
+                // Create the session
                 const response = await fetch(`${SERVER_URL}/api/token`, {
                     method: 'GET'
                 });
@@ -233,33 +327,49 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Update session name if provided
-                    if (name) {
-                        await fetch(`${SERVER_URL}/api/session/${data.token}`, {
-                            method: 'PUT',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ name })
-                        });
+                    const sessionData = { 
+                        name: name || data.session.name
+                    };
+                    
+                    // Add password if provided
+                    if (password) {
+                        sessionData.password = password;
                     }
                     
-                    // Save session to localStorage
-                    saveSessionToStorage(data.token, name || data.session.name);
+                    // Update session with name and password
+                    await fetch(`${SERVER_URL}/api/session/${data.token}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(sessionData)
+                    });
                     
-                    // Redirect to main app
-                    window.location.href = `/?session=${data.token}`;
+                    // Save session to localStorage
+                    saveSessionToStorage(data.token, sessionData.name, password ? true : false);
+                    
+                    showStatus(`Session "${sessionData.name}" wurde erfolgreich erstellt!`, 'success');
+                    
+                    // Clear inputs
+                    document.getElementById('newSessionName').value = '';
+                    document.getElementById('newSessionPassword').value = '';
+                    
+                    // Redirect to main app after a short delay
+                    setTimeout(() => {
+                        window.location.href = `/?token=${data.token}${password ? '&password=' + encodeURIComponent(password) : ''}`;
+                    }, 1500);
                 } else {
-                    showStatus('Fehler beim Erstellen der Session', 'error');
+                    showStatus(`Fehler beim Erstellen der Session: ${data.error}`, 'error');
                 }
             } catch (error) {
-                showStatus('Verbindungsfehler', 'error');
                 console.error('Error creating session:', error);
+                showStatus('Verbindungsfehler beim Erstellen der Session', 'error');
             }
         }
         
         async function restoreSession() {
             const token = document.getElementById('sessionToken').value.trim();
+            const password = document.getElementById('sessionPassword').value.trim();
             
             if (!token) {
                 showStatus('Bitte geben Sie einen Session Token ein', 'error');
@@ -267,7 +377,16 @@
             }
             
             try {
-                const response = await fetch(`${SERVER_URL}/api/session/${token}`);
+                // Try to restore session with password
+                const requestBody = password ? { password } : {};
+                const response = await fetch(`${SERVER_URL}/api/session/${token}`, {
+                    method: password ? 'POST' : 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: password ? JSON.stringify(requestBody) : undefined
+                });
+                
                 const data = await response.json();
                 
                 if (data.success) {
@@ -275,11 +394,16 @@
                     const sessionData = {
                         name: data.session.name,
                         token: token,
-                        created: data.session.created || new Date().toISOString()
+                        created: data.session.created || new Date().toISOString(),
+                        hasPassword: data.session.hasPassword
                     };
                     localStorage.setItem('currentSession', JSON.stringify(sessionData));
                     
                     showStatus(`Session "${data.session.name}" erfolgreich geladen`, 'success');
+                    
+                    // Clear inputs
+                    document.getElementById('sessionToken').value = '';
+                    document.getElementById('sessionPassword').value = '';
                     
                     // Check if opened from parent window
                     if (window.opener) {
@@ -292,11 +416,15 @@
                     } else {
                         // Redirect to main app
                         setTimeout(() => {
-                            window.location.href = 'index.html';
+                            window.location.href = `/?token=${token}${password ? '&password=' + encodeURIComponent(password) : ''}`;
                         }, 1000);
                     }
                 } else {
-                    showStatus('Session nicht gefunden oder ungültig', 'error');
+                    if (response.status === 401) {
+                        showStatus('Falsches Passwort oder Session nicht gefunden', 'error');
+                    } else {
+                        showStatus('Session nicht gefunden oder ungültig', 'error');
+                    }
                 }
             } catch (error) {
                 showStatus('Verbindungsfehler', 'error');
@@ -308,7 +436,7 @@
             window.location.href = '/';
         }
         
-        function saveSessionToStorage(token, name) {
+        function saveSessionToStorage(token, name, hasPassword = false) {
             const sessions = JSON.parse(localStorage.getItem('errorDisplaySessions') || '[]');
             
             // Remove existing session with same token
@@ -318,7 +446,8 @@
             filteredSessions.unshift({
                 token,
                 name,
-                savedAt: new Date().toISOString()
+                savedAt: new Date().toISOString(),
+                hasPassword
             });
             
             // Keep only last 10 sessions

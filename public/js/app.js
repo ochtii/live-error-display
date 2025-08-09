@@ -21,7 +21,23 @@ class ErrorDisplay {
         this.currentSession = null;
         this.loadCurrentSession();
         
+        // Random session names
+        this.randomSessionNames = [
+            'Aurora', 'Nebula', 'Phoenix', 'Cosmos', 'Thunder', 'Glacier', 'Summit', 'Horizon', 
+            'Eclipse', 'Comet', 'Zenith', 'Vortex', 'Prism', 'Stellar', 'Quantum', 'Matrix',
+            'Fusion', 'Titan', 'Nova', 'Omega', 'Alpha', 'Delta', 'Sigma', 'Lambda', 'Theta',
+            'Crystal', 'Mystic', 'Spirit', 'Energy', 'Force', 'Power', 'Speed', 'Light', 'Shadow',
+            'Storm', 'Wave', 'Flow', 'Stream', 'River', 'Ocean', 'Mountain', 'Valley', 'Peak',
+            'Stone', 'Marble', 'Diamond', 'Silver', 'Golden', 'Bright', 'Clear'
+        ];
+        
         this.init();
+    }
+
+    // === UTILITY FUNCTIONS ===
+    getRandomSessionName() {
+        const randomIndex = Math.floor(Math.random() * this.randomSessionNames.length);
+        return this.randomSessionNames[randomIndex];
     }
 
     // === INITIALIZATION === 
@@ -2739,13 +2755,28 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
 
     async createNewSessionInline() {
         try {
-            const name = document.getElementById('newSessionName').value.trim();
-            const password = document.getElementById('newSessionPassword').value.trim();
-            const saveLocally = document.getElementById('saveSessionLocally').checked;
+            const nameInput = document.getElementById('newSessionName');
+            const passwordInput = document.getElementById('newSessionPassword');
+            const saveLocallyCheckbox = document.getElementById('saveSessionLocally');
             
-            const requestData = {};
-            if (name) requestData.name = name;
-            if (password) requestData.password = password;
+            const name = nameInput?.value.trim() || '';
+            const password = passwordInput?.value.trim() || '';
+            const saveLocally = saveLocallyCheckbox?.checked || false;
+            
+            // Validate password (minimum 4 characters)
+            if (!password || password.length < 4) {
+                this.showNotification('Passwort muss mindestens 4 Zeichen haben', 'error');
+                if (passwordInput) passwordInput.focus();
+                return;
+            }
+            
+            // Use random name if none provided
+            const sessionName = name || this.getRandomSessionName();
+            
+            const requestData = {
+                name: sessionName,
+                password: password
+            };
             
             // Use POST for new API with name and password support
             const response = await fetch(`${this.serverUrl}/api/token`, {
@@ -2766,7 +2797,8 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                     modifiedBy: data.session.modifiedBy,
                     hasPassword: data.session.hasPassword,
                     isSaved: false, // Mark as unsaved
-                    lastAccessed: new Date().toISOString()
+                    lastAccessed: new Date().toISOString(),
+                    password: password // Store for later use
                 };
                 
                 // Always save to last sessions to keep them across browser reloads
@@ -2803,17 +2835,27 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     }
 
     async restoreSessionFromToken() {
-        const token = document.getElementById('sessionTokenInput').value.trim();
-        const password = document.getElementById('sessionPasswordInput').value;
+        const tokenInput = document.getElementById('sessionTokenInput');
+        const passwordInput = document.getElementById('sessionPasswordInput');
+        
+        const token = tokenInput?.value.trim() || '';
+        const password = passwordInput?.value.trim() || '';
         
         if (!token) {
             this.showNotification('Bitte geben Sie einen Session Token ein', 'warning');
+            if (tokenInput) tokenInput.focus();
+            return;
+        }
+        
+        if (!password) {
+            this.showNotification('Passwort ist erforderlich', 'warning');
+            if (passwordInput) passwordInput.focus();
             return;
         }
 
         try {
-            // Try POST first with password
-            let response = await fetch(`${this.serverUrl}/api/session/${token}`, {
+            // Always use POST with password
+            const response = await fetch(`${this.serverUrl}/api/session/${token}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -2821,27 +2863,18 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                 body: JSON.stringify({ password })
             });
             
-            let data = await response.json();
+            const data = await response.json();
             
-            // If POST fails with 401 and password required, show specific error
-            if (!response.ok && response.status === 401 && data.requiresPassword) {
-                if (!password) {
-                    this.showNotification('Diese Session ist passwortgeschützt. Bitte Passwort eingeben.', 'warning');
+            // Handle authentication errors
+            if (!response.ok) {
+                if (response.status === 401) {
+                    this.showNotification('Falsches Passwort oder Session nicht gefunden!', 'error');
+                } else if (response.status === 404) {
+                    this.showNotification('Session nicht gefunden!', 'error');
                 } else {
-                    this.showNotification('Falsches Passwort!', 'error');
+                    this.showNotification('Fehler beim Wiederherstellen der Session', 'error');
                 }
                 return;
-            }
-            
-            // If POST fails, try GET for backwards compatibility (only for non-protected sessions)
-            if (!response.ok) {
-                response = await fetch(`${this.serverUrl}/api/session/${token}`);
-                data = await response.json();
-                
-                if (!response.ok && response.status === 401 && data.requiresPassword) {
-                    this.showNotification('Diese Session ist passwortgeschützt. Bitte Passwort eingeben.', 'warning');
-                    return;
-                }
             }
             
             if (data.success) {
@@ -2851,15 +2884,16 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
                     createdAt: data.session.createdAt || data.session.created,
                     lastModified: data.session.lastModified,
                     modifiedBy: data.session.modifiedBy,
-                    hasPassword: data.session.hasPassword
+                    hasPassword: data.session.hasPassword,
+                    password: password // Store for later use
                 };
                 localStorage.setItem('currentSession', JSON.stringify(this.currentSession));
                 this.updateSessionDisplay();
                 this.showNotification(`Session "${data.session.name}" erfolgreich geladen!`, 'success');
                 
                 // Clear input fields
-                document.getElementById('sessionTokenInput').value = '';
-                document.getElementById('sessionPasswordInput').value = '';
+                if (tokenInput) tokenInput.value = '';
+                if (passwordInput) passwordInput.value = '';
                 
                 this.updateCurrentSessionCard();
                 
