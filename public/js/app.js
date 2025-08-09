@@ -2465,6 +2465,8 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
             lastActive: false // Will be set to true when loading
         };
         
+        console.log('💾 Debug: saveToLastSessions() called with:', {sessionData, lastSession, existingIndex});
+        
         if (existingIndex >= 0) {
             // Update existing session
             lastSessions[existingIndex] = lastSession;
@@ -2477,13 +2479,14 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
         if (lastSessions.length > 10) {
             lastSessions.splice(10);
         }
-        
+
         localStorage.setItem('lastSessions', JSON.stringify(lastSessions));
-    }
-    
-    getLastSessions() {
+        console.log('✅ Debug: Saved to localStorage:', lastSessions);
+    }    getLastSessions() {
         const stored = localStorage.getItem('lastSessions');
-        return stored ? JSON.parse(stored) : [];
+        const sessions = stored ? JSON.parse(stored) : [];
+        console.log('🔍 Debug: getLastSessions() returned:', sessions);
+        return sessions;
     }
     
     setLastActiveSession(token) {
@@ -2596,11 +2599,14 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     }
     
     async loadLastSessionsInline() {
+        console.log('🔄 Debug: loadLastSessionsInline() called');
         try {
             // Validate and cleanup first
             const validSessions = await this.validateAndCleanupLastSessions();
+            console.log('✅ Debug: validSessions:', validSessions);
             
             const container = document.getElementById('inlineLastSessions');
+            console.log('📦 Debug: container found:', !!container);
             if (!container) return;
             
             if (validSessions.length === 0) {
