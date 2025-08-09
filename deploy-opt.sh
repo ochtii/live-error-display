@@ -44,81 +44,65 @@ success() {
   log "${GREEN}ERFOLG:${NC} $1"
 }
 
-check_dependencies() {
-  info "Prüfe Abhängigkeiten..."
-  
+check_dependencies_silent() {
   for cmd in git npm node pm2; do
     if ! command -v $cmd &> /dev/null; then
       error "$cmd nicht gefunden. Bitte installieren."
     fi
   done
   
-  # PM2 Version prüfen
+  # PM2 Version prüfen (still)
   local pm2_version=$(pm2 -v 2>/dev/null || echo "0")
   if [[ $(echo "$pm2_version < 5.0" | bc -l) -eq 1 ]]; then
-    warn "PM2 Version $pm2_version gefunden. Version 5.0+ empfohlen."
-  else
-    info "PM2 Version $pm2_version OK."
+    return 1
   fi
+  return 0
 }
 
-acquire_lock() {
-  info "Versuche Lock zu erwerben..."
-  
+acquire_lock_silent() {
   # Prüfen, ob der Lockfile bereits existiert und der Prozess noch läuft
   if [ -f "$LOCK_FILE" ]; then
     local pid=$(cat "$LOCK_FILE")
     if ps -p "$pid" > /dev/null; then
-      warn "Ein anderer Deploy-Prozess (PID: $pid) läuft bereits. Überspringe."
+      # Lock konnte nicht erworben werden - still
       return 1
-    else
-      warn "Verwaister Lockfile gefunden. Überschreibe."
     fi
   fi
   
   # Schreibe die aktuelle PID in den Lockfile
   echo $$ > "$LOCK_FILE"
-  info "Lock erworben. PID: $$"
   return 0
 }
 
-release_lock() {
-  info "Gebe Lock frei..."
+release_lock_silent() {
   if [ -f "$LOCK_FILE" ]; then
     rm "$LOCK_FILE"
-    info "Lock freigegeben."
-  else
-    warn "Lockfile nicht gefunden!"
   fi
 }
 
-init_repo() {
-  info "Initialisiere Repository..."
-  
+init_repo_silent() {
   # Prüfen, ob das Repo-Verzeichnis existiert
   if [ ! -d "$REPO_DIR" ]; then
-    info "Repository-Verzeichnis existiert nicht. Klone frisch..."
     mkdir -p "$REPO_DIR"
-    git clone "$REPO_URL" "$REPO_DIR"
+    git clone -q "$REPO_URL" "$REPO_DIR"
   else
-    info "Repository-Verzeichnis existiert bereits. Setze auf bekannten Zustand zurück..."
     cd "$REPO_DIR"
     
-    # Alle ungetrackten und geänderten Dateien zurücksetzen
-    git reset --hard HEAD
-    git clean -fd
+    # Alle ungetrackten und geänderten Dateien zurücksetzen - mit reduzierter Ausgabe
+    git reset --hard HEAD > /dev/null
+    git clean -fd > /dev/null
   fi
 }
 
 pull_changes() {
-  # Reduzierte Logs auf 2 Zeilen
+  # Absolut stille Prüfung auf Änderungen
   cd "$REPO_DIR"
   
   # Aktuelle Commit-ID speichern
   local old_commit=$(git rev-parse HEAD)
   
   # Änderungen holen aber Output speichern für den Fall von Änderungen
-  local pull_output=$(git pull origin main 2>&1)
+  local pull_output=$(git pull -q origin main 2>&1)
   
   # Neue Commit-ID
   local new_commit=$(git rev-parse HEAD)
@@ -295,18 +279,18 @@ setup_pm2_silent() {
 deploy() {
   # Völlig still, wenn keine Änderungen
   
-  if ! acquire_lock; then
+  if ! acquire_lock_silent; then
     return 1  # Kein Deployment durchgeführt
   fi
   
   # Hauptfunktionen - kein Log
-  init_repo
+  init_repo_silent
   pull_changes
   local changes_found=$?
   
   # Wenn keine Änderungen gefunden wurden
   if [ $changes_found -eq 1 ]; then
-    release_lock
+    release_lock_silent
     return 1  # Kein Deployment durchgeführt
   fi
   
@@ -336,7 +320,7 @@ deploy() {
   
   # Abschluss-Log (Zeile 2 von 2)
   success "Deployment erfolgreich abgeschlossen - Details in /tmp/deploy_details.log"
-  release_lock
+  release_lock_silent
   
   # Temp-Dateien aufräumen
   rm -f /tmp/pull_output.txt /tmp/changed_files.txt /tmp/commit_log.txt
@@ -345,7 +329,7 @@ deploy() {
 }
 
 # === HAUPTPROGRAMM ===
-check_dependencies > /dev/null
+check_dependencies_silent
 
 # Reduzierte Startmeldung - nur 1 Zeile
 success "Live Error Display Auto-Deploy gestartet (Repository: $REPO_URL)"
