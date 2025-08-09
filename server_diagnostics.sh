@@ -23,13 +23,13 @@ echo -e "\n=== Last Git Pull ==="
 git log HEAD..origin/live --oneline
 
 echo -e "\n=== Webhook Health Check ==="
-curl -s http://localhost:9090/health
+curl -s http://localhost:8088/health
 
 echo -e "\n=== App Health Check ==="
-curl -s http://localhost:8088
+curl -s http://localhost:8080
 
 echo -e "\n=== Port Status ==="
-netstat -tlnp | grep -E "(8088|9090)"
+netstat -tlnp | grep -E "(8080|8088)"
 
 echo -e "\n=== File Permissions ==="
 ls -la /opt/live-error-display/

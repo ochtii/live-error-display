@@ -74,8 +74,8 @@ class WebhookListener:
         self.repo_path = "/opt/live-error-display"
         
         # Health check URLs
-        self.health_check_url = "http://localhost:8088/api/health"
-        self.db_health_url = "http://localhost:8088/api/db/health"
+        self.health_check_url = "http://localhost:8080/api/health"
+        self.db_health_url = "http://localhost:8080/api/db/health"
         
     def setup_logging(self):
         """Configure detailed logging with colors"""
@@ -123,7 +123,7 @@ class WebhookListener:
             self.logger.error(f"{Fore.RED}GITHUB_WEBHOOK_SECRET environment variable not set!{Style.RESET_ALL}")
             sys.exit(1)
             
-        self.port = int(os.getenv('WEBHOOK_PORT', 9090))
+        self.port = int(os.getenv('WEBHOOK_PORT', 8088))
         self.host = os.getenv('WEBHOOK_HOST', '0.0.0.0')
         self.target_branch = os.getenv('TARGET_BRANCH', 'live')
         

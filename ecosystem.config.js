@@ -13,11 +13,11 @@ module.exports = {
       // Environment variables
       env: {
         NODE_ENV: 'development',
-        PORT: 8088
+        PORT: 8080
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: 8088
+        PORT: 8080
       },
       
       // Logging configuration
@@ -32,7 +32,7 @@ module.exports = {
       restart_delay: 1000,
       
       // Health monitoring
-      health_check_url: 'http://localhost:8088/api/health',
+      health_check_url: 'http://localhost:8080/api/health',
       health_check_grace_period: 3000,
       
       // Process management
@@ -60,7 +60,7 @@ module.exports = {
       // Environment for webhook listener
       env: {
         NODE_ENV: 'production',
-        WEBHOOK_PORT: 9090,
+        WEBHOOK_PORT: 8088,
         WEBHOOK_HOST: '0.0.0.0',
         TARGET_BRANCH: 'live',
         GITHUB_WEBHOOK_SECRET: 'FUT_ORSCH_BEIDL_TRINK_MA_NO_A_SEIDL'
