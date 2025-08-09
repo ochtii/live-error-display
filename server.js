@@ -846,7 +846,7 @@ app.get('/live', (req, res) => {
 app.put('/api/session/:token', (req, res) => {
     try {
         const { token } = req.params;
-        const { name, password, archiveData, settings } = req.body;
+        const { name, password, archiveData } = req.body;
         
         const session = SessionManager.getSession(token);
         if (!session) {
@@ -863,8 +863,7 @@ app.put('/api/session/:token', (req, res) => {
             passwordHash: password ? crypto.createHash('sha256').update(password).digest('hex') : session.passwordHash,
             isSaved: true,
             savedAt: new Date().toISOString(),
-            archive: archiveData || session.archive || [],
-            settings: settings || session.settings || {}
+            archive: archiveData || session.archive || []
         });
         
         // Save session to disk
