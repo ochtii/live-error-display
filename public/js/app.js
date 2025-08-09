@@ -2215,14 +2215,13 @@ METHODE 2 - Falls "Blockiert, um deine Privatsphäre zu schützen":
     async createNewSessionInline() {
         try {
             const name = document.getElementById('newSessionName').value.trim();
-            const password = document.getElementById('newSessionPassword').value.trim();
             const saveLocally = document.getElementById('saveSessionLocally').checked;
             
             const requestData = {};
             if (name) requestData.name = name;
-            if (password) requestData.password = password;
+            // No password field - sessions are created without password protection
             
-            // Use POST for new API with name and password support
+            // Use POST for new API with name support
             const response = await fetch(`${this.serverUrl}/api/token`, {
                 method: 'POST',
                 headers: {

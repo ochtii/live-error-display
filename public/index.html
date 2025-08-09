@@ -1125,16 +1125,11 @@ curl -s "$SERVER_URL/errors" | jq '.errors[] | .timestamp + ": " + .message'</pr
                         <input type="text" id="newSessionName" placeholder="Session Name (optional)" class="session-input">
                     </div>
                     
-                    <div class="input-group">
-                        <input type="password" id="newSessionPassword" placeholder="Passwort (optional)" class="session-input">
-                        <small class="input-hint">💡 Optional: Passwort zum Schutz der Session</small>
-                    </div>
-                    
                     <div class="input-group checkbox-group">
                         <label class="checkbox-label">
                             <input type="checkbox" id="saveSessionLocally" checked>
                             <span class="checkbox-text">Session im Browser speichern (Letzte Sessions)</span>
-                            <small class="checkbox-hint">Speichert Token und Passwort im Browser für schnellen Zugriff</small>
+                            <small class="checkbox-hint">Speichert Token im Browser für schnellen Zugriff</small>
                         </label>
                     </div>
                     
